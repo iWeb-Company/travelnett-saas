@@ -9,14 +9,13 @@ import Web from "../components/icons/home/Web";
 import Mail from "../components/icons/Mail";
 import Wpp from "../components/icons/Wpp";
 
-export default function page() {
-  // style={{ backgroundImage: "url(/bg-home.png)", backgroundSize: "cover" }}
+export default function DashboardPage() {
   return (
     <main>
       <section className="px-5">
         <div className="text-black">
           <p className="font-semibold text-lg">¡Hola 👋 Gabriel!</p>
-          <h1 className="font-bold">!Bienvenido a Tranett!</h1>
+          <h1 className="font-bold">¡Bienvenido a Tranett!</h1>
           <div className="max-w-32">
             <hr className="my-3 border-gray-500" />
           </div>

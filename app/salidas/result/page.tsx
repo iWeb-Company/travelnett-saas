@@ -10,8 +10,9 @@ import Delete from "@/app/components/icons/salidas/Delete";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
+import { Suspense } from "react";
 
-export default function ResultPage() {
+function ResultContent() {
   const searchParams = useSearchParams();
   console.log(searchParams.get("destino"));
   return (
@@ -87,5 +88,13 @@ export default function ResultPage() {
         </div>
       </section>
     </Container>
+  );
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense>
+      <ResultContent />
+    </Suspense>
   );
 }

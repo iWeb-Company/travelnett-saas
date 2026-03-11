@@ -7,7 +7,7 @@
 
 .fondo {
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .fondo::before {
