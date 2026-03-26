@@ -5,8 +5,9 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleActiveFilters from "@/app/components/ToggleActiveFilters";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
+import { Suspense } from "react";
 
-export default function AgregarSalidaPage() {
+function AgregarSalidaContent() {
   const searchParams = useSearchParams();
   const r = useRouter();
   const handleBack = () => {
@@ -121,5 +122,13 @@ export default function AgregarSalidaPage() {
         </button>
       </form>
     </Container>
+  );
+}
+
+export default function AgregarSalidaPage() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <AgregarSalidaContent />
+    </Suspense>
   );
 }
