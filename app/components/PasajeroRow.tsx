@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect } from "react";
 
 interface PasajeroRowProps {
-  numero: number;
   nombre: string;
   ascenso: string;
   butaca: string;
@@ -67,9 +66,7 @@ export default function PasajeroRow({
         }}
         className="overflow-hidden transition-all duration-300 ease-in-out">
         <div className="flex items-center gap-2 pl-5 pt-1.5">
-          <span className="text-xs text-primary font-semibold w-5 text-center">
-            {pasajero.numero}
-          </span>
+          <input className="text-xs text-primary font-semibold size-7 border rounded-md text-center" />
           <div className="flex-1 bg-blue-50/70 rounded-lg px-3 py-2 flex items-center text-xs text-gray-400">
             <span className="flex-1">{pasajero.nombre}</span>
             <span className="px-2 border-l border-gray-200">{pasajero.ascenso}</span>

@@ -24,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${montserrat.className} min-h-screen fondo py-8 text-primary antialiased`}>
+        className={`${montserrat.className} min-h-screen fondo text-primary antialiased`}>
         <Header />
         {children}
       </body>

@@ -184,18 +184,17 @@ export default function SalidasIDPage() {
 
       <section className="flex flex-col gap-3">
         <Link
-          href={"/dashboard"}
-          className="flex items-center justify-start gap-3"
-        >
-          <ArrowLeft />
-          <h1 className="font-bold">Volver al menú</h1>
-        </Link>
+        href={"/dashboard"}
+        className="flex items-center justify-start gap-3">
+        <ArrowLeft />
+        <h1 className="font-bold md:text-xl">Volver al menú</h1>
+      </Link>
         <button
           onClick={handleBack}
           className="flex items-center cursor-pointer justify-start gap-3"
         >
           <ArrowLeft color="#6005F7" />
-          <h1 className="font-semibold text-secondary">Volver a Salidas</h1>
+          <h1 className="font-semibold text-secondary md:text-lg">Volver a Salidas</h1>
         </button>
       </section>
 
@@ -208,7 +207,7 @@ export default function SalidasIDPage() {
           title="Butacas"
         >
           <Butaca />
-          <p className="text-xs text-black md:block hidden">Butacas</p>
+          <p className="text-xs text-black md:block hidden">Taquilla</p>
         </Link>
         {/* Configuración */}
         <button
@@ -242,14 +241,8 @@ export default function SalidasIDPage() {
           onClick={() => setShowHotelModal(true)}
         >
           <Hotel />
-          <p className="text-xs text-black md:block hidden">Hoteles</p>
+          <p className="text-xs text-black md:block hidden">Cambiar Hotel</p>
         </button>
-        <img
-          className="absolute right-10 top-23"
-          src="/logo-empresa.png"
-          alt="Logo Empresa"
-          width={50}
-        />
       </section>
 
       {/* Lista de pasajeros */}

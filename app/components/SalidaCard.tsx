@@ -33,9 +33,10 @@ export default function SalidaCard({
       <div className="flex-1 flex flex-col">
         <div
           onClick={() => setIsOpen(!isOpen)}
-          className={`bg-primary text-white rounded-md justify-between px-2 text-xs py-3 flex gap-2 cursor-pointer select-none transition-all duration-300 ${
+          className={`bg-primary text-white rounded-md justify-between px-2 md:text-xl md:px-5 font-semibold text-xs py-3 flex gap-2 cursor-pointer select-none transition-all duration-300 ${
             isOpen ? "rounded-t-lg" : "rounded-lg"
-          }`}>
+          }`}
+        >
           <p>{destino}</p>
           <p>{fecha}</p>
         </div>
@@ -46,7 +47,8 @@ export default function SalidaCard({
           style={{
             maxHeight: isOpen ? `${contentHeight}px` : "0px",
           }}
-          className="overflow-hidden transition-all duration-500 ease-in-out">
+          className="overflow-hidden transition-all duration-500 ease-in-out"
+        >
           <div className="bg-[#5782F7] shadow-lg shadow-black/50 text-white rounded-b-lg mx-2 py-1">
             <table className="w-full text-xs text-center">
               <thead>
@@ -58,7 +60,7 @@ export default function SalidaCard({
               </thead>
               <tbody>
                 {categorias.map((cat, index) => (
-                  <tr key={index} className="font-semibold">
+                  <tr key={index} className="font-semibold md:font-lg">
                     <td className="py-0.5">{cat.tipo}</td>
                     <td className="py-0.5">{cat.total}</td>
                     <td className="py-0.5">{cat.disponible}</td>
@@ -70,11 +72,31 @@ export default function SalidaCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-x-1 justify-center py-3">
-        <Copy id={id} />
-        <Rooming id={id} />
-        <Update id={id} />
-        <Delete id={id} />
+      <div className="flex items-center gap-x-1 md:gap-x-3 justify-center py-3">
+        <button className="flex items-center text-black gap-2 text-lg">
+          <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
+            <Copy id={id} />
+          </span>
+          <p>Lista</p>
+        </button>
+        <button className="flex items-center text-black gap-2 text-lg">
+          <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
+            <Rooming id={id} />
+          </span>
+          <p>Rooming</p>
+        </button>
+        <button className="flex items-center text-black gap-2 text-lg">
+          <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
+            <Update id={id} />
+          </span>
+          <p>Modificar</p>
+        </button>
+        <button className="flex items-center text-black gap-2 text-lg">
+          <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
+            <Delete id={id} />
+          </span>
+          <p>Eliminar</p>
+        </button>
       </div>
     </div>
   );

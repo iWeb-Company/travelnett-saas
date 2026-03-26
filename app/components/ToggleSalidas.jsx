@@ -31,26 +31,31 @@ export default function ToggleSalidas() {
         <ul
           className={`flex absolute transition-all ${
             toggle ? "opacity-100 transition-all" : "opacity-0 transition-all"
-          } duration-300 right-11 top-30 bg-primary z-40 rounded-lg shadow-md shadow-black/80 gap-4 p-2 text-white`}>
-          <Link href="/salidas">
+          } duration-300 right-11 top-30 md:top-49 bg-primary z-40 rounded-lg shadow-md shadow-black/80 gap-4 p-2 text-white italic md:px-3 md:text-lg`}>
+          <Link className="flex gap-2 items-center" href="/salidas">
             <Salidas />
+            <p className="hidden md:block">Salidas</p>
           </Link>
-          <Link href="/paquetes">
+          <Link className="flex gap-2 items-center" href="/paquetes">
             <Paquetes />
+            <p className="hidden md:block">Paquetes</p>
           </Link>
-          <Link href="/parametros">
+          <Link className="flex gap-2 items-center" href="/parametros">
             <Parametros />
+            <p className="hidden md:block">Parámetros</p>
           </Link>
-          <Link href="/usuarios">
+          <Link className="flex gap-2 items-center" href="/usuarios">
             <Usuarios />
+            <p className="hidden md:block">Usuarios</p>
           </Link>
-          <Link href="/web">
+          <Link className="flex gap-2 items-center" href="/web">
             <Web />
+            <p className="hidden md:block">Web</p>
           </Link>
         </ul>
       )}
       {toggle && (
-        <button className="bg-[#3DADFF] transition-all duration-300 z-10 size-4 rounded-full absolute right-8 top-33"></button>
+        <button className="bg-[#3DADFF] transition-all duration-300 z-10 size-4 rounded-full absolute right-8 top-32 md:top-52.5"></button>
       )}
     </>
   );

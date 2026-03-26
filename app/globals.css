@@ -1,10 +1,12 @@
 @import "tailwindcss";
+@tailwind utilities;
 
 @theme {
   --color-primary: #0546F7;
   --color-secondary: #6005F7;
   --color-bg: #D9DFF5;
   --color-border: #3DADFF;
+  --animate-infinite-scroll: infinite-scroll 25s linear infinite;
 }
 
 .fondo {
@@ -45,5 +47,15 @@ button {
     filter: none;
     transform: none;
     opacity: 0.15;
+  }
+}
+
+
+@keyframes infinite-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
   }
 }

@@ -37,38 +37,37 @@ export default function SalidasPage() {
         href={"/dashboard"}
         className="flex items-center justify-start gap-3">
         <ArrowLeft />
-        <h1 className="font-bold">Volver al menú</h1>
+        <h1 className="font-bold md:text-xl">Volver al menú</h1>
       </Link>
-
       {!tipoSalida ? (
         <>
-          <h2 className="text-black font-semibold my-10">
+          <h2 className="text-black font-semibold text-center md:text-xl my-10">
             Selecciona una opción
           </h2>
-          <div className="flex flex-col justify-center items-center gap-6">
+          <div className="flex flex-col md:flex-row justify-center items-center gap-6">
             <button
               onClick={() => setTipoSalida("aereo")}
-              className="relative overflow-hidden rounded-xl shadow-md shadow-black/30 size-80">
+              className="relative overflow-hidden rounded-xl shadow-md shadow-black/30 size-80 md:size-100">
               <img
                 src="/salida-aereo.png"
                 alt="Salidas en aéreo"
                 className="w-full h-full size-40 object-cover"
               />
               <div className="absolute inset-0 bg-primary/40" />
-              <h3 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-2xl font-bold italic drop-shadow-lg">
+              <h3 className="absolute top-1/2 left-1/2 -translate-x-1/2 md:text-nowrap md:text-3xl -translate-y-1/2 text-white text-2xl font-bold italic drop-shadow-lg">
                 SALIDAS EN AÉREO
               </h3>
             </button>
             <button
               onClick={() => setTipoSalida("bus")}
-              className="relative overflow-hidden rounded-xl shadow-md shadow-black/30 size-80">
+              className="relative overflow-hidden rounded-xl shadow-md shadow-black/30 size-80 md:size-100">
               <img
                 src="/salida-bus.png"
                 alt="Salidas en bus"
                 className="w-full h-full size-40 object-cover"
               />
               <div className="absolute inset-0 bg-primary/40" />
-              <h3 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-2xl font-bold italic drop-shadow-lg">
+              <h3 className="absolute top-1/2 left-1/2 -translate-x-1/2 md:text-nowrap md:text-3xl -translate-y-1/2 text-white text-2xl font-bold italic drop-shadow-lg">
                 SALIDAS EN BUS
               </h3>
             </button>
@@ -86,10 +85,10 @@ export default function SalidasPage() {
               {tipoSalida === "aereo" ? "Aéreo" : "Bus"}
             </span>
           </div>
-          <h2 className="text-black font-semibold mb-5">Filtros</h2>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <h2 className="text-black font-semibold mb-5 text-center md:text-xl">Filtros</h2>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3 md:gap-5 max-w-3xl md:justify-start items-start mx-auto">
             <select
-              className="text-gray-500 font-medium bg-[#f1f1f1] w-full border border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
+              className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
               name="destino"
               id="destino"
               onChange={handleChange}>
@@ -101,7 +100,7 @@ export default function SalidasPage() {
               </option>
             </select>
             <select
-              className="text-gray-500 font-medium bg-[#f1f1f1] w-full border border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
+              className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
               name="empresa"
               id="empresa"
               onChange={handleChange}>
@@ -113,7 +112,7 @@ export default function SalidasPage() {
               </option>
             </select>
             <select
-              className="text-gray-500 font-medium bg-[#f1f1f1] w-full border border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
+              className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
               name="rango"
               id="rango"
               onChange={handleChange}>
@@ -125,7 +124,7 @@ export default function SalidasPage() {
               </option>
             </select>
             <select
-              className="text-gray-500 font-medium bg-[#f1f1f1] w-full border border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
+              className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
               name="periodo"
               id="periodo"
               onChange={handleChange}>

@@ -58,22 +58,22 @@ function ResultContent() {
         href={"/dashboard"}
         className="flex items-center justify-start gap-3">
         <ArrowLeft />
-        <h1 className="font-bold">Volver al menú</h1>
+        <h1 className="font-bold md:text-xl">Volver al menú</h1>
       </Link>
       <Link
         className="flex items-center my-2 justify-start gap-2"
         href={"/salidas/agregar-salida"}>
         <AddVioleta />
-        <p className="text-secondary font-semibold">Agregar</p>
+        <p className="text-secondary font-semibold md:text-lg">Agregar</p>
       </Link>
       <section className="flex justify-between my-5 items-center">
-        <h2 className="font-medium text-black">Salidas</h2>
-        <div className="flex items-center gap-1">
-          <p className="text-black">Fecha</p>
+        <h2 className="font-medium text-black text-center mx-auto md:text-xl">Salidas</h2>
+      </section>
+      <section className="flex flex-col max-w-6xl mx-auto gap-5">
+        <div className="flex items-center my-2 font-semibold  justify-end gap-1">
+          <p className="text-black">Ordenar por fecha</p>
           <ArrowUpDown />
         </div>
-      </section>
-      <section className="flex flex-col gap-5">
         {salidas.map((salida) => (
           <SalidaCard
             key={salida.id}
