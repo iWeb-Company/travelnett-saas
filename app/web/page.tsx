@@ -13,7 +13,7 @@ export default function Parametros() {
         <ArrowLeft />
         <h1 className="font-bold">Volver al menú</h1>
       </Link>
-      <section className="my-10">
+      <section className="my-10 w-full max-w-3xl mx-auto">
         <ul className="text-white flex flex-col gap-8">
           <Link
             href={"/web/reservas"}
@@ -52,10 +52,10 @@ export default function Parametros() {
             <i className="text-center">PAGINA DE INICIO</i>
           </Link>
         </ul>
-        <div className="flex mt-8 justify-end">
-          <img src="logo-empresa.png" alt="Logo Empresa" />
-        </div>
       </section>
+            <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
+        <img src="logo-grande.png" className="size-50" alt="Logo Empresa" />
+      </div>
     </Container>
   );
 }

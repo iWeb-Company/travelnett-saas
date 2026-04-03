@@ -3,7 +3,7 @@ import Container from "../components/Container";
 import ToggleSalidas from "../components/ToggleSalidas";
 import ArrowLeft from "../components/icons/ArrowLeft";
 
-export default function Parametros() {
+export default function ParametrosPage() {
   return (
     <Container>
       <ToggleSalidas />
