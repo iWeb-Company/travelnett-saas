@@ -38,7 +38,7 @@ def _guess_extension(filename: str, content_type: Optional[str]) -> str:
 def _logos_dir() -> Path:
     env = (os.getenv("ENV") or os.getenv("APP_ENV") or "dev").lower()
     if env in {"prod", "production"}:
-        return Path("/home/iweb/saas/travelnett-saas/data/images/logos")
+        return Path("/home/iweb/saas/data/images/logos")
     # dev: backend/images/logos
     backend_dir = Path(__file__).resolve().parents[1]
     return backend_dir / "images" / "logos"
