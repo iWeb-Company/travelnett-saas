@@ -54,7 +54,7 @@ def _save_upload(file: UploadFile, dest_path: Path) -> None:
             f.write(chunk)
 
 
-@router.post("", response_model=iWebClientResponse)
+@router.post("/create_iweb_client", response_model=iWebClientResponse)
 def create_iweb_client(
     name: str = Form(...),
     cuit: int = Form(...),
@@ -105,7 +105,7 @@ def create_iweb_client(
     )
 
 
-@router.get("")
+@router.get("/get_iweb_clients")
 def list_iweb_clients(db: Session = Depends(get_db)):
     iweb_clients = db.query(iWebClient).all()
     return [
@@ -122,7 +122,7 @@ def list_iweb_clients(db: Session = Depends(get_db)):
     ]
 
 
-@router.delete("/{iweb_client_id}")
+@router.delete("/delete_iweb_client/{iweb_client_id}")
 def delete_iweb_client(iweb_client_id: str, db: Session = Depends(get_db)):
     iweb_client = db.query(iWebClient).filter(iWebClient.id == iweb_client_id).first()
     if not iweb_client:
@@ -142,7 +142,7 @@ def delete_iweb_client(iweb_client_id: str, db: Session = Depends(get_db)):
     db.commit()
     return {"detail": "iWeb Client eliminado correctamente"}
 
-@router.get("/{iweb_client_id}")
+@router.get("/get_iweb_client_by_id/{iweb_client_id}")
 def get_iweb_client_by_id(iweb_client_id: str, db: Session = Depends(get_db)):
     iweb_client = db.query(iWebClient).filter(iWebClient.id == iweb_client_id).first()
     if not iweb_client:

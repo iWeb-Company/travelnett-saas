@@ -9,7 +9,7 @@ from db.database import SessionLocal
 from models.models import User, iWebClient
 from auth.login import get_password_hash
 
-app = FastAPI(root_path="/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api")
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
