@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8008:8000"
+    env_file:
+      # En el servidor: crear este archivo a partir de backend/.env.example
+      - ./backend/.env
+    environment:
+      - ENV=production
+      - APP_ENV=production
+    volumes:
+      # Producción: persistir y exponer imágenes por nginx desde el host
+      - /home/iweb/saas/tranett/data/images:/home/iweb/saas/tranett/data/images
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3008:3000"
+    environment:
+      # En prod, normalmente será tu dominio (ej: https://api.tu-dominio.com)
+      - NEXT_PUBLIC_API_URL=https://api-tranett.iwebtecnology.com
+    depends_on:
+      - backend
+    restart: unless-stopped
+
