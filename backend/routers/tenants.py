@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from db.database import get_db
@@ -35,13 +36,19 @@ def _guess_extension(filename: str, content_type: Optional[str]) -> str:
     return ".bin"
 
 
-def _logos_dir() -> Path:
+def _data_base() -> Path:
+    """Base del directorio de datos persistentes, fuera del repo."""
     env = (os.getenv("ENV") or os.getenv("APP_ENV") or "dev").lower()
     if env in {"prod", "production"}:
-        return Path("/home/iweb/saas/data/images/logos")
-    # dev: backend/images/logos
+        return Path("/home/iweb/saas/data/travelnett")
+    # dev: backend/data/travelnett
     backend_dir = Path(__file__).resolve().parents[1]
-    return backend_dir / "images" / "logos"
+    return backend_dir / "data" / "travelnett"
+
+
+def tenant_dir(folder_id: int) -> Path:
+    """Directorio raíz del tenant. Usado también desde otros routers."""
+    return _data_base() / "tenants" / str(folder_id)
 
 
 def _save_upload(file: UploadFile, dest_path: Path) -> None:
@@ -52,6 +59,24 @@ def _save_upload(file: UploadFile, dest_path: Path) -> None:
             if not chunk:
                 break
             f.write(chunk)
+
+
+def _next_folder_id(db: Session) -> int:
+    max_id = db.query(func.max(iWebClient.folder_id)).scalar() or 0
+    return max_id + 1
+
+
+def _build_response(i: iWebClient) -> iWebClientResponse:
+    return iWebClientResponse(
+        id=i.id,
+        folder_id=i.folder_id,
+        name=i.name,
+        cuit=i.cuit,
+        email=i.email,
+        status=i.status,
+        logo_xl=i.logo_xl,
+        logo_s=i.logo_s,
+    )
 
 
 @router.post("/create_iweb_client", response_model=iWebClientResponse)
@@ -71,55 +96,37 @@ def create_iweb_client(
             detail="iWeb Client con ese CUIT ya existe",
         )
 
-    slug = _slugify(name)
-    logos_dir = _logos_dir()
+    folder_id = _next_folder_id(db)
+    logos_dir = tenant_dir(folder_id) / "logos"
+
     xl_ext = _guess_extension(logo_xl.filename or "", logo_xl.content_type)
     s_ext = _guess_extension(logo_s.filename or "", logo_s.content_type)
 
-    xl_filename = f"logo_xl_{slug}{xl_ext}"
-    s_filename = f"logo_s_{slug}{s_ext}"
+    xl_filename = f"logo_xl{xl_ext}"
+    s_filename = f"logo_s{s_ext}"
 
     _save_upload(logo_xl, logos_dir / xl_filename)
     _save_upload(logo_s, logos_dir / s_filename)
 
     iweb_client = iWebClient(
         id=str(uuid.uuid4()),
+        folder_id=folder_id,
         name=name,
         cuit=cuit,
         email=email,
         status=status.lower() in {"true", "1", "yes", "on"},
-        logo_xl=f"images/logos/{xl_filename}",
-        logo_s=f"images/logos/{s_filename}",
+        logo_xl=f"tenants/{folder_id}/logos/{xl_filename}",
+        logo_s=f"tenants/{folder_id}/logos/{s_filename}",
     )
     db.add(iweb_client)
     db.commit()
     db.refresh(iweb_client)
-    return iWebClientResponse(
-        id=iweb_client.id,
-        name=iweb_client.name,
-        cuit=iweb_client.cuit,
-        email=iweb_client.email,
-        status=iweb_client.status,
-        logo_xl=iweb_client.logo_xl,
-        logo_s=iweb_client.logo_s,
-    )
+    return _build_response(iweb_client)
 
 
 @router.get("/get_iweb_clients")
 def list_iweb_clients(db: Session = Depends(get_db)):
-    iweb_clients = db.query(iWebClient).all()
-    return [
-        iWebClientResponse(
-            id=i.id,
-            name=i.name,
-            cuit=i.cuit,
-            email=i.email,
-            status=i.status,
-            logo_xl=i.logo_xl,
-            logo_s=i.logo_s,
-        )
-        for i in iweb_clients
-    ]
+    return [_build_response(i) for i in db.query(iWebClient).order_by(iWebClient.folder_id).all()]
 
 
 @router.delete("/delete_iweb_client/{iweb_client_id}")
@@ -130,17 +137,17 @@ def delete_iweb_client(iweb_client_id: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="iWeb Client no encontrado",
         )
-    # Eliminar los logos de la carpeta de logos
-    logos_dir = _logos_dir()
+
+    logos_dir = tenant_dir(iweb_client.folder_id) / "logos"
     xl_filename = iweb_client.logo_xl.split("/")[-1]
     s_filename = iweb_client.logo_s.split("/")[-1]
     (logos_dir / xl_filename).unlink(missing_ok=True)
     (logos_dir / s_filename).unlink(missing_ok=True)
-    
+
     db.delete(iweb_client)
-    
     db.commit()
     return {"detail": "iWeb Client eliminado correctamente"}
+
 
 @router.get("/get_iweb_client_by_id/{iweb_client_id}")
 def get_iweb_client_by_id(iweb_client_id: str, db: Session = Depends(get_db)):
@@ -150,12 +157,4 @@ def get_iweb_client_by_id(iweb_client_id: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="iWeb Client no encontrado",
         )
-    return iWebClientResponse(
-        id=iweb_client.id,
-        name=iweb_client.name,
-        cuit=iweb_client.cuit,
-        email=iweb_client.email,
-        status=iweb_client.status,
-        logo_xl=iweb_client.logo_xl,
-        logo_s=iweb_client.logo_s,
-    )
+    return _build_response(iweb_client)

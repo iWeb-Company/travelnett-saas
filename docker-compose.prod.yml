@@ -4,17 +4,16 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8008:8000"
+      - "8012:8000"
     env_file:
-      # En el servidor: crear este archivo a partir de backend/.env.example
       - ./backend/.env
     environment:
       - ENV=production
       - APP_ENV=production
     volumes:
-      # Producción: persistir y exponer imágenes por nginx desde el host
-      - /home/iweb/saas/data/images:/home/iweb/saas/data/images
-      - /home/iweb/saas/data/images/logos:/home/iweb/saas/data/images/logos
+      # Datos persistentes del SaaS (logos, imágenes de períodos, documentos)
+      # El host tiene la carpeta real; el contenedor la ve en /home/iweb/data/travelnett
+      - /home/iweb/saas/data/travelnett:/home/iweb/saas/data/travelnett
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).read()"]
@@ -22,3 +21,13 @@ services:
       timeout: 5s
       retries: 5
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://api-tranett.iwebtecnology.com/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api
+        - NEXT_PUBLIC_DATA_URL=https://api-tranett.iwebtecnology.com/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
+    ports:
+      - "3012:3000"
+    restart: unless-stopped

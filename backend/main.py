@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from routers import login, tenants
+from routers import login, tenants, parameters
 from db.database import SessionLocal
 from models.models import User, iWebClient
 from auth.login import get_password_hash
@@ -29,11 +29,15 @@ def read_root():
 
 app.include_router(login.router)
 app.include_router(tenants.router)
+app.include_router(parameters.router)
 
-# dev-only: servir archivos locales para ver logos rápidamente
-images_dir = Path("images")
-images_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/images", StaticFiles(directory=str(images_dir)), name="images")
+# En dev: FastAPI sirve los archivos estáticos directamente.
+# En prod: nginx los sirve desde /home/iweb/data/travelnett/ sin pasar por FastAPI.
+import os as _os
+if (_os.getenv("ENV") or _os.getenv("APP_ENV") or "dev").lower() not in {"prod", "production"}:
+    _data_dir = Path(__file__).resolve().parent / "data" / "travelnett"  # dev only
+    _data_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/data", StaticFiles(directory=str(_data_dir)), name="data")
 
 
 @app.on_event("startup")
@@ -53,6 +57,7 @@ def seed_default_admin():
         if not global_tenant:
             global_tenant = iWebClient(
                 id=global_tenant_id,
+                folder_id=0,  # reservado para el tenant global de plataforma
                 name="GLOBAL",
                 cuit=0,
                 email="admin@iweb.local",
