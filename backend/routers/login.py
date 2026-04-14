@@ -23,8 +23,8 @@ def login(
     response: Response,
     db: Session = Depends(get_db),
 ):
-    # Multi-tenant: normalmente el username debe resolverse dentro del iweb_client_id.
-    # Excepción: el admin global puede loguear con cualquier tenant seleccionado.
+    # Multi-tenant: username is resolved within the given iweb_client_id.
+    # Exception: the global admin can log in under any tenant.
     if body.username == "iweb_admin":
         user = db.query(User).filter(User.username == body.username).first()
     else:
@@ -36,14 +36,14 @@ def login(
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales incorrectas",
+            detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     if not user.active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuario inactivo",
+            detail="Inactive user",
         )
 
     token_iweb_client_id = user.iweb_client_id
@@ -58,14 +58,14 @@ def login(
         }
     )
 
-    # Cookie HTTP-only con duración de 7 días
-    max_age = 7 * 24 * 60 * 60  # segundos
+    # HTTP-only cookie, 7-day expiry
+    max_age = 7 * 24 * 60 * 60  # seconds
     response.set_cookie(
         key="access_token",
         value=f"Bearer {token}",
         max_age=max_age,
         httponly=True,
-        secure=False,  # ponlo en True en producción con HTTPS
+        secure=False,  # set to True in production (HTTPS)
         samesite="lax",
         path="/",
     )
@@ -96,7 +96,7 @@ def create_user_by_iweb_client_id(
     if user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Usuario ya existe",
+            detail="User already exists",
         )
     user = User(
         id=str(uuid.uuid4()),
@@ -113,4 +113,4 @@ def create_user_by_iweb_client_id(
     db.add(user)
     db.commit()
     db.refresh(user)
-    return status.HTTP_201_CREATED, {"detail": "Usuario creado correctamente", "id": user.id, "Empresa": iweb_client_id}
+    return status.HTTP_201_CREATED, {"detail": "User created successfully", "id": user.id, "iweb_client_id": iweb_client_id}

@@ -61,7 +61,9 @@ class iWebClientResponse(BaseModel):
     logo_xl: str
     logo_s: str
     
-# Schemas for parameters management
+# Schemas for parameters management #
+
+# Create
 
 class CreateTransportCompanyRequest(BaseModel):
     id : Optional[str] = None
@@ -136,6 +138,87 @@ class CreatePassengersRequest(BaseModel):
     phone: Optional[int] = None
     
 class CreateBusTypesRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    semicama_quantity: Optional[int] = None
+    cama_quantity: Optional[int] = None
+    panoramicos_quantity: Optional[int] = None
+    description: Optional[str] = None
+
+# Update
+
+class UpdateTransportCompanyRequest(BaseModel):
+    id : Optional[str] = None
+    airplane: Optional[bool] = None
+    bus: Optional[bool] = None
+    name : Optional[str] = None
+    cuit : Optional[int] = None
+    web: Optional[str] = None
+    phone: Optional[int] = None
+    
+class UpdateHotelsRequest(BaseModel):
+    id : Optional[str] = None
+    name : Optional[str] = None
+    phone: Optional[int] = None
+    address: Optional[str] = None
+    web: Optional[str] = None
+    
+class UpdateExcursionsRequest(BaseModel):
+    id : Optional[str] = None
+    name : Optional[str] = None
+    description: Optional[str] = None
+    
+class UpdatePeriodsRequest(BaseModel):
+    id : Optional[str] = None
+    name : Optional[str] = None
+    
+class UpdateDestinosRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    sigla: Optional[str] = None
+    
+class UpdateLugaresCargaRequest(BaseModel):
+    id: Optional[str] = None
+    airplane: Optional[bool] = None
+    bus: Optional[bool] = None
+    name: Optional[str] = None
+    address: Optional[str] = None
+    
+class UpdateClientsTypeRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    adminForSellers: Optional[bool] = None
+    
+class UpdateClientsRequest(BaseModel):
+    id: Optional[str] = None
+    name_system: Optional[str] = None
+    complete_name: Optional[str] = None
+    client_type_id: Optional[str] = None
+    parent_client_id: Optional[str] = None
+    dni: Optional[int] = None
+    birthday: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[int] = None
+    payment_method: Optional[str] = None
+    commission: Optional[int] = None
+    hashed_password: Optional[str] = None
+    
+class UpdateRegimenesRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    sigla: Optional[str] = None
+    description: Optional[str] = None
+    
+class UpdatePassengersRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    dni: Optional[int] = None
+    date_of_birth: Optional[date] = None
+    sex: Optional[str] = None
+    phone: Optional[int] = None
+    
+class UpdateBusTypesRequest(BaseModel):
     id: Optional[str] = None
     name: Optional[str] = None
     semicama_quantity: Optional[int] = None

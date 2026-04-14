@@ -37,7 +37,7 @@ def _guess_extension(filename: str, content_type: Optional[str]) -> str:
 
 
 def _data_base() -> Path:
-    """Base del directorio de datos persistentes, fuera del repo."""
+    """Base directory for persistent data, outside the repo."""
     env = (os.getenv("ENV") or os.getenv("APP_ENV") or "dev").lower()
     if env in {"prod", "production"}:
         return Path("/home/iweb/saas/data/travelnett")
@@ -47,7 +47,7 @@ def _data_base() -> Path:
 
 
 def tenant_dir(folder_id: int) -> Path:
-    """Directorio raíz del tenant. Usado también desde otros routers."""
+    """Root directory for a tenant. Also used by other routers."""
     return _data_base() / "tenants" / str(folder_id)
 
 
@@ -92,8 +92,8 @@ def create_iweb_client(
     existing = db.query(iWebClient).filter(iWebClient.cuit == cuit).first()
     if existing:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="iWeb Client con ese CUIT ya existe",
+            status_code=400,
+            detail="An iWeb Client with that CUIT already exists",
         )
 
     folder_id = _next_folder_id(db)
@@ -135,7 +135,7 @@ def delete_iweb_client(iweb_client_id: str, db: Session = Depends(get_db)):
     if not iweb_client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="iWeb Client no encontrado",
+            detail="iWeb Client not found",
         )
 
     logos_dir = tenant_dir(iweb_client.folder_id) / "logos"
@@ -146,7 +146,7 @@ def delete_iweb_client(iweb_client_id: str, db: Session = Depends(get_db)):
 
     db.delete(iweb_client)
     db.commit()
-    return {"detail": "iWeb Client eliminado correctamente"}
+    return {"detail": "iWeb Client deleted successfully"}
 
 
 @router.get("/get_iweb_client_by_id/{iweb_client_id}")
@@ -155,6 +155,6 @@ def get_iweb_client_by_id(iweb_client_id: str, db: Session = Depends(get_db)):
     if not iweb_client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="iWeb Client no encontrado",
+            detail="iWeb Client not found",
         )
     return _build_response(iweb_client)

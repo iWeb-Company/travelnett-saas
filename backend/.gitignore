@@ -16,5 +16,8 @@ __pycache__/
 # DB
 u830440565_tranett.sql
 
-# Images
-images/logos/
+# Local dev data (uploads, images)
+data/
+
+# Unit tests (local only)
+tests/
