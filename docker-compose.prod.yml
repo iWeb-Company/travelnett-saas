@@ -10,6 +10,7 @@ services:
     environment:
       - ENV=production
       - APP_ENV=production
+      - PUBLIC_DATA_URL=https://api-tranett.iwebtecnology.com/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
     volumes:
       # Datos persistentes del SaaS (logos, imágenes de períodos, documentos)
       # El host tiene la carpeta real; el contenedor la ve en /home/iweb/data/travelnett

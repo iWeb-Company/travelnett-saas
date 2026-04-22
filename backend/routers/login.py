@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 import os
+from typing import Any
 from db.database import get_db
 from models.models import User, Clients, iWebClient
 from schemas.schemas import (
@@ -11,6 +12,7 @@ from schemas.schemas import (
     UserPayload,
     UserCreateRequest,
     ClientsCreateRequest,
+    iWebClientPayload,
 )
 import uuid
 from auth.login import verify_password, create_access_token, get_current_user
@@ -21,6 +23,24 @@ load_dotenv()
 SECURE_COOKIES = os.getenv("SECURE_COOKIES", "False").lower() == "true"
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+def _build_iweb_client_payload(iweb_client: iWebClient) -> iWebClientPayload:
+    return iWebClientPayload(
+        id=str(iweb_client.id),
+        folder_id=int(iweb_client.folder_id),
+        slug=str(iweb_client.slug),
+        name=str(iweb_client.name or ""),
+        cuit=int(iweb_client.cuit or 0),
+        email=str(iweb_client.email or ""),
+        status=bool(iweb_client.status),
+        logo_xl=str(iweb_client.logo_xl or ""),
+        logo_s=str(iweb_client.logo_s or ""),
+    )
+
+
+def _verify_password_or_false(plain_password: str, hashed_password: Any) -> bool:
+    return isinstance(hashed_password, str) and verify_password(plain_password, hashed_password)
 
 @router.post("/login-system")
 def login(
@@ -58,7 +78,7 @@ def login(
         q = q.filter(User.iweb_client_id == iweb_client.id)
         user = q.first()
 
-    if not user or not verify_password(body.password, user.hashed_password):
+    if not user or not _verify_password_or_false(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -95,19 +115,9 @@ def login(
         path="/",
     )
 
-    iweb_client_payload = None
+    iweb_client_payload: iWebClientPayload | None = None
     if iweb_client:
-        iweb_client_payload = {
-            "id": iweb_client.id,
-            "folder_id": iweb_client.folder_id,
-            "slug": iweb_client.slug,
-            "name": iweb_client.name,
-            "cuit": iweb_client.cuit,
-            "email": iweb_client.email,
-            "status": iweb_client.status,
-            "logo_xl": iweb_client.logo_xl,
-            "logo_s": iweb_client.logo_s,
-        }
+        iweb_client_payload = _build_iweb_client_payload(iweb_client)
 
     return TokenResponse(access_token=token, iweb_client=iweb_client_payload)
 
@@ -130,7 +140,7 @@ def login_web(
             q = q.filter(Clients.iweb_client_id == body.iweb_client_id)
         client = q.first()
 
-    if not client or not verify_password(body.password, client.hashed_password):
+    if not client or not _verify_password_or_false(body.password, client.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -165,14 +175,14 @@ def login_web(
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
     return UserPayload(
-        id=current_user.id,
-        iweb_client_id=current_user.iweb_client_id,
+        id=str(current_user.id),
+        iweb_client_id=str(current_user.iweb_client_id),
         name=current_user.name,
         last_name=current_user.last_name,
-        username=current_user.username,
+        username=str(current_user.username),
     )
 
-@router.post("/create-user/{iweb_client_id}")
+@router.post("/create-user/{iweb_client_id}", status_code=status.HTTP_201_CREATED)
 def create_user_by_iweb_client_id(
     iweb_client_id: str,
     body: UserCreateRequest,
@@ -203,7 +213,7 @@ def create_user_by_iweb_client_id(
     db.add(user)
     db.commit()
     db.refresh(user)
-    return status.HTTP_201_CREATED, {"detail": "User created successfully", "id": user.id, "iweb_client_id": iweb_client_id}
+    return {"detail": "User created successfully", "id": str(user.id), "iweb_client_id": iweb_client_id}
 
 @router.get("/users/{iweb_client_id}")
 def get_users_by_iweb_client_id(
@@ -217,7 +227,7 @@ def get_users_by_iweb_client_id(
     )
     return users
 
-@router.put("/users/{iweb_client_id}/{user_id}")
+@router.put("/users/{iweb_client_id}/{user_id}", status_code=status.HTTP_200_OK)
 def update_user_by_id(  
     iweb_client_id: str,
     user_id: str,
@@ -241,9 +251,9 @@ def update_user_by_id(
     user.active = body.user.active
     db.commit()
     db.refresh(user)
-    return status.HTTP_200_OK, {"detail": "User updated successfully", "id": user.id, "iweb_client_id": user.iweb_client_id}
+    return {"detail": "User updated successfully", "id": str(user.id), "iweb_client_id": str(user.iweb_client_id)}
 
-@router.patch("/users/{iweb_client_id}/{user_id}/status")
+@router.patch("/users/{iweb_client_id}/{user_id}/status", status_code=status.HTTP_200_OK)
 def update_user_status(
     iweb_client_id: str,
     user_id: str,
@@ -259,9 +269,14 @@ def update_user_status(
     user.active = active
     db.commit()
     db.refresh(user)
-    return status.HTTP_200_OK, {"detail": "User status updated successfully", "is active: ": user.active, "id": user.id, "iweb_client_id": user.iweb_client_id}
+    return {
+        "detail": "User status updated successfully",
+        "active": bool(user.active),
+        "id": str(user.id),
+        "iweb_client_id": str(user.iweb_client_id),
+    }
 
-@router.delete("/users/{iweb_client_id}/{user_id}")
+@router.delete("/users/{iweb_client_id}/{user_id}", status_code=status.HTTP_200_OK)
 def delete_user_by_id(
     iweb_client_id: str,
     user_id: str,
@@ -272,12 +287,12 @@ def delete_user_by_id(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
-        )
+    )
     db.delete(user)
     db.commit()
-    return status.HTTP_200_OK, {"detail": "User deleted successfully", "id": user_id}
+    return {"detail": "User deleted successfully", "id": user_id}
 
-@router.post("/create-client/{iweb_client_id}")
+@router.post("/create-client/{iweb_client_id}", status_code=status.HTTP_201_CREATED)
 def create_client_by_iweb_client_id(
     iweb_client_id: str,
     body: ClientsCreateRequest,
@@ -312,7 +327,7 @@ def create_client_by_iweb_client_id(
     db.add(client)
     db.commit()
     db.refresh(client)
-    return status.HTTP_201_CREATED, {"detail": "Client created successfully", "id": client.id, "iweb_client_id": iweb_client_id}
+    return {"detail": "Client created successfully", "id": str(client.id), "iweb_client_id": iweb_client_id}
 
 @router.get("/clients/{iweb_client_id}")
 def get_clients_by_iweb_client_id(
@@ -326,7 +341,7 @@ def get_clients_by_iweb_client_id(
     )
     return clients
 
-@router.put("/clients/{iweb_client_id}/{client_id}")
+@router.put("/clients/{iweb_client_id}/{client_id}", status_code=status.HTTP_200_OK)
 def update_client_by_id(  
     iweb_client_id: str,
     client_id: str,
@@ -354,9 +369,9 @@ def update_client_by_id(
     client.created_at = body.client.created_at
     db.commit()
     db.refresh(client)
-    return status.HTTP_200_OK, {"detail": "Client updated successfully", "id": client.id, "iweb_client_id": client.iweb_client_id}
+    return {"detail": "Client updated successfully", "id": str(client.id), "iweb_client_id": str(client.iweb_client_id)}
 
-@router.delete("/clients/{iweb_client_id}/{client_id}")
+@router.delete("/clients/{iweb_client_id}/{client_id}", status_code=status.HTTP_200_OK)
 def delete_client_by_id(
     iweb_client_id: str,
     client_id: str,
@@ -367,7 +382,7 @@ def delete_client_by_id(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Client not found",
-        )
+    )
     db.delete(client)
     db.commit()
-    return status.HTTP_200_OK, {"detail": "Client deleted successfully", "id": client_id}
+    return {"detail": "Client deleted successfully", "id": client_id}

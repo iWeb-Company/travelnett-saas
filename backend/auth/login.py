@@ -20,7 +20,7 @@ ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 # 7 días por defecto (en minutos) si no se configura en .env
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(7 * 24 * 60)))
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login-system")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -58,6 +58,3 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     return user
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)

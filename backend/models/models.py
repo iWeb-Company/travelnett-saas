@@ -1,147 +1,168 @@
-from sqlalchemy import BOOLEAN, INT, Column, String, Integer, SmallInteger
-from sqlalchemy.orm import Mapped, mapped_column
-from db.database import Base
-from sqlalchemy import Date
-from sqlalchemy import DateTime
+from datetime import date, datetime
 
-# Models for auth
+from sqlalchemy import BOOLEAN, INT, Date, DateTime, Integer, SmallInteger, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from db.database import Base
+
 
 class iWebClient(Base):
     __tablename__ = "iweb_clients"
 
-    id = Column(String(36), primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
     folder_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
-    slug = Column(String(255), nullable=False, unique=True)
-    name = Column(String(255))
-    cuit = Column(INT)
-    email = Column(String(255))
-    status = Column(BOOLEAN)
-    logo_xl = Column(String(255))
-    logo_s = Column(String(255))
+    slug: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    cuit: Mapped[int | None] = mapped_column(INT, nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    logo_xl: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    logo_s: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(String(36), primary_key=True)
-    name = Column(String(255))
-    dni = Column(Integer)
-    birthday = Column(String(255))
-    last_name = Column(String(255))
-    username = Column(String(255))
-    hashed_password = Column(String(255))
-    phone = Column(Integer)
-    active = Column(SmallInteger)
-    iweb_client_id = Column(String(36), nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dni: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    birthday: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    active: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
 
-# Models for parameters
 
 class TransportCompany(Base):
     __tablename__ = "transport_companies"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    airplane = Column(BOOLEAN)
-    bus = Column(BOOLEAN)
-    name = Column(String(255))
-    cuit = Column(INT)
-    web = Column(String(255))
-    phone = Column(Integer)
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    cuit: Mapped[int | None] = mapped_column(INT, nullable=True)
+    web: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class Hotels(Base):
     __tablename__ = "hotels"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    phone = Column(Integer)
-    address = Column(String(255))
-    web = Column(String(255))
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    web: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class HotelsImages(Base):
+    __tablename__ = "hotels_images"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    hotel_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    url: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
 class Excursions(Base):
     __tablename__ = "excursions"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    description = Column(String(255))
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class Periods(Base):
     __tablename__ = "periods"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    main_image = Column(String(255))
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    main_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class Destinos(Base):
     __tablename__ = "destinos"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    sigla = Column(String(255))
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sigla: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class LugaresCarga(Base):
     __tablename__ = "lugares_carga"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class ClientsType(Base):
     __tablename__ = "clients_type"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    adminForSellers = Column(BOOLEAN)
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    adminForSellers: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    admin_clients: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class Clients(Base):
     __tablename__ = "clients"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name_system = Column(String(255))
-    complete_name = Column(String(255))
-    client_type = Column(String(36))
-    parent_client_id = Column(String(36))
-    dni = Column(Integer)
-    birthday = Column(Date)
-    email = Column(String(255))
-    phone = Column(Integer)
-    payment_method = Column(String(255))
-    commission = Column(Integer)
-    hashed_password = Column(String(255))
-    created_at = Column(DateTime)
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name_system: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    complete_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    client_type: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    parent_client_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    dni: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    birthday: Mapped[date | None] = mapped_column(Date, nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payment_method: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    commission: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class Regimenes(Base):
     __tablename__ = "regimenes"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    sigla = Column(String(255))
-    description = Column(String(255))
-    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sigla: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class Passengers(Base):
     __tablename__ = "passengers"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    last_name = Column(String(255))
-    dni = Column(Integer)
-    date_of_birth = Column(Date)
-    sex = Column(String(255))
-    phone = Column(Integer)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dni: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sex: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
 
 class BusTypes(Base):
     __tablename__ = "bus_types"
 
-    id = Column(String(36), primary_key=True)
-    iweb_client_id = Column(String(36), nullable=False)
-    name = Column(String(255))
-    semicama_quantity = Column(Integer)
-    cama_quantity = Column(Integer)
-    panoramicos_quantity = Column(Integer)
-    description = Column(String(255))
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    semicama_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cama_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    panoramicos_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)

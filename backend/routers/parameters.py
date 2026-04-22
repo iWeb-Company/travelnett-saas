@@ -1,11 +1,13 @@
 import uuid
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
+from typing import Iterable
 from db.database import get_db
 from models.models import (
     iWebClient,
     TransportCompany,
     Hotels,
+    HotelsImages,
     Excursions,
     Periods,
     Destinos,
@@ -26,7 +28,6 @@ from schemas.schemas import (
     CreateDestinosRequest,
     CreateExcursionsRequest,
     CreatePeriodsRequest,
-    CreateHotelsRequest,
     CreateTransportCompanyRequest,
     UpdateBusTypesRequest,
     UpdateRegimenesRequest,
@@ -37,12 +38,42 @@ from schemas.schemas import (
     UpdateDestinosRequest,
     UpdateExcursionsRequest,
     UpdatePeriodsRequest,
-    UpdateHotelsRequest,
     UpdateTransportCompanyRequest,
 )
-from routers.tenants import tenant_dir, _guess_extension, _save_upload
+from routers.tenants import public_tenant_asset_url, tenant_dir, _guess_extension, _save_upload
 
 router = APIRouter(prefix="/parameters")
+
+_HOTELS_MULTIPART_SCHEMA = {
+    "required": ["name"],
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "destino": {"type": "string"},
+        "phone": {"type": "integer"},
+        "address": {"type": "string"},
+        "web": {"type": "string"},
+        "images": {
+            "type": "array",
+            "items": {"type": "string", "format": "binary"},
+        },
+    },
+}
+
+_HOTELS_UPDATE_MULTIPART_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "destino": {"type": "string"},
+        "name": {"type": "string"},
+        "phone": {"type": "integer"},
+        "address": {"type": "string"},
+        "web": {"type": "string"},
+        "images": {
+            "type": "array",
+            "items": {"type": "string", "format": "binary"},
+        },
+    },
+}
 
 
 def _get_tenant_or_404(db: Session, iweb_client_id: str) -> iWebClient:
@@ -50,6 +81,59 @@ def _get_tenant_or_404(db: Session, iweb_client_id: str) -> iWebClient:
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
+
+
+def _hotel_payload(hotel: Hotels, images: list[HotelsImages]) -> dict:
+    return {
+        "id": getattr(hotel, "id", None),
+        "iweb_client_id": getattr(hotel, "iweb_client_id", None),
+        "destino": getattr(hotel, "destino", None),
+        "name": getattr(hotel, "name", None),
+        "phone": getattr(hotel, "phone", None),
+        "address": getattr(hotel, "address", None),
+        "web": getattr(hotel, "web", None),
+        "images": [getattr(image, "url", None) for image in images],
+    }
+
+
+def _save_hotel_images(
+    db: Session,
+    hotel_id: str,
+    iweb_client_id: str,
+    folder_id: int,
+    images: list[UploadFile],
+) -> list[HotelsImages]:
+    saved_images = []
+    dest_dir = tenant_dir(folder_id) / "hotels" / hotel_id
+    for image in images:
+        image_id = str(uuid.uuid4())
+        ext = _guess_extension(image.filename or "", image.content_type)
+        filename = f"{image_id}{ext}"
+        _save_upload(image, dest_dir / filename)
+        hotel_image = HotelsImages(
+            id=image_id,
+            iweb_client_id=iweb_client_id,
+            hotel_id=hotel_id,
+            url=public_tenant_asset_url(folder_id, "hotels", hotel_id, filename),
+        )
+        db.add(hotel_image)
+        saved_images.append(hotel_image)
+    return saved_images
+
+
+def _extract_hotel_image_urls(images: Iterable[HotelsImages]) -> list[str]:
+    return [
+        url
+        for url in (getattr(image, "url", None) for image in images)
+        if isinstance(url, str) and url
+    ]
+
+
+def _delete_hotel_images_files(folder_id: int, hotel_id: str, image_urls: list[str]) -> None:
+    dest_dir = tenant_dir(folder_id) / "hotels" / hotel_id
+    for image_url in image_urls:
+        if image_url:
+            (dest_dir / image_url.split("/")[-1]).unlink(missing_ok=True)
 
 
 # --- Create ---
@@ -63,8 +147,7 @@ async def create_transport_company(
     new_transport_company = TransportCompany(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
-        airplane=body.airplane,
-        bus=body.bus,
+        type=body.type,
         name=body.name,
         cuit=body.cuit,
         web=body.web,
@@ -76,24 +159,66 @@ async def create_transport_company(
     return new_transport_company
 
 
-@router.post("/create_hotels", tags=["Create Endpoints Parameters"])
+@router.post(
+    "/create_hotels",
+    tags=["Create Endpoints Parameters"],
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": _HOTELS_MULTIPART_SCHEMA,
+                }
+            },
+        }
+    },
+)
 async def create_hotels(
-    body: CreateHotelsRequest,
-    iweb_client_id: str,
+    name: str = Form(...),
+    iweb_client_id: str = Query(...),
+    destino: str = Form(None),
+    phone: int = Form(None),
+    address: str = Form(None),
+    web: str = Form(None),
+    images: list[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
+    tenant = _get_tenant_or_404(db, iweb_client_id)
+    hotel_id = str(uuid.uuid4())
+    folder_id = int(tenant.folder_id)
+    saved_images: list[HotelsImages] = []
+
     new_hotel = Hotels(
-        id=str(uuid.uuid4()),
+        id=hotel_id,
         iweb_client_id=iweb_client_id,
-        name=body.name,
-        phone=body.phone,
-        address=body.address,
-        web=body.web,
+        destino=destino,
+        name=name,
+        phone=phone,
+        address=address,
+        web=web,
     )
     db.add(new_hotel)
+
+    if images:
+        dest_dir = tenant_dir(folder_id) / "hotels" / hotel_id
+        for image in images:
+            image_id = str(uuid.uuid4())
+            ext = _guess_extension(image.filename or "", image.content_type)
+            filename = f"{image_id}{ext}"
+            _save_upload(image, dest_dir / filename)
+
+            hotel_image = HotelsImages(
+                id=image_id,
+                iweb_client_id=iweb_client_id,
+                hotel_id=hotel_id,
+                url=public_tenant_asset_url(folder_id, "hotels", hotel_id, filename),
+            )
+            db.add(hotel_image)
+            saved_images.append(hotel_image)
+
     db.commit()
     db.refresh(new_hotel)
-    return new_hotel
+    return _hotel_payload(new_hotel, saved_images)
 
 
 @router.post("/create_excursions", tags=["Create Endpoints Parameters"])
@@ -128,7 +253,7 @@ async def create_periods(
     folder_id = int(tenant.folder_id)
     dest_dir = tenant_dir(folder_id) / "periodos"
     _save_upload(main_image, dest_dir / filename)
-    relative_path = f"tenants/{folder_id}/periodos/{filename}"
+    relative_path = public_tenant_asset_url(folder_id, "periodos", filename)
 
     new_period = Periods(
         id=period_id,
@@ -294,7 +419,17 @@ async def get_transport_companies(iweb_client_id: str, db: Session = Depends(get
 
 @router.get("/get_hotels", tags=["Get Endpoints Parameters"])
 async def get_hotels(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(Hotels).filter(Hotels.iweb_client_id == iweb_client_id).all()
+    hotels = db.query(Hotels).filter(Hotels.iweb_client_id == iweb_client_id).all()
+    hotel_ids = [hotel.id for hotel in hotels]
+    images = []
+    if hotel_ids:
+        images = db.query(HotelsImages).filter(HotelsImages.hotel_id.in_(hotel_ids)).all()
+
+    images_by_hotel = {}
+    for image in images:
+        images_by_hotel.setdefault(image.hotel_id, []).append(image)
+
+    return [_hotel_payload(hotel, images_by_hotel.get(hotel.id, [])) for hotel in hotels]
 
 
 @router.get("/get_excursions", tags=["Get Endpoints Parameters"])
@@ -320,7 +455,6 @@ async def get_lugares_carga(iweb_client_id: str, db: Session = Depends(get_db)):
 @router.get("/get_clients_type", tags=["Get Endpoints Parameters"])
 async def get_clients_type(iweb_client_id: str, db: Session = Depends(get_db)):
     return db.query(ClientsType).filter(ClientsType.iweb_client_id == iweb_client_id).all()
-
 
 @router.get("/get_clients", tags=["Get Endpoints Parameters"])
 async def get_clients(iweb_client_id: str, db: Session = Depends(get_db)):
@@ -365,22 +499,76 @@ async def update_transport_company(
     return transport_company
 
 
-@router.put("/update_hotels/{hotel_id}", tags=["Update Endpoints Parameters"])
+@router.put(
+    "/update_hotels/{hotel_id}",
+    tags=["Update Endpoints Parameters"],
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": _HOTELS_UPDATE_MULTIPART_SCHEMA,
+                }
+            },
+        }
+    },
+)
 async def update_hotels(
     hotel_id: str,
-    body: UpdateHotelsRequest,
-    iweb_client_id: str,
+    iweb_client_id: str = Query(...),
+    destino: str = Form(None),
+    name: str = Form(None),
+    phone: int = Form(None),
+    address: str = Form(None),
+    web: str = Form(None),
+    images: list[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
     hotel = db.query(Hotels).filter(Hotels.id == hotel_id, Hotels.iweb_client_id == iweb_client_id).first()
     if not hotel:
         raise HTTPException(status_code=404, detail="Hotel not found")
-    for key, value in body.model_dump(exclude_unset=True).items():
-        if key != "id":
+
+    updates = {
+        "destino": destino,
+        "name": name,
+        "phone": phone,
+        "address": address,
+        "web": web,
+    }
+    for key, value in updates.items():
+        if value is not None:
             setattr(hotel, key, value)
+
+    hotel_images = db.query(HotelsImages).filter(
+        HotelsImages.hotel_id == hotel_id,
+        HotelsImages.iweb_client_id == iweb_client_id,
+    ).all()
+
+    if images:
+        tenant = _get_tenant_or_404(db, iweb_client_id)
+        _delete_hotel_images_files(
+            folder_id=int(tenant.folder_id),
+            hotel_id=hotel_id,
+            image_urls=_extract_hotel_image_urls(hotel_images),
+        )
+        for hotel_image in hotel_images:
+            db.delete(hotel_image)
+        hotel_images = _save_hotel_images(
+            db=db,
+            hotel_id=hotel_id,
+            iweb_client_id=iweb_client_id,
+            folder_id=int(tenant.folder_id),
+            images=images,
+        )
+
     db.commit()
     db.refresh(hotel)
-    return hotel
+    if not images:
+        hotel_images = db.query(HotelsImages).filter(
+            HotelsImages.hotel_id == hotel_id,
+            HotelsImages.iweb_client_id == iweb_client_id,
+        ).all()
+    return _hotel_payload(hotel, hotel_images)
 
 
 @router.put("/update_excursions/{excursion_id}", tags=["Update Endpoints Parameters"])
@@ -429,7 +617,7 @@ async def update_periods(
         if old_path:
             (dest_dir / old_path.split("/")[-1]).unlink(missing_ok=True)
         _save_upload(main_image, dest_dir / filename)
-        setattr(period, "main_image", f"tenants/{folder_id}/periodos/{filename}")
+        setattr(period, "main_image", public_tenant_asset_url(folder_id, "periodos", filename))
     db.commit()
     db.refresh(period)
     return period
@@ -599,6 +787,22 @@ async def delete_hotels(hotel_id: str, iweb_client_id: str, db: Session = Depend
     hotel = db.query(Hotels).filter(Hotels.id == hotel_id, Hotels.iweb_client_id == iweb_client_id).first()
     if not hotel:
         raise HTTPException(status_code=404, detail="Hotel not found")
+    hotel_images = db.query(HotelsImages).filter(
+        HotelsImages.hotel_id == hotel_id,
+        HotelsImages.iweb_client_id == iweb_client_id,
+    ).all()
+    if hotel_images:
+        tenant = db.query(iWebClient).filter(iWebClient.id == iweb_client_id).first()
+        if tenant:
+            _delete_hotel_images_files(
+                folder_id=int(tenant.folder_id),
+                hotel_id=hotel_id,
+                image_urls=_extract_hotel_image_urls(hotel_images),
+            )
+        for hotel_image in hotel_images:
+            db.delete(hotel_image)
+        # Force DELETEs on child rows before deleting the hotel row itself.
+        db.flush()
     db.delete(hotel)
     db.commit()
     return {"detail": "Hotel deleted successfully"}

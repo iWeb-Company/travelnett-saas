@@ -51,6 +51,25 @@ def tenant_dir(folder_id: int) -> Path:
     return _data_base() / "tenants" / str(folder_id)
 
 
+def _public_data_base_url() -> str:
+    configured = os.getenv("PUBLIC_DATA_URL") or os.getenv("NEXT_PUBLIC_DATA_URL")
+    if configured:
+        return configured.rstrip("/")
+
+    root_path = (os.getenv("APP_ROOT_PATH") or os.getenv("FASTAPI_ROOT_PATH") or "").rstrip("/")
+    if root_path.endswith("/api"):
+        return f"{root_path[:-4]}/data"
+
+    if root_path:
+        return f"{root_path}/data"
+
+    return "/data"
+
+
+def public_tenant_asset_url(folder_id: int, *parts: str) -> str:
+    return "/".join([_public_data_base_url(), "tenants", str(folder_id), *parts])
+
+
 def _save_upload(file: UploadFile, dest_path: Path) -> None:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     with dest_path.open("wb") as f:
@@ -68,14 +87,15 @@ def _next_folder_id(db: Session) -> int:
 
 def _build_response(i: iWebClient) -> iWebClientResponse:
     return iWebClientResponse(
-        id=i.id,
-        folder_id=i.folder_id,
-        name=i.name,
-        cuit=i.cuit,
-        email=i.email,
-        status=i.status,
-        logo_xl=i.logo_xl,
-        logo_s=i.logo_s,
+        id=str(i.id),
+        folder_id=int(i.folder_id),
+        slug=str(i.slug),
+        name=str(i.name or ""),
+        cuit=int(i.cuit or 0),
+        email=str(i.email or ""),
+        status=bool(i.status),
+        logo_xl=str(i.logo_xl or ""),
+        logo_s=str(i.logo_s or ""),
     )
 
 
@@ -111,12 +131,13 @@ def create_iweb_client(
     iweb_client = iWebClient(
         id=str(uuid.uuid4()),
         folder_id=folder_id,
+        slug=_slugify(name),
         name=name,
         cuit=cuit,
         email=email,
         status=status.lower() in {"true", "1", "yes", "on"},
-        logo_xl=f"tenants/{folder_id}/logos/{xl_filename}",
-        logo_s=f"tenants/{folder_id}/logos/{s_filename}",
+        logo_xl=public_tenant_asset_url(folder_id, "logos", xl_filename),
+        logo_s=public_tenant_asset_url(folder_id, "logos", s_filename),
     )
     db.add(iweb_client)
     db.commit()
@@ -158,3 +179,8 @@ def get_iweb_client_by_id(iweb_client_id: str, db: Session = Depends(get_db)):
             detail="iWeb Client not found",
         )
     return _build_response(iweb_client)
+
+
+@router.get("/get_iweb_client")
+def get_iweb_client(iweb_client_id: str, db: Session = Depends(get_db)):
+    return get_iweb_client_by_id(iweb_client_id=iweb_client_id, db=db)

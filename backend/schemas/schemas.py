@@ -97,8 +97,7 @@ class iWebClientResponse(BaseModel):
 
 class CreateTransportCompanyRequest(BaseModel):
     id : Optional[str] = None
-    airplane: Optional[bool] = None
-    bus: Optional[bool] = None
+    type : Optional[str] = None
     name : Optional[str] = None
     cuit : Optional[int] = None
     web: Optional[str] = None
@@ -106,6 +105,7 @@ class CreateTransportCompanyRequest(BaseModel):
     
 class CreateHotelsRequest(BaseModel):
     id : Optional[str] = None
+    destino : Optional[str] = None
     name : Optional[str] = None
     phone: Optional[int] = None
     address: Optional[str] = None
@@ -114,6 +114,7 @@ class CreateHotelsRequest(BaseModel):
 class CreateExcursionsRequest(BaseModel):
     id : Optional[str] = None
     name : Optional[str] = None
+    destino : Optional[str] = None
     description: Optional[str] = None
     
 class CreatePeriodsRequest(BaseModel):
@@ -136,6 +137,7 @@ class CreateClientsTypeRequest(BaseModel):
     id: Optional[str] = None
     name: Optional[str] = None
     adminForSellers: Optional[bool] = None
+    admin_clients: Optional[str] = None
     
 class CreateClientsRequest(BaseModel):
     id: Optional[str] = None
@@ -179,8 +181,7 @@ class CreateBusTypesRequest(BaseModel):
 
 class UpdateTransportCompanyRequest(BaseModel):
     id : Optional[str] = None
-    airplane: Optional[bool] = None
-    bus: Optional[bool] = None
+    type : Optional[str] = None
     name : Optional[str] = None
     cuit : Optional[int] = None
     web: Optional[str] = None
@@ -188,6 +189,7 @@ class UpdateTransportCompanyRequest(BaseModel):
     
 class UpdateHotelsRequest(BaseModel):
     id : Optional[str] = None
+    destino : Optional[str] = None
     name : Optional[str] = None
     phone: Optional[int] = None
     address: Optional[str] = None
@@ -196,6 +198,7 @@ class UpdateHotelsRequest(BaseModel):
 class UpdateExcursionsRequest(BaseModel):
     id : Optional[str] = None
     name : Optional[str] = None
+    destino : Optional[str] = None
     description: Optional[str] = None
     
 class UpdatePeriodsRequest(BaseModel):
@@ -218,6 +221,7 @@ class UpdateClientsTypeRequest(BaseModel):
     id: Optional[str] = None
     name: Optional[str] = None
     adminForSellers: Optional[bool] = None
+    admin_clients: Optional[str] = None
     
 class UpdateClientsRequest(BaseModel):
     id: Optional[str] = None
