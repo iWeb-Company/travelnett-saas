@@ -102,7 +102,8 @@ class LugaresCarga(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-
+    type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 class ClientsType(Base):
     __tablename__ = "clients_type"

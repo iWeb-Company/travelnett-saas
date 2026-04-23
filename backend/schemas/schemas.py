@@ -128,9 +128,8 @@ class CreateDestinosRequest(BaseModel):
     
 class CreateLugaresCargaRequest(BaseModel):
     id: Optional[str] = None
-    airplane: Optional[bool] = None
-    bus: Optional[bool] = None
     name: Optional[str] = None
+    type: Optional[str] = None
     address: Optional[str] = None
     
 class CreateClientsTypeRequest(BaseModel):
@@ -212,9 +211,8 @@ class UpdateDestinosRequest(BaseModel):
     
 class UpdateLugaresCargaRequest(BaseModel):
     id: Optional[str] = None
-    airplane: Optional[bool] = None
-    bus: Optional[bool] = None
     name: Optional[str] = None
+    type: Optional[str] = None
     address: Optional[str] = None
     
 class UpdateClientsTypeRequest(BaseModel):
