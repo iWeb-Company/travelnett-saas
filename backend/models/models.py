@@ -167,3 +167,31 @@ class BusTypes(Base):
     cama_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     panoramicos_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+class Permission(Base):
+    __tablename__ = "permissions"
+    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    salidas: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    paquetes: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    administracion: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    parametros: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    web: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    permisos_users: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    
+class Flyers(Base):
+    __tablename__ = "flyers"
+    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    
+class News(Base):
+    __tablename__ = "news"
+    
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    url: Mapped[str | None] = mapped_column(String(255), nullable=True)
