@@ -6,7 +6,7 @@ export default function Wpp() {
       viewBox="0 0 22 22"
       fill="none"
       xmlns="http://www.w3.org/2000/svg">
-      <g clip-path="url(#clip0_52_552)">
+      <g clipPath="url(#clip0_52_552)">
         <path
           d="M0.47113 10.8683C0.470619 12.7168 0.953595 14.5216 1.87197 16.1124L0.383301 21.5478L5.94572 20.0893C7.48422 20.9269 9.20798 21.3657 10.9597 21.3658H10.9643C16.747 21.3658 21.4542 16.6603 21.4567 10.8766C21.4578 8.074 20.3673 5.43861 18.3861 3.45588C16.4053 1.47332 13.7708 0.38091 10.9639 0.379631C5.1805 0.379631 0.473603 5.0849 0.471216 10.8683"
           fill="url(#paint0_linear_52_552)"
@@ -28,8 +28,8 @@ export default function Wpp() {
           x2="1054.05"
           y2="0.379631"
           gradientUnits="userSpaceOnUse">
-          <stop stop-color="#1FAF38" />
-          <stop offset="1" stop-color="#60D669" />
+          <stop stopColor="#1FAF38" />
+          <stop offset="1" stopColor="#60D669" />
         </linearGradient>
         <linearGradient
           id="paint1_linear_52_552"
@@ -38,8 +38,8 @@ export default function Wpp() {
           x2="1091.48"
           y2="0"
           gradientUnits="userSpaceOnUse">
-          <stop stop-color="#F9F9F9" />
-          <stop offset="1" stop-color="white" />
+          <stop stopColor="#F9F9F9" />
+          <stop offset="1" stopColor="white" />
         </linearGradient>
         <clipPath id="clip0_52_552">
           <rect width="21.84" height="22" fill="white" />

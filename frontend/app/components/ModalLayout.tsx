@@ -6,6 +6,7 @@ export default function ModalLayout({
   bg = "bg-[#5782F7]",
   titleColor = "text-white",
   maxWidth = "max-w-md",
+  onSubmit,
 }: {
   children: React.ReactNode;
   title?: string;
@@ -14,16 +15,12 @@ export default function ModalLayout({
   bg?: string;
   titleColor?: string;
   maxWidth?: string;
+  onSubmit?: () => void;
 }) {
   const onClose = () => {
     if (setModalOpen) {
       setModalOpen(false);
     }
-  };
-
-  const addBusEnterprise = () => {
-    // LOGICA PARA AGREGAR EMPRESA DE TRANSPORTE
-    console.log("hola");
   };
 
   return (
@@ -46,7 +43,7 @@ export default function ModalLayout({
             Cancelar
           </button>
           <button
-            onClick={addBusEnterprise}
+            onClick={onSubmit}
             className="bg-primary text-white rounded-full px-8 py-3 font-semibold hover:bg-blue-700">
             Confirmar
           </button>

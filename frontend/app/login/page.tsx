@@ -3,12 +3,44 @@ import Wpp from "../components/icons/Wpp";
 import Mail from "../components/icons/Mail";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { apiClient } from "@/lib/api";
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    router.push("/dashboard");
-    console.log("submit");
+    if (!email || !password) {
+      setError("Por favor completa todos los campos");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+     try {
+      const result = await apiClient.loginSystem({
+        slug: 'fdd2a8bf-4c81-4743-99e0-5d0443b5465b',
+        username: email,
+        password,
+      });
+      
+      if (result.access_token) {
+        
+        // Forzar recarga para asegurar que todo el estado se actualice
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 100);
+      }
+    } catch (err: any) {
+      setError(err.message || "Credenciales inválidas. Por favor intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
+    
   };
   return (
     <main className="login-page mx-5 h-screen max-w-3xl md:mx-auto overflow-hidden">
@@ -24,11 +56,16 @@ export default function LoginPage() {
           className="shadow-md shadow-black/25 bg-[#F1F1F1] border border-black/25 rounded-lg py-2 px-4 text-black"
           placeholder="Usuario"
           type="text"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
         <input
           className="shadow-md shadow-black/25 bg-[#F1F1F1] border border-black/25 rounded-lg py-2 px-4 text-black"
-          placeholder="Contraseña"
-          type="text"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          type={showPass ? "text" : "password"}
+          autoComplete="current-password"
+          placeholder="Ingrese su contraseña"
         />
         <button className="bg-primary text-md shadow-md font-medium shadow-black/50 text-white py-2 rounded-lg">
           Ingresar

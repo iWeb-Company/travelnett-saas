@@ -161,7 +161,7 @@ export default function DashboardPage() {
           </ul>
         </div>
         <img
-          src="logo-empresa.png"
+          src="/logo-empresa.png"
           className="w-20 md:absolute right-10 md:w-50 self-start mt-5"
           alt="Logo de empresa logeada"
         />

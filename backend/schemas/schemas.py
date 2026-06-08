@@ -257,3 +257,94 @@ class UpdateBusTypesRequest(BaseModel):
     cama_quantity: Optional[int] = None
     panoramicos_quantity: Optional[int] = None
     description: Optional[str] = None
+
+# Schemas for permissions management
+
+class PermissionPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str] = None
+    salidas: Optional[bool] = None
+    paquetes: Optional[bool] = None
+    administracion: Optional[bool] = None
+    parametros: Optional[bool] = None
+    web: Optional[bool] = None
+    permisos_users: Optional[bool] = None
+
+class CreatePermissionRequest(BaseModel):
+    name: Optional[str] = None
+    salidas: Optional[bool] = None
+    paquetes: Optional[bool] = None
+    administracion: Optional[bool] = None
+    parametros: Optional[bool] = None
+    web: Optional[bool] = None
+    permisos_users: Optional[bool] = None
+
+class UpdatePermissionRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    salidas: Optional[bool] = None
+    paquetes: Optional[bool] = None
+    administracion: Optional[bool] = None
+    parametros: Optional[bool] = None
+    web: Optional[bool] = None
+    permisos_users: Optional[bool] = None
+
+# Schemas for web management
+
+class FlyerPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str] = None
+    url: Optional[str] = None
+
+class CreateFlyerRequest(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
+    
+class UpdateFlyerRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    url: Optional[str] = None
+
+class NewsPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    url: Optional[str] = None
+
+class CreateNewsRequest(BaseModel):
+    url: Optional[str] = None
+    
+class UpdateNewsRequest(BaseModel):
+    id: Optional[str] = None
+    url: Optional[str] = None
+
+class AccountCreateRequest(BaseModel):
+    account_title: Optional[str] = None
+    titular: Optional[str] = None
+    account_number: Optional[str] = None
+    cuit_cuil: Optional[int] = None
+    cbu_cvu: Optional[int] = None
+    alias: Optional[str] = None
+    active: Optional[bool] = None
+
+class AccountPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    account_title: Optional[str] = None
+    titular: Optional[str] = None
+    account_number: Optional[str] = None
+    cuit_cuil: Optional[int] = None
+    cbu_cvu: Optional[int] = None
+    alias: Optional[str] = None
+    active: Optional[bool] = None
+
+class AccountUpdateRequest(BaseModel):
+    id: Optional[str] = None
+    account_title: Optional[str] = None
+    titular: Optional[str] = None
+    account_number: Optional[str] = None
+    cuit_cuil: Optional[int] = None
+    cbu_cvu: Optional[int] = None
+    alias: Optional[str] = None
+    active: Optional[bool] = None 
