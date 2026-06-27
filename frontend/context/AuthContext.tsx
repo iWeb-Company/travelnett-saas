@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient } from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 interface User {
   id: string;
@@ -12,42 +12,91 @@ interface User {
   username: string;
 }
 
+interface IwebClient {
+  id: string;
+  folder_id: number;
+  slug: string;
+  name: string;
+  cuit: number;
+  email: string;
+  status: boolean;
+  logo_xl: string;
+  logo_s: string;
+}
+
 interface AuthContextType {
   user: User | null;
+  iwebClient: IwebClient | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   token: string | null;
-  login: (iweb_client_id: string, username: string, password: string) => Promise<void>;
+  login: (slug: string, username: string, password: string) => Promise<void>;
   logout: () => void;
-  // checkAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [iwebClient, setIwebClient] = useState<IwebClient | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user && pathname !== '/login') {
+        router.push('/login');
+      } else if (user && pathname === '/login') {
+        router.push('/dashboard');
+      }
+    }
+  }, [isLoading, user, pathname, router]);
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      setIsLoading(true);
+      try {
+        const storedClient = localStorage.getItem('iweb_client');
+
+        // Relies on HTTP-Only cookie automatically sent by the browser
+        const userData = await apiClient.getMe();
+        setUser(userData);
+
+        if (storedClient) {
+          try {
+            setIwebClient(JSON.parse(storedClient));
+          } catch {
+            localStorage.removeItem('iweb_client');
+          }
+        }
+      } catch {
+        setUser(null);
+        setIwebClient(null);
+        localStorage.removeItem('iweb_client');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    restoreSession();
+  }, []);
 
   const login = async (slug: string, username: string, password: string) => {
     setIsLoading(true);
     try {
-      const result = await apiClient.loginSystem({
-        slug,
-        username,
-        password,
-      });
+      const result = await apiClient.loginSystem({ slug, username, password });
 
-      // Guardar token en el estado
-      setToken(result.access_token);
-
-      // Obtener datos del usuario
-      const userData = await apiClient.getMe(result.access_token);
+      if (result.iweb_client) {
+        setIwebClient(result.iweb_client);
+        localStorage.setItem('iweb_client', JSON.stringify(result.iweb_client));
+      }
+      const userData = await apiClient.getMe();
       setUser(userData);
     } catch (error) {
       setUser(null);
-      setToken(null);
+      setIwebClient(null);
+      localStorage.removeItem('iweb_client');
       throw error;
     } finally {
       setIsLoading(false);
@@ -56,20 +105,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    setToken(null);
-    apiClient.logout();
-    router.push('/login');
+    setIwebClient(null);
+    localStorage.removeItem('iweb_client');
+    apiClient.logout().finally(() => {
+      window.location.href = '/login';
+    });
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        iwebClient,
         token,
         isLoading,
         isAuthenticated: !!user,
         login,
-        logout
+        logout,
       }}
     >
       {children}

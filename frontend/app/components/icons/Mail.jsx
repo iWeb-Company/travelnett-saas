@@ -6,7 +6,7 @@ export default function Mail() {
       viewBox="0 0 22 17"
       fill="none"
       xmlns="http://www.w3.org/2000/svg">
-      <g clip-path="url(#clip0_54_574)">
+      <g clipPath="url(#clip0_54_574)">
         <path
           d="M4.96732 16.3738V7.94093L2.35203 5.54833L0.00683594 4.22061V14.8856C0.00683594 15.709 0.67398 16.3738 1.49501 16.3738H4.96732Z"
           fill="#4285F4"

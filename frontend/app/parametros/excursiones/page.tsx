@@ -6,12 +6,14 @@ import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Excursion } from "@/app/types";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function ExcursionesPage() {
+  const { user } = useAuth();
   const r = useRouter();
   const [modalOpenPut, setModalOpenPut] = useState(false);
   const [modalOpenAdd, setModalOpenAdd] = useState(false);
@@ -28,7 +30,7 @@ export default function ExcursionesPage() {
   const getExcursiones = async () => {
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_excursions");
+      const data = await apiClient.getParameters("get_excursions", user?.iweb_client_id);
       const filtered = data.filter((e: any) => {
         const nameToFilter = e.name || e.nombre || "";
         return nameToFilter.toLowerCase().includes(search.toLowerCase());
@@ -53,7 +55,7 @@ export default function ExcursionesPage() {
 
   const handleSubmitAdd = async () => {
     try {
-      await apiClient.createParameter("create_excursions", excursionData);
+      await apiClient.createParameter("create_excursions", excursionData, user?.iweb_client_id);
       console.log(excursionData);
 
       toast.success("Excursión agregada correctamente");
@@ -69,7 +71,7 @@ export default function ExcursionesPage() {
 
   const handleSubmitPut = async () => {
     try {
-      await apiClient.updateParameter("update_excursions", excursionData.id!, excursionData);
+      await apiClient.updateParameter("update_excursions", excursionData.id!, excursionData, user?.iweb_client_id);
       toast.success("Excursión actualizada correctamente");
       setModalOpenPut(false);
       getExcursiones();
@@ -83,7 +85,7 @@ export default function ExcursionesPage() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Está seguro de que desea eliminar esta excursión?")) return;
     try {
-      await apiClient.deleteParameter("delete_excursions", id);
+      await apiClient.deleteParameter("delete_excursions", id, user?.iweb_client_id);
       toast.success("Excursión eliminada correctamente");
       getExcursiones();
       r.refresh();

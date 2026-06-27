@@ -6,12 +6,14 @@ import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Destino } from "@/app/types";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function DestinosPage() {
+  const { user } = useAuth();
   const r = useRouter();
   const [modalOpenPut, setModalOpenPut] = useState(false);
   const [modalOpenAdd, setModalOpenAdd] = useState(false);
@@ -27,7 +29,7 @@ export default function DestinosPage() {
   const getDestinos = async () => {
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_destinos");
+      const data = await apiClient.getParameters("get_destinos", user?.iweb_client_id);
       const filtered = data.filter((e: any) => {
         const nameToFilter = e.name || e.nombre || "";
         return nameToFilter.toLowerCase().includes(search.toLowerCase());
@@ -52,7 +54,7 @@ export default function DestinosPage() {
 
   const handleSubmitAdd = async () => {
     try {
-      await apiClient.createParameter("create_destinos", destinosData);
+      await apiClient.createParameter("create_destinos", destinosData, user?.iweb_client_id);
       toast.success("Destino agregado correctamente");
       setModalOpenAdd(false);
       setDestinosData({ name: "", sigla: "" });
@@ -66,7 +68,7 @@ export default function DestinosPage() {
 
   const handleSubmitPut = async () => {
     try {
-      await apiClient.updateParameter("update_destinos", destinosData.id!, destinosData);
+      await apiClient.updateParameter("update_destinos", destinosData.id!, destinosData, user?.iweb_client_id);
       toast.success("Destino actualizado correctamente");
       setModalOpenPut(false);
       getDestinos();
@@ -80,7 +82,7 @@ export default function DestinosPage() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Está seguro de que desea eliminar este destino?")) return;
     try {
-      await apiClient.deleteParameter("delete_destinos", id);
+      await apiClient.deleteParameter("delete_destinos", id, user?.iweb_client_id);
       toast.success("Destino eliminado correctamente");
       getDestinos();
       r.refresh();

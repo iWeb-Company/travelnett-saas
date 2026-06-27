@@ -7,82 +7,93 @@ import SalidaCard from "@/app/components/SalidaCard";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
-import { Suspense } from "react";
-
-const salidas = [
-  {
-    id: 1,
-    destino: "Termas de Rio Hondo",
-    fecha: "22/06/2025",
-    categorias: [
-      { tipo: "Economy", total: 20, disponible: 20 },
-      { tipo: "Business", total: 5, disponible: 5 },
-    ],
-  },
-  {
-    id: 2,
-    destino: "Termas de Rio Hondo",
-    fecha: "22/06/2025",
-    categorias: [
-      { tipo: "Economy", total: 20, disponible: 20 },
-      { tipo: "Business", total: 5, disponible: 5 },
-    ],
-  },
-  {
-    id: 3,
-    destino: "Termas de Rio Hondo",
-    fecha: "22/06/2025",
-    categorias: [
-      { tipo: "Economy", total: 20, disponible: 20 },
-      { tipo: "Business", total: 5, disponible: 5 },
-    ],
-  },
-  {
-    id: 4,
-    destino: "Termas de Rio Hondo",
-    fecha: "22/06/2025",
-    categorias: [
-      { tipo: "Economy", total: 20, disponible: 20 },
-      { tipo: "Business", total: 5, disponible: 5 },
-    ],
-  },
-];
+import { Suspense, useState } from "react";
+import { useMockData } from "@/context/MockDataContext";
 
 function ResultContent() {
   const searchParams = useSearchParams();
-  console.log(searchParams.get("destino"));
+  const { salidas, deleteSalida } = useMockData();
+  const [sortAsc, setSortAsc] = useState(true);
+  console.log("Salidas obtenidas:", salidas);
+  const tipoFilter = searchParams.get("tipo") || "";
+  const destinoFilter = searchParams.get("destino") || "";
+  const empresaFilter = searchParams.get("empresa") || "";
+  const periodFilter = searchParams.get("periodo") || "";
+
+  const filtered = salidas.filter((s) => {
+    if (tipoFilter && tipoFilter !== "null" && s.empresaTipo !== tipoFilter) {
+      return false;
+    }
+    if (destinoFilter && s.destinoId !== destinoFilter && s.destinoNombre !== destinoFilter) {
+      return false;
+    }
+    if (empresaFilter && s.empresaId !== empresaFilter && s.empresaNombre !== empresaFilter) {
+      return false;
+    }
+    if (periodFilter && s.periodoId !== periodFilter && s.periodoNombre !== periodFilter) {
+      return false;
+    }
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    const da = new Date(a.fecha).getTime();
+    const db = new Date(b.fecha).getTime();
+    return sortAsc ? da - db : db - da;
+  });
+
+  const handleDelete = (id: string | number) => {
+    if (window.confirm("¿Está seguro de eliminar esta salida?")) {
+      deleteSalida(id.toString());
+    }
+  };
+
   return (
     <Container>
       <ToggleSalidas />
       <Link
-        href={"/dashboard"}
+        href={"/salidas"}
         className="flex items-center justify-start gap-3">
         <ArrowLeft />
-        <h1 className="font-bold md:text-xl">Volver al menú</h1>
+        <h1 className="font-bold md:text-xl">Volver a filtros</h1>
       </Link>
       <Link
         className="flex items-center my-2 justify-start gap-2"
         href={"/salidas/agregar-salida"}>
         <AddVioleta />
-        <p className="text-secondary font-semibold md:text-lg">Agregar</p>
+        <p className="text-secondary font-semibold md:text-lg">Agregar Salida</p>
       </Link>
       <section className="flex justify-between my-5 items-center">
-        <h2 className="font-medium text-black text-center mx-auto md:text-xl">Salidas</h2>
+        <h2 className="font-medium text-black text-center mx-auto md:text-xl">Resultados de Salidas</h2>
       </section>
       <section className="flex flex-col max-w-6xl mx-auto gap-5">
-        <div className="flex items-center my-2 font-semibold  justify-end gap-1">
-          <p className="text-black">Ordenar por fecha</p>
+        <button
+          onClick={() => setSortAsc(!sortAsc)}
+          className="flex items-center my-2 font-semibold justify-end gap-1 text-black self-end hover:opacity-85"
+        >
+          <p>Ordenar por fecha ({sortAsc ? "Ascendente" : "Descendente"})</p>
           <ArrowUpDown />
+        </button>
+        <div className="flex flex-col w-full gap-4">
+          
+          {sorted.length === 0 ? (
+            <p className="text-center text-gray-500 py-10">No se encontraron salidas que coincidan con los criterios.</p>
+          ) : (
+            sorted.map((salida) => (
+              <SalidaCard
+                key={salida.id}
+                id={salida.id}
+                destino={salida.destinoNombre}
+                fecha={salida.fecha ? new Date(salida.fecha + "T00:00:00").toLocaleDateString("es-AR") : "-"}
+                categorias={[
+                  { tipo: "Semicama", total: salida.semicama, disponible: salida.semicama },
+                  { tipo: "Cama", total: salida.cama, disponible: salida.cama }
+                ]}
+                onDelete={handleDelete}
+              />
+            ))
+          )}
         </div>
-        {salidas.map((salida) => (
-          <SalidaCard
-            key={salida.id}
-            id={salida.id}
-            destino={salida.destino}
-            fecha={salida.fecha}
-            categorias={salida.categorias}
-          />
-        ))}
       </section>
     </Container>
   );
@@ -90,7 +101,7 @@ function ResultContent() {
 
 export default function ResultPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><p className="text-black">Cargando...</p></div>}>
       <ResultContent />
     </Suspense>
   );

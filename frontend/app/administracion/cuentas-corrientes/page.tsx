@@ -14,22 +14,24 @@ export default function CuentasCorrientesPage() {
         <h1 className="font-bold">Volver al menú</h1>
       </Link>
       <section className="my-10">
-        <ul className="text-white flex flex-col gap-8">
-          <Link
-            href={"/administracion/cuentas-corrientes/clientes"}
-            className="bg-primary w-full gap-3 py-2 text-center px-3 rounded-lg font-medium">
-            {/* <Salidas /> */}
-            <i className="text-center">CLIENTES</i>
-          </Link>
-          <Link
-            href="/administracion/cuentas-corrientes/proveedores"
-            className="bg-primary gap-3 py-2 text-center px-3 rounded-lg font-medium">
-            {/* <Paquetes /> */}
-            <i className="text-center">PROVEEDORES</i>
-          </Link>
-        </ul>
-        <div className="flex mt-8 justify-end">
-          <img src="/logo-empresa.png" alt="Logo Empresa" />
+        <section className="my-10 w-full max-w-3xl mx-auto">
+          <ul className="text-white flex flex-col gap-8">
+            <Link
+              href="/administracion/cuentas-corrientes/clientes"
+              className="bg-primary cursor-pointer w-full gap-3 py-2 text-center px-3 rounded-lg font-medium"
+            >
+              <i className="text-center">CLIENTES</i>
+            </Link>
+            <Link
+              href="/administracion/cuentas-corrientes/proveedores"
+              className="bg-primary cursor-pointer gap-3 py-2 text-center px-3 rounded-lg font-medium"
+            >
+              <i className="text-center">PROVEEDORES</i>
+            </Link>
+          </ul>
+        </section>
+        <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
+          <img src="/logo-grande.png" className='size-50' alt="Logo Empresa" />
         </div>
       </section>
     </Container>

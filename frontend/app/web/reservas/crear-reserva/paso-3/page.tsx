@@ -1,11 +1,129 @@
 "use client";
+
 import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
+import { Loader } from "@/app/components/Loader";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
+import toast from "react-hot-toast";
 
-export default function Paso2Page() {
+interface Passenger {
+  dni: string;
+  nombre: string;
+  apellido: string;
+  fechaNacimiento: string;
+  puntoAscenso: string;
+}
+
+function Paso3Content() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [lugaresCarga, setLugaresCarga] = useState<any[]>([]);
+
+  // Query Parameters from step 2
+  const destinoId = searchParams.get("destino") || "";
+  const clienteId = searchParams.get("cliente") || "";
+  const tipoReserva = searchParams.get("tipo") || "";
+  const itemId = searchParams.get("item") || "";
+  const itemType = searchParams.get("itemType") || "";
+  const hotelId = searchParams.get("hotel") || "";
+  const cama = searchParams.get("cama") || "";
+  const habitacion = searchParams.get("habitacion") || "";
+
+  // Passengers state
+  const [passengers, setPassengers] = useState<Passenger[]>([]);
+
+  const loadLugaresCarga = async () => {
+    if (!user?.iweb_client_id) return;
+    try {
+      const data = await apiClient.getParameters("get_lugares_carga", user.iweb_client_id).catch(() => []);
+      setLugaresCarga(data);
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al cargar puntos de ascenso");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.iweb_client_id) {
+      loadLugaresCarga();
+    }
+  }, [user?.iweb_client_id]);
+
+  // Determine initial passenger count based on room type
+  useEffect(() => {
+    let count = 1;
+    if (habitacion === "doble") count = 2;
+    else if (habitacion === "triple") count = 3;
+    else if (habitacion === "cuadruple") count = 4;
+
+    const initialPassengers = Array.from({ length: count }, () => ({
+      dni: "",
+      nombre: "",
+      apellido: "",
+      fechaNacimiento: "",
+      puntoAscenso: "",
+    }));
+    setPassengers(initialPassengers);
+  }, [habitacion]);
+
+  const handlePassengerChange = (index: number, field: keyof Passenger, value: string) => {
+    const updated = [...passengers];
+    updated[index][field] = value;
+    setPassengers(updated);
+  };
+
+  const handleAddPassenger = () => {
+    setPassengers([
+      ...passengers,
+      { dni: "", nombre: "", apellido: "", fechaNacimiento: "", puntoAscenso: "" },
+    ]);
+  };
+
+  const handleRemovePassenger = (index: number) => {
+    if (passengers.length <= 1) {
+      toast.error("La reserva debe tener al menos un pasajero.");
+      return;
+    }
+    setPassengers(passengers.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate passengers
+    for (let i = 0; i < passengers.length; i++) {
+      const p = passengers[i];
+      if (!p.dni || !p.nombre || !p.apellido || !p.fechaNacimiento) {
+        toast.error(`Por favor complete todos los datos obligatorios para el Pasajero ${i + 1}`);
+        return;
+      }
+    }
+
+    toast.success("¡Reserva confirmada con éxito!");
+    // Redirect to result page with details
+    router.push(
+      `/web/reservas/result?success=true&destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&hotel=${hotelId}&cama=${cama}&habitacion=${habitacion}&pasajeros=${encodeURIComponent(JSON.stringify(passengers))}`
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader />
+      </div>
+    );
+  }
+
   return (
     <Container>
       <ToggleSalidas />
@@ -25,10 +143,10 @@ export default function Paso2Page() {
       </Link>
       <Link
         className="flex items-center my-3 justify-start gap-2"
-        href={"/web/reservas/crear-reserva/paso-2"}>
+        href={`/web/reservas/crear-reserva/paso-2?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}`}>
         <ArrowLeft />
         <p className="text-primary font-semibold md:text-lg">
-          Volver a Habitacion
+          Volver a Habitación
         </p>
       </Link>
 
@@ -36,81 +154,141 @@ export default function Paso2Page() {
         Crear reserva
       </h2>
 
-      <div className="max-w-2xl mx-auto w-full mt-5 flex flex-col items-center gap-5">
+      <div className="max-w-2xl mx-auto w-full mt-5 flex flex-col items-center gap-5 text-black">
         {/* Step Tabs */}
         <div className="flex w-full rounded-xl bg-[#5782F7] overflow-hidden shadow-md shadow-black/20">
-          <div className="flex-1  text-white text-center py-2.5 font-semibold text-sm md:text-base">
-            1. Paquete
+          <div className="flex-1 text-white text-center py-3 font-semibold text-sm md:text-base">
+            1. Paquete / Salida
           </div>
-          <div className="flex-1 rounded-t-2xl  text-white text-center py-2.5 font-semibold text-sm md:text-base">
+          <div className="flex-1 text-white text-center py-3 font-semibold text-sm md:text-base">
             2. Habitación
           </div>
-          <div className="flex-1 rounded-t-2xl bg-primary text-white text-center py-2.5 font-semibold text-sm md:text-base">
+          <div className="flex-1 bg-primary rounded-tl-4xl text-white text-center py-3 font-semibold text-sm md:text-base">
             3. Datos
           </div>
         </div>
-        <div className="flex flex-col gap-2 text-black items-start w-full font-semibold         ">
-          <p>Mar del Plata - Mio Turismo</p>
-          <p>25/06/2025 - MDQ PRUEBA</p>
-          <p>Hotel Garden - DBL MAT</p>
+
+        {/* Current summary */}
+        <div className="flex flex-col gap-2 text-black items-start w-full font-semibold bg-gray-50 border border-gray-200 p-4 rounded-xl">
+          <p className="text-sm"><span className="text-primary font-bold">{destinoId ? "Mar del Plata" : "General"} - Mio Turismo</span></p>
+          <p className="text-sm"><span className="text-primary font-bold">25/06/2026 - MDQ</span></p>
+          <p className="text-sm">Tipo: <span className="text-primary font-bold">{tipoReserva === "bloqueo" ? "Bloqueo Grupal" : "Reserva Tradicional"}</span></p>
+          <p className="text-sm">Hotel Garden - DBL MAT</p>
         </div>
+
         {/* Form */}
-        <form className="flex flex-col w-full gap-4">
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Hotel Garden </option>
-            <option value="mdq">Mar del Plata</option>
-            <option value="brc">Bariloche</option>
-          </select>
-          <p className="font-semibold text-black">Pasajero 1</p>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">DNI</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Nombre</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Apellido</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Fecha de Nacimiento</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Punto de ascenso</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <p className="font-semibold text-black">Pasajero 2 </p>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">DNI</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Nombre</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Apellido</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Fecha de Nacimiento</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          <select className="w-full border border-black/20 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-black/60 font-medium shadow-sm focus:outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22%23666%22%3E%3Cpath%20d%3D%22M7%2010l5%205%205-5z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]">
-            <option value="">Punto de ascenso</option>
-            <option value="mio">Mio Turismo</option>
-          </select>
-          {/* Continuar */}
-          <Link
-            href="/web/reservas/crear-reserva/paso-3"
-            className="w-full bg-primary text-white text-center font-semibold py-2.5 rounded-lg shadow-md shadow-black/30 mt-3 hover:bg-blue-700 transition-colors">
-            Continuar
-          </Link>
+        <form onSubmit={handleSubmit} className="flex flex-col w-full gap-5 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+          <input type="text" placeholder="Titulo de la reserva" className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+          {passengers.map((passenger, index) => (
+            <div key={index} className="flex flex-col gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50/50 relative">
+              <div className="flex justify-between items-center">
+                <p className="font-bold text-gray-800">Pasajero {index + 1}</p>
+                {passengers.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePassenger(index)}
+                    className="text-red-500 hover:text-red-700 text-xs font-semibold"
+                  >
+                    Eliminar
+                  </button>
+                )}
+              </div>
+
+              {/* DNI */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-gray-700">DNI *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Ingrese DNI"
+                  value={passenger.dni}
+                  onChange={(e) => handlePassengerChange(index, "dni", e.target.value)}
+                />
+              </div>
+
+              {/* Nombre */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-gray-700">Nombre *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Ingrese Nombre"
+                  value={passenger.nombre}
+                  onChange={(e) => handlePassengerChange(index, "nombre", e.target.value)}
+                />
+              </div>
+
+              {/* Apellido */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-gray-700">Apellido *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Ingrese Apellido"
+                  value={passenger.apellido}
+                  onChange={(e) => handlePassengerChange(index, "apellido", e.target.value)}
+                />
+              </div>
+
+              {/* Fecha de Nacimiento */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-gray-700">Fecha de Nacimiento *</label>
+                <input
+                  type="date"
+                  required
+                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={passenger.fechaNacimiento}
+                  onChange={(e) => handlePassengerChange(index, "fechaNacimiento", e.target.value)}
+                />
+              </div>
+
+              {/* Punto de ascenso */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-gray-700">Punto de ascenso / Embarque</label>
+                <select
+                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={passenger.puntoAscenso}
+                  onChange={(e) => handlePassengerChange(index, "puntoAscenso", e.target.value)}
+                >
+                  <option value="">Seleccione lugar de carga</option>
+                  {lugaresCarga.map((l: any) => (
+                    <option key={l.id} value={l.id}>{l.name || l.nombre || l.lugar}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))}
+
+          {/* Add passenger button */}
+          <button
+            type="button"
+            onClick={handleAddPassenger}
+            className="w-full py-2 px-4 border border-dashed border-primary text-primary hover:bg-blue-50 font-bold rounded-lg text-sm transition-all"
+          >
+            + Agregar Pasajero Adicional
+          </button>
+
+          {/* Continuar / Confirmar */}
+          <button
+            type="submit"
+            className="w-full bg-primary text-white text-center font-semibold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-all cursor-pointer mt-3"
+          >
+            Confirmar Reserva
+          </button>
         </form>
       </div>
     </Container>
   );
 }
+
+export default function Paso3Page() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader /></div>}>
+      <Paso3Content />
+    </Suspense>
+  );
+}
+

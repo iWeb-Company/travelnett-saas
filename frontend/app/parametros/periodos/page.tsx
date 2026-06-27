@@ -6,12 +6,14 @@ import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Period } from "@/app/types";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function PeriodosPage() {
+  const { user } = useAuth();
   const r = useRouter();
   const [modalOpenPut, setModalOpenPut] = useState(false);
   const [modalOpenAdd, setModalOpenAdd] = useState(false);
@@ -39,7 +41,7 @@ export default function PeriodosPage() {
   const getPeriodos = async () => {
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_periods");
+      const data = await apiClient.getParameters("get_periods", user?.iweb_client_id);
       const filtered = data.filter((e: any) => {
         const name = e.name || e.nombre || "";
         return name.toLowerCase().includes(search.toLowerCase());
@@ -71,7 +73,7 @@ export default function PeriodosPage() {
         formData.append("main_image", selectedFile);
       }
 
-      await apiClient.createParameter("create_periods", formData);
+      await apiClient.createParameter("create_periods", formData, user?.iweb_client_id);
       toast.success("Periodo agregado correctamente");
       setModalOpenAdd(false);
       setPeriodoData({ name: "", main_image: "" });
@@ -92,7 +94,7 @@ export default function PeriodosPage() {
         formData.append("main_image", selectedFile);
       }
 
-      await apiClient.updateParameter("update_periods", periodoData.id!, formData);
+      await apiClient.updateParameter("update_periods", periodoData.id!, formData, user?.iweb_client_id);
       toast.success("Periodo actualizado correctamente");
       setModalOpenPut(false);
       getPeriodos();
@@ -106,7 +108,7 @@ export default function PeriodosPage() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Está seguro de que desea eliminar este periodo?")) return;
     try {
-      await apiClient.deleteParameter("delete_periods", id);
+      await apiClient.deleteParameter("delete_periods", id, user?.iweb_client_id);
       toast.success("Periodo eliminado correctamente");
       getPeriodos();
       r.refresh();

@@ -2,7 +2,7 @@
 import ToggleActiveFilters from "@/app/components/ToggleActiveFilters";
 import { useState, useRef, useEffect } from "react";
 
-export default function CuentaCard({ cuenta }: { cuenta: any }) {
+export default function CuentaCard({ cuenta, onDelete }: { cuenta: any; onDelete?: (id: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
@@ -11,7 +11,7 @@ export default function CuentaCard({ cuenta }: { cuenta: any }) {
     if (contentRef.current) {
       setContentHeight(contentRef.current.scrollHeight);
     }
-  }, []);
+  }, [isOpen]);
 
   return (
     <div
@@ -20,9 +20,9 @@ export default function CuentaCard({ cuenta }: { cuenta: any }) {
         {/* Header azul clickeable */}
         <div
           onClick={() => setIsOpen(!isOpen)}
-          className="bg-[#5782F7] text-white justify-between items-center px-4 md:px-5 font-medium text-sm md:text-base py-1 flex gap-2 cursor-pointer select-none transition-all duration-300 rounded-lg">
+          className="bg-[#5782F7] text-white justify-between items-center px-4 md:px-5 font-medium text-sm md:text-base py-2 flex gap-2 cursor-pointer select-none transition-all duration-300 rounded-lg">
           <p className="uppercase tracking-wider">
-            {cuenta.banco} - {cuenta.tipo}
+            {cuenta.account_title || "Cuenta Bancaria"}
           </p>
           {/* Toggle Activo */}
           <ToggleActiveFilters color="text-white" />
@@ -37,26 +37,29 @@ export default function CuentaCard({ cuenta }: { cuenta: any }) {
           className="overflow-hidden transition-all duration-500 ease-in-out">
           <div className="bg-secondary shadow-lg shadow-black/30 text-white rounded-b-lg mx-2 py-4 px-4 flex flex-col gap-1">
             <p className="text-sm md:text-base">
-              N° de cuenta: <span className="font-bold">{cuenta.numero}</span>
+              N° de cuenta: <span className="font-bold">{cuenta.account_number || "-"}</span>
             </p>
             <p className="text-sm md:text-base">
-              Titular: <span className="font-bold">{cuenta.titular}</span>
+              Titular: <span className="font-bold">{cuenta.titular || "-"}</span>
             </p>
             <p className="text-sm md:text-base">
-              CUIT/CUIL: <span className="font-bold">{cuenta.cuit}</span>
+              CUIT/CUIL: <span className="font-bold">{cuenta.cuit_cuil || "-"}</span>
             </p>
             <p className="text-sm md:text-base">
-              CBU/CVU: <span className="font-bold">{cuenta.cbu}</span>
+              CBU/CVU: <span className="font-bold">{cuenta.cbu_cvu || "-"}</span>
             </p>
             <p className="text-sm md:text-base">
-              Alias: <span className="font-bold">{cuenta.alias}</span>
+              Alias: <span className="font-bold">{cuenta.alias || "-"}</span>
             </p>
           </div>
         </div>
       </div>
 
       {/* Botón eliminar fuera de la card */}
-      <button className="py-3 text-primary hover:text-red-500 transition-colors">
+      <button 
+        onClick={() => onDelete && onDelete(cuenta.id)}
+        className="py-3 text-primary hover:text-red-500 transition-colors"
+      >
         <svg
           className="md:w-10 w-8"
           viewBox="0 0 38 38"

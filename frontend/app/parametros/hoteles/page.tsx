@@ -6,12 +6,14 @@ import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Hotel } from "@/app/types";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function HotelesPage() {
+  const { user } = useAuth();
   const r = useRouter();
   const [modalOpenPut, setModalOpenPut] = useState(false);
   const [modalOpenAdd, setModalOpenAdd] = useState(false);
@@ -42,7 +44,7 @@ export default function HotelesPage() {
   const getHoteles = async () => {
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_hotels");
+      const data = await apiClient.getParameters("get_hotels", user?.iweb_client_id);
       const hotelesFiltered = data.filter((e: Hotel) =>
         e.name.toLowerCase().includes(search.toLowerCase())
       );
@@ -79,7 +81,7 @@ export default function HotelesPage() {
         });
       }
 
-      await apiClient.createParameter("create_hotels", formData);
+      await apiClient.createParameter("create_hotels", formData, user?.iweb_client_id);
       toast.success("Hotel agregado correctamente");
       setModalOpenAdd(false);
       setHotelData({
@@ -111,7 +113,7 @@ export default function HotelesPage() {
         });
       }
 
-      await apiClient.updateParameter("update_hotels", hotelData.id!, formData);
+      await apiClient.updateParameter("update_hotels", hotelData.id!, formData, user?.iweb_client_id);
       toast.success("Hotel actualizado correctamente");
       setModalOpenPut(false);
       getHoteles();
@@ -124,7 +126,7 @@ export default function HotelesPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await apiClient.deleteParameter("delete_hotels", id);
+      await apiClient.deleteParameter("delete_hotels", id, user?.iweb_client_id);
       toast.success("Hotel eliminado correctamente");
       getHoteles();
       r.refresh();

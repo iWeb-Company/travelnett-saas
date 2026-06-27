@@ -1,27 +1,42 @@
+// ==========================================
+// 1. AUTENTICACIÓN Y TENANTS (iWebClients / Agencys)
+// ==========================================
+
 export interface UsersAgencys {
     id: string;
     name: string;
-    phone: string;
+    phone: string | number;
     last_name: string;
-    dni: string;
+    dni: string | number;
     birthday: string;
     iweb_client_id: string;
-    active: boolean;
+    active: boolean | number;
     username: string;
 }
 
+// Alias de conveniencia para mapear con el backend
+export interface User extends UsersAgencys { }
 
 export interface Agencys {
     id: string;
     name: string;
-    cuit: string;
+    cuit: string | number;
     email: string;
-    status: string;
+    status: string | boolean;
     logo_xl: string;
     logo_s: string;
+    domain?: string;
+    slug?: string;
 }
 
-// PARAMETROS
+// Alias de conveniencia para mapear con el backend (iweb_clients)
+export interface iWebClient extends Agencys { }
+
+
+// ==========================================
+// 2. PARÁMETROS Y TABLAS MAPEADAS (SQLAlchemy)
+// ==========================================
+
 export interface TransportCompany {
     id?: string;
     iweb_client_id?: string;
@@ -39,15 +54,23 @@ export interface Hotel {
     destino: string;
     address: string;
     web: string;
-    images: string[];
+    phone?: number | null; // Opcional para evitar conflictos de inicialización de estado
+    images?: string[]; // Utilizado en el frontend para agrupar urls de hotels_images
+}
+
+export interface HotelsImages {
+    id: string;
+    iweb_client_id: string;
+    hotel_id: string;
+    url: string;
 }
 
 export interface Excursion {
     id?: string;
-    destino: string;
     iweb_client_id?: string;
-    description: string;
+    destino: string;
     name: string;
+    description: string;
 }
 
 export interface Destino {
@@ -69,10 +92,22 @@ export interface Micro {
     id?: string;
     iweb_client_id?: string;
     name: string;
-    cant_semi: string;
-    cant_cama: string;
-    cant_pano: string;
+    cant_semi: string | number;
+    cant_cama: string | number;
+    cant_pano: string | number;
     observaciones: string;
+}
+
+// Representa a la tabla física bus_types
+export interface BusType {
+    id?: string;
+    iweb_client_id?: string;
+    name: string;
+    semicama_quantity?: number | null;
+    cama_quantity?: number | null;
+    panoramicos_quantity?: number | null;
+    observations?: string;
+    description?: string; // Alias para compatibilidad backend
 }
 
 export interface Cliente {
@@ -80,12 +115,30 @@ export interface Cliente {
     iweb_client_id?: string;
     nombre_sistema: string;
     full_name: string;
-    dni: string;
+    dni: string | number;
     fecha: string;
     tipo_cliente: string;
-    telefono: string;
+    telefono: string | number;
     forma_pago: string;
-    comision: string;
+    comision: string | number;
+}
+
+// Representa a la tabla física clients
+export interface Client {
+    id?: string;
+    iweb_client_id?: string;
+    name_system?: string;
+    complete_name?: string;
+    client_type?: string;
+    parent_client_id?: string;
+    dni?: number;
+    birthday?: string;
+    email?: string;
+    phone?: number;
+    payment_method?: string;
+    commission?: number;
+    hashed_password?: string;
+    created_at?: string;
 }
 
 export interface TipoCliente {
@@ -96,30 +149,30 @@ export interface TipoCliente {
     si_es_admin?: string;
 }
 
+// Representa a la tabla física clientsType / clients_type
+export interface ClientsType {
+    id?: string;
+    iweb_client_id?: string;
+    name?: string;
+    adminForSellers?: boolean;
+    admin_clients?: string;
+}
+
 export interface Carga {
     id?: string;
     iweb_client_id?: string;
     nombre: string;
     direccion: string;
-    tipo: "aereo" | "bus";
+    tipo: "aereo" | "bus" | string;
 }
 
-export interface BusType {
-    id: string;
-    iweb_client_id: string;
-    name: string;
-    cant_semi: string;
-    cant_cama: string;
-    cant_pano: string;
-    observaciones: string;
-}
-
+// Representa a la tabla física lugares_carga
 export interface LoadingPlace {
     id?: string;
     iweb_client_id?: string;
     name: string;
     address: string;
-    type: "aereo" | "bus";
+    type: "aereo" | "bus" | string;
 }
 
 export interface Passengers {
@@ -133,9 +186,142 @@ export interface Passengers {
     phone: number | null;
 }
 
+// Alias de conveniencia
+export interface Passenger extends Passengers { }
+
 export interface Period {
     id?: string;
     iweb_client_id?: string;
     name: string;
     main_image?: string;
+}
+
+export interface Permission {
+    id?: string;
+    iweb_client_id?: string;
+    name?: string;
+    salidas?: boolean;
+    paquetes?: boolean;
+    administracion?: boolean;
+    parametros?: boolean;
+    web?: boolean;
+    permisos_users?: boolean;
+}
+
+export interface Flyer {
+    id?: string;
+    iweb_client_id?: string;
+    name?: string;
+    url?: string;
+}
+
+export interface News {
+    id?: string;
+    iweb_client_id?: string;
+    url?: string;
+}
+
+export interface Account {
+    id?: string;
+    iweb_client_id?: string;
+    account_title?: string;
+    titular?: string;
+    account_number?: string;
+    cuit_cuil?: number | null;
+    cbu_cvu?: number | null;
+    alias?: string;
+    active?: boolean;
+}
+
+
+// ==========================================
+// 3. TABLAS ADICIONALES SIN MAPEAR EN FastAPI (Lógica Local / Futura Integración)
+// ==========================================
+
+export interface Card {
+    id?: string;
+    iweb_client_id?: string;
+    name?: string;
+    status?: boolean;
+}
+
+export interface CardWeb {
+    id?: string;
+    iweb_client_id?: string;
+    body?: string;
+    quotes?: number;
+    quality_extra?: number;
+}
+
+export interface CurrentAccountMovement {
+    id?: string;
+    iweb_client_id?: string;
+    client_id?: string;
+    reserva_id?: string;
+    saldo?: number;
+    description?: string;
+    date?: string;
+}
+
+export interface Documentation {
+    id?: string;
+    iweb_client_id?: string;
+    title?: string;
+    body?: string;
+}
+
+export interface Package {
+    id?: string;
+    iweb_client_id: string;
+    name: string;
+    subtitle: string;
+    description: string;
+    destino?: string;
+    regimen?: string;
+    excursion?: string;
+    dates: PackageDateOfExit[];
+    periodo?: string;
+    price: number;
+    gastos?: number | null;
+    adicional?: number | null;
+    hotel?: string;
+    image: string;
+    active: boolean;
+}
+
+export interface PackageDateOfExit {
+    id?: string;
+    iweb_client_id?: string;
+    package_id?: string;
+    date?: string;
+    active: boolean;
+}
+
+export interface Pago {
+    id?: string;
+    iweb_client_id?: string;
+    reserva_id?: string;
+    payment_method?: string;
+    date_pay?: string;
+    ammount?: number;
+    observations?: string;
+    card_number?: string;
+    titular?: string;
+    operation_number?: string;
+    quotes_number?: string;
+}
+
+export interface Reserva {
+    id?: string;
+    iweb_client_id?: string;
+    passenger_id?: string;
+}
+
+export interface Salida {
+    id?: string;
+    iweb_client_id?: string;
+    date_of_out?: string;
+    passengers?: number;
+    semicama?: number;
+    cama?: number;
 }

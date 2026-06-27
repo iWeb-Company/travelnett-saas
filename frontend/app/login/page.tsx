@@ -4,17 +4,19 @@ import Mail from "../components/icons/Mail";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 export default function LoginPage() {
+  const [slug, setSlug] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const { login } = useAuth();
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!slug || !email || !password) {
       setError("Por favor completa todos los campos");
       return;
     }
@@ -22,19 +24,8 @@ export default function LoginPage() {
     setIsSubmitting(true);
     setError(null);
      try {
-      const result = await apiClient.loginSystem({
-        slug: 'fdd2a8bf-4c81-4743-99e0-5d0443b5465b',
-        username: email,
-        password,
-      });
-      
-      if (result.access_token) {
-        
-        // Forzar recarga para asegurar que todo el estado se actualice
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 100);
-      }
+      await login(slug, email, password);
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || "Credenciales inválidas. Por favor intenta nuevamente.");
     } finally {
@@ -54,6 +45,13 @@ export default function LoginPage() {
       >
         <input
           className="shadow-md shadow-black/25 bg-[#F1F1F1] border border-black/25 rounded-lg py-2 px-4 text-black"
+          placeholder="Agencia (slug)"
+          type="text"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+        />
+        <input
+          className="shadow-md shadow-black/25 bg-[#F1F1F1] border border-black/25 rounded-lg py-2 px-4 text-black"
           placeholder="Usuario"
           type="text"
           value={email}
@@ -63,12 +61,16 @@ export default function LoginPage() {
           className="shadow-md shadow-black/25 bg-[#F1F1F1] border border-black/25 rounded-lg py-2 px-4 text-black"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          type={showPass ? "text" : "password"}
+          type="password"
           autoComplete="current-password"
           placeholder="Ingrese su contraseña"
         />
-        <button className="bg-primary text-md shadow-md font-medium shadow-black/50 text-white py-2 rounded-lg">
-          Ingresar
+        {error && <p className="text-red-500 text-sm font-medium text-center -mt-5">{error}</p>}
+        <button
+          disabled={isSubmitting}
+          className="bg-primary text-md shadow-md font-medium shadow-black/50 text-white py-2 rounded-lg disabled:opacity-60"
+        >
+          {isSubmitting ? "Ingresando..." : "Ingresar"}
         </button>
       </form>
       <ul className="flex flex-col md:items-start justify-start text-sm text-black gap-4">

@@ -6,6 +6,7 @@ import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { LoadingPlace } from "@/app/types";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -14,6 +15,7 @@ import toast from "react-hot-toast";
 type TipoTransporte = "aereo" | "bus" | null;
 
 export default function CargasPage() {
+  const { user } = useAuth();
   const r = useRouter();
   const [modalOpenPut, setModalOpenPut] = useState(false);
   const [modalOpenAdd, setModalOpenAdd] = useState(false);
@@ -31,7 +33,7 @@ export default function CargasPage() {
   const getLugares = async () => {
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_loading_places");
+      const data = await apiClient.getParameters("get_lugares_carga", user?.iweb_client_id);
       setLugares(data);
     } catch (error) {
       console.error("Error fetching loading places:", error);
@@ -52,7 +54,7 @@ export default function CargasPage() {
 
   const handleSubmitAdd = async () => {
     try {
-      await apiClient.createParameter("create_loading_places", { ...cargaData, type: tipo });
+      await apiClient.createParameter("create_lugares_carga", { ...cargaData, type: tipo }, user?.iweb_client_id);
       toast.success("Lugar de carga agregado correctamente");
       setModalOpenAdd(false);
       setCargaData({ name: "", address: "", type: tipo || "bus" });
@@ -66,7 +68,7 @@ export default function CargasPage() {
 
   const handleSubmitPut = async () => {
     try {
-      await apiClient.updateParameter("update_loading_places", cargaData.id!, cargaData);
+      await apiClient.updateParameter("update_lugares_carga", cargaData.id!, cargaData, user?.iweb_client_id);
       toast.success("Lugar de carga actualizado correctamente");
       setModalOpenPut(false);
       getLugares();
@@ -80,7 +82,7 @@ export default function CargasPage() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Está seguro de que desea eliminar este lugar de carga?")) return;
     try {
-      await apiClient.deleteParameter("delete_loading_places", id);
+      await apiClient.deleteParameter("delete_lugares_carga", id, user?.iweb_client_id);
       toast.success("Lugar de carga eliminado correctamente");
       getLugares();
       r.refresh();

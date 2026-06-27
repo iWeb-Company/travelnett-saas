@@ -5,17 +5,19 @@ const publicRoutes = ['/login'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const token = request.cookies.get('access_token');
 
   // Verificar si la ruta es pública
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
-  if (isPublicRoute) {
-    return NextResponse.next();
+  if (!token && !isPublicRoute && pathname !== '/') {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Para rutas protegidas, permitir acceso
-  // El contexto de auth se encarga de validar el token con /auth/me
-  // Si no hay token válido, el contexto redirige a /login
+  if (token && pathname === '/login') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   return NextResponse.next();
 }
 

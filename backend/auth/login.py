@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -39,7 +39,7 @@ def create_access_token(data: dict) -> str:
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
     db: Session = Depends(get_db),
 ) -> User:
     credentials_exception = HTTPException(
@@ -47,6 +47,25 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # 1. Try to get token from Authorization header
+    token = None
+    authorization = request.headers.get("Authorization")
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        
+    # 2. Try to get token from cookie if not in header
+    if not token:
+        cookie_token = request.cookies.get("access_token")
+        if cookie_token:
+            if cookie_token.startswith("Bearer "):
+                token = cookie_token.split(" ")[1]
+            else:
+                token = cookie_token
+                
+    if not token:
+        raise credentials_exception
+        
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str | None = payload.get("sub")

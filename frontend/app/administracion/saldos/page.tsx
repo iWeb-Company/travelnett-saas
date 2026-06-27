@@ -5,62 +5,76 @@ import ToggleSalidas from "@/app/components/ToggleSalidas";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Excel from "@/app/components/icons/salidas/Excel";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
+import toast from "react-hot-toast";
+import { Loader } from "@/app/components/Loader";
 
-export default function CuentasCorrientesPage() {
+interface Cliente {
+  id: string;
+  name?: string;
+  nombre?: string;
+  username?: string;
+}
+
+export default function SaldosPage() {
   const r = useRouter();
+  const { user } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [selectedCliente, setSelectedCliente] = useState("");
   const [searched, setSearched] = useState(false);
 
-  const movimientos = [
+  // Mock outstanding balances movements
+  const [movimientos, setMovimientos] = useState([
     {
-      fecha: "01/06/25",
-      reserva: "MDQ #1",
+      fecha: "01/06/2026",
+      reserva: "MDQ #1542",
       detalle: "DEMARCO VALENTÍN x2 MAT",
-      neto: 100000,
+      neto: 400000,
       cobros: 150000,
-      saldo: -50000,
+      saldo: 250000,
+      cliente: "Mio Turismo",
     },
     {
-      fecha: "02/06/25",
-      reserva: "MDQ #1",
-      detalle: "DEMARCO VALENTÍN x2 MAT",
-      neto: 100000,
-      cobros: 150000,
-      saldo: 100000,
+      fecha: "02/06/2026",
+      reserva: "MDQ #1541",
+      detalle: "GÓMEZ CARLOS x1 IND",
+      neto: 250000,
+      cobros: 250000,
+      saldo: 0,
+      cliente: "Mio Turismo",
     },
     {
-      fecha: "03/06/25",
-      reserva: "MDQ #1",
-      detalle: "DEMARCO VALENTÍN x2 MAT",
-      neto: 100000,
+      fecha: "05/06/2026",
+      reserva: "BRC #9902",
+      detalle: "FERNÁNDEZ JORGE x3 TPL",
+      neto: 600000,
       cobros: 150000,
-      saldo: 100000,
+      saldo: 450000,
+      cliente: "Jorge Fernández",
     },
-    {
-      fecha: "04/06/25",
-      reserva: "MDQ #1",
-      detalle: "DEMARCO VALENTÍN x2 MAT",
-      neto: 100000,
-      cobros: 150000,
-      saldo: 100000,
-    },
-    {
-      fecha: "05/06/25",
-      reserva: "MDQ #1",
-      detalle: "DEMARCO VALENTÍN x2 MAT",
-      neto: 100000,
-      cobros: 150000,
-      saldo: 100000,
-    },
-    {
-      fecha: "06/06/25",
-      reserva: "MDQ #1",
-      detalle: "DEMARCO VALENTÍN x2 MAT",
-      neto: 100000,
-      cobros: 150000,
-      saldo: 100000,
-    },
-  ];
+  ]);
+
+  const loadClientes = async () => {
+    if (!user?.iweb_client_id) return;
+    try {
+      const data = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
+      setClientes(data);
+    } catch {
+      toast.error("Error al cargar listado de clientes");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.iweb_client_id) {
+      loadClientes();
+    }
+  }, [user?.iweb_client_id]);
 
   const formatMonto = (monto: number) => {
     const prefix = monto < 0 ? "-" : "";
@@ -73,8 +87,35 @@ export default function CuentasCorrientesPage() {
   };
 
   const handleClear = () => {
+    setSelectedCliente("");
     setSearched(false);
   };
+
+  const handleExportExcel = () => {
+    toast.success("Exportando saldos a Excel...");
+  };
+
+  // Filter movements by selected client (if any)
+  const filteredMovimientos = movimientos.filter((mov) => {
+    if (!selectedCliente) return true;
+
+    // Match selectedCliente name or id
+    const clientObj = clientes.find(c => c.id === selectedCliente);
+    const clientName = clientObj?.name || clientObj?.nombre || clientObj?.username || "";
+    return mov.cliente.toLowerCase() === clientName.toLowerCase();
+  });
+
+  const totalNeto = filteredMovimientos.reduce((acc, m) => acc + m.neto, 0);
+  const totalCobros = filteredMovimientos.reduce((acc, m) => acc + m.cobros, 0);
+  const totalSaldo = filteredMovimientos.reduce((acc, m) => acc + m.saldo, 0);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader />
+      </div>
+    );
+  }
 
   return (
     <Container>
@@ -94,66 +135,100 @@ export default function CuentasCorrientesPage() {
         </h2>
       </button>
       <h3 className="text-center font-semibold text-lg text-black">
-        Consulta de Saldos
+        Consulta de Saldos de Clientes
       </h3>
-      <section className="my-5 flex flex-col max-w-2xl mx-auto">
+      <section className="my-5 flex flex-col max-w-4xl mx-auto">
         <form
           onSubmit={handleSearch}
-          className="flex flex-col text-black w-full gap-5">
-          <select
-            className="border py-2 px-5 bg-white border-black text-black/70 rounded-md"
-            defaultValue="">
-            <option value="">Cliente</option>
-            <option value="">Cliente 1</option>
-            <option value="">Cliente 2</option>
-            <option value="">Cliente 3</option>
-          </select>
+          className="flex flex-col text-black w-full gap-4 bg-white p-6 border border-gray-200 rounded-xl shadow-sm">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-gray-700">Seleccionar Cliente</label>
+            <select
+              value={selectedCliente}
+              onChange={(e) => setSelectedCliente(e.target.value)}
+              className="w-full border border-gray-300 py-2.5 px-4 bg-white text-gray-800 font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">Todos los Clientes</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name || c.nombre || c.username}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
-            className="bg-primary shadow-md shadow-black/50 text-white rounded-md px-4 py-2"
+            className="bg-primary text-white rounded-lg px-4 py-2.5 font-bold shadow hover:bg-blue-700 transition-colors"
             type="submit">
-            Buscar
+            Buscar Saldos
           </button>
         </form>
 
         {/* Resultados */}
         {searched && (
-          <div className="flex flex-col text-black mt-2">
-            {/* Limpiar búsqueda */}
-            <div className="flex justify-end mb-3">
+          <div className="flex flex-col text-black mt-6">
+            {/* Action Row */}
+            <div className="flex justify-between items-center mb-3">
+              <button
+                onClick={handleExportExcel}
+                className="text-xs text-black font-semibold flex items-center gap-1 hover:underline"
+              >
+                Exportar a Excel
+                <Excel />
+              </button>
               <button
                 onClick={handleClear}
-                className="text-xs md:text-sm my-2 text-black font-medium hover:underline">
+                className="text-xs md:text-sm text-black font-semibold hover:underline">
                 Limpiar búsqueda
               </button>
             </div>
 
             {/* Tabla de movimientos */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm overflow-x-scroll md:text-base border border-black">
-                <thead>
-                  <tr className="font-bold bg-black divide-x divide-white text-white">
-                    <th className="py-2 px-3 text-left">Fecha IN</th>
-                    <th className="py-2 px-3 text-left">Reserva</th>
-                    <th className="py-2 px-3 text-left">Detalle</th>
-                    <th className="py-2 px-3 text-right">Neto</th>
-                    <th className="py-2 px-3 text-right">Cobros</th>
-                    <th className="py-2 px-3 text-right">Saldo</th>
+            <div className="overflow-x-auto border border-black shadow-sm bg-white">
+              <table className="w-full text-xs md:text-sm text-left text-gray-600 border-collapse">
+                <thead className="text-white bg-black">
+                  <tr className="divide-x divide-white">
+                    <th className="py-3 px-4 font-bold text-center">Fecha IN</th>
+                    <th className="py-3 px-4 font-bold text-center">Reserva</th>
+                    <th className="py-3 px-4 font-bold">Cliente</th>
+                    <th className="py-3 px-4 font-bold">Detalle</th>
+                    <th className="py-3 px-4 font-bold text-center">Neto</th>
+                    <th className="py-3 px-4 font-bold text-center">Cobros</th>
+                    <th className="py-3 px-4 font-bold text-center">Saldo</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {movimientos.map((mov, i) => (
-                    <tr
-                      key={i}
-                      className="border-b divide-x divide-black border-black font-medium">
-                      <td className="py-2 px-3">{mov.fecha}</td>
-                      <td className="py-2 px-3">{mov.reserva}</td>
-                      <td className="py-2 px-3">{mov.detalle}</td>
-                      <td className="py-2 px-3">${mov.neto}</td>
-                      <td className="py-2 px-3">${mov.cobros}</td>
-                      <td className="py-2 px-3">${mov.saldo}</td>
+                <tbody className="divide-y divide-gray-100 font-medium">
+                  {filteredMovimientos.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                        No se encontraron saldos pendientes para este criterio.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredMovimientos.map((mov, i) => (
+                      <tr key={i} className="hover:bg-gray-50/50 border-b border-black">
+                        <td className="py-3 px-4 border border-black">{mov.fecha}</td>
+                        <td className="py-3 px-4 border border-black text-primary font-bold">{mov.reserva}</td>
+                        <td className="py-3 px-4 border border-black font-bold text-gray-800">{mov.cliente}</td>
+                        <td className="py-3 px-4 border border-black">{mov.detalle}</td>
+                        <td className="py-3 px-4 border border-black text-right text-gray-800">{formatMonto(mov.neto)}</td>
+                        <td className="py-3 px-4 border border-black text-right text-green-600">{formatMonto(mov.cobros)}</td>
+                        <td className={`py-3 px-4 border border-black text-right font-bold ${mov.saldo > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                          {formatMonto(mov.saldo)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
+                {filteredMovimientos.length > 0 && (
+                  <tfoot className="border-t-2 border-gray-200 bg-gray-50/80 font-bold text-gray-900">
+                    <tr>
+                      <td colSpan={4} className="py-3 px-4 text-right text-sm">TOTAL GENERAL:</td>
+                      <td className="py-3 px-4 text-right text-sm">{formatMonto(totalNeto)}</td>
+                      <td className="py-3 px-4 text-right text-sm text-green-600">{formatMonto(totalCobros)}</td>
+                      <td className="py-3 px-4 text-right text-sm text-red-600">{formatMonto(totalSaldo)}</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
@@ -162,3 +237,4 @@ export default function CuentasCorrientesPage() {
     </Container>
   );
 }
+

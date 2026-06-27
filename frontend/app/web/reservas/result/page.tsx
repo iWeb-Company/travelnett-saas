@@ -4,127 +4,93 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import AddVioleta from "@/app/components/icons/AddVioleta";
 import ArrowUpDown from "@/app/components/icons/ArrowUpDown";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
-import { Suspense } from "react";
+import { Suspense, useState, useEffect } from "react";
 import ReservasCard from "../ReservasCard";
+import toast from "react-hot-toast";
+
+interface Passenger {
+  dni: string;
+  nombre: string;
+  apellido: string;
+  fechaNacimiento: string;
+  puntoAscenso: string;
+}
 
 function ResultContent() {
   const searchParams = useSearchParams();
-  console.log(searchParams.get("destino"));
+  const router = useRouter();
 
-  const RESERVAS = [
+  const success = searchParams.get("success") === "true";
+  const destino = searchParams.get("destino") || "";
+  const cliente = searchParams.get("cliente") || "";
+  const hotel = searchParams.get("hotel") || "";
+  const cama = searchParams.get("cama") || "";
+  const habitacion = searchParams.get("habitacion") || "";
+  
+  const [pasajeros, setPasajeros] = useState<Passenger[]>([]);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  useEffect(() => {
+    if (success) {
+      setShowSuccessModal(true);
+      const pasajerosParam = searchParams.get("pasajeros");
+      if (pasajerosParam) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(pasajerosParam));
+          setPasajeros(parsed);
+        } catch (e) {
+          console.error("Error parsing pasajeros", e);
+        }
+      }
+    }
+  }, [success, searchParams]);
+
+  // Mock reservations list
+  const [reservas, setReservas] = useState([
     {
       id: 1,
-      numero: "MDQ #1",
+      numero: "MDQ #1542",
       destino: "Mar del Plata",
       cliente: "Mio Turismo",
-      fecha: "22/06/2025",
+      fecha: "10/06/2026",
       titulo: "Demarco Valentin x2 MAT",
       pasajeros: [
         {
           nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
+          dni: "43210987",
+          telefono: "2234567890",
+          email: "valentin@gmail.com",
         },
         {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
+          nombre: "Sánchez Micaela",
+          dni: "44123456",
+          telefono: "2230001122",
+          email: "micaela@gmail.com",
         },
       ],
     },
     {
       id: 2,
-      numero: "MDQ #2",
+      numero: "MDQ #1541",
       destino: "Mar del Plata",
       cliente: "Mio Turismo",
-      fecha: "22/06/2025",
-      titulo: "Demarco Valentin x2 MAT",
+      fecha: "09/06/2026",
+      titulo: "Gómez Carlos x1 IND",
       pasajeros: [
         {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
-        },
-        {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
+          nombre: "Gómez Carlos",
+          dni: "38987654",
+          telefono: "1198765432",
+          email: "carlos@gmail.com",
         },
       ],
     },
-    {
-      id: 3,
-      numero: "MDQ #3",
-      destino: "Mar del Plata",
-      cliente: "Mio Turismo",
-      fecha: "22/06/2025",
-      titulo: "Demarco Valentin x2 MAT",
-      pasajeros: [
-        {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
-        },
-        {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
-        },
-      ],
-    },
-    {
-      id: 4,
-      numero: "MDQ #4",
-      destino: "Mar del Plata",
-      cliente: "Mio Turismo",
-      fecha: "22/06/2025",
-      titulo: "Demarco Valentin x2 MAT",
-      pasajeros: [
-        {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
-        },
-        {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
-        },
-      ],
-    },
-    {
-      id: 5,
-      numero: "MDQ #5",
-      destino: "Mar del Plata",
-      cliente: "Mio Turismo",
-      fecha: "22/06/2025",
-      titulo: "Demarco Valentin x2 MAT",
-      pasajeros: [
-        {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
-        },
-        {
-          nombre: "Demarco Valentin",
-          dni: "12345678",
-          telefono: "12345678",
-          email: "[EMAIL_ADDRESS]",
-        },
-      ],
-    },
-  ];
+  ]);
+
+
+
   return (
     <Container>
       <ToggleSalidas />
@@ -145,17 +111,91 @@ function ResultContent() {
           Reservas
         </h2>
       </section>
+
       <section className="flex flex-col max-w-5xl mx-auto gap-5">
         <button className="flex items-center my-2 font-semibold justify-end gap-1">
           <p className="text-black">Ordenar por fecha</p>
           <ArrowUpDown />
         </button>
         <div className="flex flex-col w-full gap-10">
-          {RESERVAS.map((reserva) => (
+          {reservas.map((reserva) => (
             <ReservasCard key={reserva.id} reserva={reserva} />
           ))}
         </div>
       </section>
+
+      {/* Booking confirmation modal (Reserva confirmada con éxito) */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center animate-in fade-in zoom-in duration-300">
+            {/* Success Icon */}
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 text-green-600">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">¡Reserva Confirmada!</h3>
+            <p className="text-gray-600 text-sm mb-6">
+              La reserva se ha registrado de manera exitosa en el sistema.
+            </p>
+
+            {/* Booking summary card */}
+            <div className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-left mb-6 flex flex-col gap-2">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Destino</span>
+                <span className="font-bold text-gray-700">{destino || "Mar del Plata"}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Hotel</span>
+                <span className="font-bold text-gray-700">{hotel || "Hotel Garden"}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Habitación</span>
+                <span className="font-bold text-gray-700">{habitacion.toUpperCase()} ({cama.toUpperCase()})</span>
+              </div>
+              <div className="border-t border-gray-200 my-1"></div>
+              <p className="text-xs font-bold text-gray-700 mb-1">Pasajeros:</p>
+              {pasajeros.map((p, i) => (
+                <div key={i} className="flex justify-between text-xs text-gray-600 pl-2">
+                  <span>• {p.nombre} {p.apellido}</span>
+                  <span className="text-gray-400">DNI: {p.dni}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-2 w-full">
+              <button
+                onClick={() => {
+                  toast.success("Descargando Voucher Aéreo...");
+                }}
+                className="w-full bg-primary text-white font-bold py-2.5 rounded-lg shadow hover:bg-blue-700 transition-colors text-sm"
+              >
+                ✈️ Descargar Voucher Aéreo
+              </button>
+              <button
+                onClick={() => {
+                  toast.success("Descargando Voucher Bus...");
+                }}
+                className="w-full bg-secondary text-white font-bold py-2.5 rounded-lg shadow hover:bg-purple-800 transition-colors text-sm"
+              >
+                🚌 Descargar Voucher Terrestre
+              </button>
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  // clear parameters without page refresh
+                  router.replace("/web/reservas/result");
+                }}
+                className="w-full border border-gray-300 text-gray-700 font-medium py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+              >
+                Ver listado de Reservas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Container>
   );
 }
@@ -166,4 +206,4 @@ export default function ResultPage() {
       <ResultContent />
     </Suspense>
   );
-}
+}

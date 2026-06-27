@@ -13,12 +13,21 @@ import {
   startOfMonth,
   endOfMonth,
   subMonths,
-  startOfYear,
-  endOfYear,
-  subYears,
 } from "date-fns";
+import toast from "react-hot-toast";
+import ModalLayout from "@/app/components/ModalLayout";
 
 registerLocale("es", es);
+
+interface Movimiento {
+  id: number;
+  cuenta: string;
+  fecha: string;
+  recibo: string | number;
+  monto: number;
+  tipo: string;
+  detalle: string;
+}
 
 export default function TesoroPage() {
   const r = useRouter();
@@ -27,10 +36,59 @@ export default function TesoroPage() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [searched, setSearched] = useState(false);
 
+  // Modal states
+  const [isOpenMovimiento, setIsOpenMovimiento] = useState(false);
+  const [isOpenPase, setIsOpenPase] = useState(false);
+
+  // Form states for Ingresar Movimiento
+  const [movCuenta, setMovCuenta] = useState("");
+  const [movTipo, setMovTipo] = useState("ingreso"); // ingreso or egreso
+  const [movMonto, setMovMonto] = useState("");
+  const [movFecha, setMovFecha] = useState("");
+  const [movDetalle, setMovDetalle] = useState("");
+
+  // Form states for Pase de Dinero
+  const [paseOrigen, setPaseOrigen] = useState("");
+  const [paseDestino, setPaseDestino] = useState("");
+  const [paseMonto, setPaseMonto] = useState("");
+  const [paseDetalle, setPaseDetalle] = useState("");
+
   const cuentas = [
     { id: 1, label: "Banco Galicia - CAJA DE AHORRO" },
     { id: 2, label: "Banco Nación - CUENTA CORRIENTE" },
+    { id: 3, label: "Caja Chica - EFECTIVO PESOS" },
+    { id: 4, label: "Caja Chica - EFECTIVO DÓLARES" },
   ];
+
+  const [movimientos, setMovimientos] = useState<Movimiento[]>([
+    {
+      id: 1,
+      cuenta: "Banco Galicia - CAJA DE AHORRO",
+      fecha: "10/06/2026",
+      recibo: "RC-00125",
+      monto: 1000000,
+      tipo: "reserva",
+      detalle: "Seña Reserva MDQ #1542",
+    },
+    {
+      id: 2,
+      cuenta: "Banco Galicia - CAJA DE AHORRO",
+      fecha: "09/06/2026",
+      recibo: "OP-00084",
+      monto: -3000000,
+      tipo: "pago",
+      detalle: "PAGO SEÑA HOTEL GARDEN",
+    },
+    {
+      id: 3,
+      cuenta: "Banco Nación - CUENTA CORRIENTE",
+      fecha: "06/06/2026",
+      recibo: "RC-00121",
+      monto: 1500000,
+      tipo: "reserva",
+      detalle: "Cobro Reserva BRC #9902",
+    },
+  ]);
 
   const handleDateChange = (dates: [Date | null, Date | null]) => {
     const [start, end] = dates;
@@ -83,53 +141,9 @@ export default function TesoroPage() {
         setEndDate(endOfMonth(lastMonth));
       },
     },
-    {
-      label: "Este Año",
-      action: () => {
-        setStartDate(startOfYear(new Date()));
-        setEndDate(endOfYear(new Date()));
-      },
-    },
-    {
-      label: "Año Pasado",
-      action: () => {
-        const lastYear = subYears(new Date(), 1);
-        setStartDate(startOfYear(lastYear));
-        setEndDate(endOfYear(lastYear));
-      },
-    },
   ];
 
-  const movimientos = [
-    {
-      id: 1,
-      cuenta: "Banco Galicia - CAJA DE AHORRO",
-      fecha: "19/06/2025",
-      recibo: 1,
-      monto: 1000000,
-      tipo: "reserva",
-      detalle: "MDQ #1",
-    },
-    {
-      id: 2,
-      cuenta: "Banco Galicia - CAJA DE AHORRO",
-      fecha: "22/06/2025",
-      recibo: 1,
-      monto: -3000000,
-      tipo: "pago",
-      detalle: "PAGO GARDEN",
-    },
-    {
-      id: 3,
-      cuenta: "Banco Galicia - CAJA DE AHORRO",
-      fecha: "06/06/2025",
-      recibo: 1,
-      monto: 1000000,
-      tipo: "reserva",
-      detalle: "MDQ #1",
-    },
-  ];
-
+  // Calculate totals dynamically from current state
   const totalIngresos = movimientos
     .filter((m) => m.monto > 0)
     .reduce((acc, m) => acc + m.monto, 0);
@@ -157,6 +171,83 @@ export default function TesoroPage() {
     setSearched(false);
   };
 
+  // Submit hander for Ingresar Movimiento
+  const handleSubmitMovimiento = () => {
+    if (!movCuenta || !movMonto || !movFecha || !movDetalle.trim()) {
+      toast.error("Por favor complete todos los campos obligatorios");
+      return;
+    }
+
+    const valorMonto = parseFloat(movMonto);
+    const montoFinal = movTipo === "egreso" ? -Math.abs(valorMonto) : Math.abs(valorMonto);
+
+    const nuevoMov: Movimiento = {
+      id: Date.now(),
+      cuenta: movCuenta,
+      fecha: new Date(movFecha + "T12:00:00").toLocaleDateString("es-AR"),
+      recibo: `MAN-${Math.floor(100 + Math.random() * 900)}`,
+      monto: montoFinal,
+      tipo: movTipo,
+      detalle: movDetalle.toUpperCase(),
+    };
+
+    setMovimientos((prev) => [nuevoMov, ...prev]);
+    setIsOpenMovimiento(false);
+    toast.success("Movimiento registrado con éxito");
+
+    // Clear form
+    setMovCuenta("");
+    setMovMonto("");
+    setMovFecha("");
+    setMovDetalle("");
+  };
+
+  // Submit handler for Pase de Dinero
+  const handleSubmitPase = () => {
+    if (!paseOrigen || !paseDestino || !paseMonto || !paseDetalle.trim()) {
+      toast.error("Por favor complete todos los campos");
+      return;
+    }
+    if (paseOrigen === paseDestino) {
+      toast.error("La cuenta origen y destino deben ser diferentes");
+      return;
+    }
+
+    const montoVal = Math.abs(parseFloat(paseMonto));
+    const fechaActualStr = new Date().toLocaleDateString("es-AR");
+
+    // Creates two movements: one egreso in origin, one ingreso in destination
+    const egresoMov: Movimiento = {
+      id: Date.now(),
+      cuenta: paseOrigen,
+      fecha: fechaActualStr,
+      recibo: `TRF-${Math.floor(100 + Math.random() * 900)}`,
+      monto: -montoVal,
+      tipo: "egreso_pase",
+      detalle: `PASE DE DINERO A: ${paseDestino.toUpperCase()}`,
+    };
+
+    const ingresoMov: Movimiento = {
+      id: Date.now() + 1,
+      cuenta: paseDestino,
+      fecha: fechaActualStr,
+      recibo: egresoMov.recibo,
+      monto: montoVal,
+      tipo: "ingreso_pase",
+      detalle: `PASE DE DINERO DESDE: ${paseOrigen.toUpperCase()}`,
+    };
+
+    setMovimientos((prev) => [ingresoMov, egresoMov, ...prev]);
+    setIsOpenPase(false);
+    toast.success("Pase de dinero realizado con éxito");
+
+    // Clear form
+    setPaseOrigen("");
+    setPaseDestino("");
+    setPaseMonto("");
+    setPaseDetalle("");
+  };
+
   return (
     <Container>
       <ToggleSalidas />
@@ -172,7 +263,6 @@ export default function TesoroPage() {
           Volver al Panel
         </h2>
       </button>
-
       <div className="max-w-xl mx-auto w-full">
         {/* Limpiar búsqueda */}
         {searched && (
@@ -190,8 +280,8 @@ export default function TesoroPage() {
           <select
             value={cuenta}
             onChange={(e) => setCuenta(e.target.value)}
-            className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2 px-3 text-black/80 font-medium  focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-            <option value="">Seleccione una cuenta</option>
+            className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2.5 px-3 text-black/80 font-medium  focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+            <option value="">Seleccione una cuenta para filtrar</option>
             {cuentas.map((c) => (
               <option key={c.id} value={c.label}>
                 {c.label}
@@ -206,10 +296,10 @@ export default function TesoroPage() {
             monthsShown={2}
             locale="es"
             dateFormat="dd/MM/yyyy"
-            placeholderText="Seleccione una fecha"
+            placeholderText="Seleccione rango de fechas"
             calendarClassName="tesoro-datepicker"
             isClearable
-            className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2 px-3 text-black/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+            className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2.5 px-3 text-black/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary bg-white">
             <div className="flex flex-col gap-1 px-2 pb-2 border-t pt-2">
               <p className="text-xs font-semibold text-gray-500 mb-1">
                 Rangos rápidos
@@ -230,7 +320,7 @@ export default function TesoroPage() {
           <button
             type="submit"
             className="w-full bg-primary md:text-lg text-white shadow-lg shadow-black/60 font-medium py-2.5 rounded-md hover:bg-blue-700 transition-colors">
-            Buscar
+            Buscar Movimientos
           </button>
         </form>
 
@@ -238,7 +328,7 @@ export default function TesoroPage() {
         {searched && (
           <div className="flex flex-col text-black gap-4 mt-6">
             {/* Resumen */}
-            <div className="border border-black flex flex-col gap-3 rounded-md p-4">
+            <div className="border border-black flex flex-col gap-3 rounded-md p-4 bg-gray-50">
               <div className="flex justify-between items-center mb-1">
                 <span className="font-bold text-sm md:text-base">
                   Total Ingresos
@@ -256,7 +346,7 @@ export default function TesoroPage() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="font-medium text-sm md:text-base">
+                <span className="font-bold text-sm md:text-base">
                   Saldo Total
                 </span>
                 <span className="font-bold text-sm md:text-base text-black">
@@ -266,45 +356,197 @@ export default function TesoroPage() {
             </div>
 
             {/* Movimientos */}
-            {movimientos.map((mov) => (
-              <div
-                key={mov.id}
-                className="border border-black rounded-md p-4 bg-white">
-                <div className="flex justify-between items-start">
-                  <div className="flex flex-col gap-0.5">
-                    <p className="font-semibold text-sm md:text-base">
-                      {mov.cuenta}
-                    </p>
-                    <p className="text-sm md:text-base">
-                      Fecha: <span className="font-bold">{mov.fecha}</span>
-                    </p>
-                    <p className="text-sm md:text-base">
-                      Recibo: <span className="font-bold">{mov.recibo}</span>
-                    </p>
-                    {mov.tipo === "reserva" ? (
-                      <p className="text-sm md:text-base">
-                        Imputado a la reserva:{" "}
-                        <span className="font-bold">{mov.detalle}</span>
+            {movimientos
+              .filter((mov) => !cuenta || mov.cuenta === cuenta)
+              .map((mov) => (
+                <div
+                  key={mov.id}
+                  className="border border-black rounded-md p-4 bg-white hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col gap-3">
+                      <p className="font-semibold text-sm md:text-base text-black">
+                        {mov.cuenta}
                       </p>
-                    ) : (
-                      <p className="text-sm md:text-base">
-                        Detalle:{" "}
-                        <span className="font-bold">{mov.detalle}</span>
+                      <p className="text-sm">
+                        Fecha: <span className="font-bold text-gray-700">{mov.fecha}</span>
                       </p>
-                    )}
+                      <p className="text-sm">
+                        Comprobante / Nro: <span className="font-bold text-gray-700">{mov.recibo}</span>
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Detalle: <span className="font-bold text-gray-800">{mov.detalle}</span>
+                      </p>
+                    </div>
+                    <span
+                      className={`font-bold text-sm md:text-base shrink-0 ml-4 ${mov.monto >= 0 ? "text-green-600" : "text-red-600"
+                        }`}>
+                      {formatMonto(mov.monto)}
+                    </span>
                   </div>
-                  <span
-                    className={`font-bold text-sm md:text-base shrink-0 ml-4 ${
-                      mov.monto >= 0 ? "text-green-500" : "text-red-500"
-                    }`}>
-                    {formatMonto(mov.monto)}
-                  </span>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>
+
+      {/* Modal: Ingresar Movimiento */}
+      {isOpenMovimiento && (
+        <ModalLayout
+          title="Ingresar Movimiento Manual"
+          setModalOpen={() => setIsOpenMovimiento(false)}
+          onSubmit={handleSubmitMovimiento}
+        >
+          <div className="flex flex-col gap-4 text-black">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700">Cuenta / Caja *</label>
+              <select
+                required
+                value={movCuenta}
+                onChange={(e) => setMovCuenta(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+              >
+                <option value="">Seleccione cuenta</option>
+                {cuentas.map((c) => (
+                  <option key={c.id} value={c.label}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-bold text-gray-700">Tipo de Movimiento *</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                  <input
+                    type="radio"
+                    name="movTipo"
+                    value="ingreso"
+                    checked={movTipo === "ingreso"}
+                    onChange={() => setMovTipo("ingreso")}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  Ingreso / Entrada
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                  <input
+                    type="radio"
+                    name="movTipo"
+                    value="egreso"
+                    checked={movTipo === "egreso"}
+                    onChange={() => setMovTipo("egreso")}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  Egreso / Salida
+                </label>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700">Monto *</label>
+              <input
+                type="number"
+                required
+                min="0.01"
+                step="any"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+                placeholder="Ej: 50000"
+                value={movMonto}
+                onChange={(e) => setMovMonto(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700">Fecha del Movimiento *</label>
+              <input
+                type="date"
+                required
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+                value={movFecha}
+                onChange={(e) => setMovFecha(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700">Concepto / Detalle *</label>
+              <input
+                type="text"
+                required
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+                placeholder="Ej. Pago servicio telefónico, Ajuste caja"
+                value={movDetalle}
+                onChange={(e) => setMovDetalle(e.target.value)}
+              />
+            </div>
+          </div>
+        </ModalLayout>
+      )}
+
+      {/* Modal: Pase de Dinero */}
+      {isOpenPase && (
+        <ModalLayout
+          title="Registrar Pase de Dinero (Transferencia Interna)"
+          setModalOpen={() => setIsOpenPase(false)}
+          onSubmit={handleSubmitPase}
+        >
+          <div className="flex flex-col gap-4 text-black">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700">Cuenta de Origen *</label>
+              <select
+                required
+                value={paseOrigen}
+                onChange={(e) => setPaseOrigen(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+              >
+                <option value="">Seleccione origen</option>
+                {cuentas.map((c) => (
+                  <option key={c.id} value={c.label}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700">Cuenta de Destino *</label>
+              <select
+                required
+                value={paseDestino}
+                onChange={(e) => setPaseDestino(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+              >
+                <option value="">Seleccione destino</option>
+                {cuentas.map((c) => (
+                  <option key={c.id} value={c.label}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700">Monto del Pase *</label>
+              <input
+                type="number"
+                required
+                min="0.01"
+                step="any"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+                placeholder="Ej: 150000"
+                value={paseMonto}
+                onChange={(e) => setPaseMonto(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-bold text-gray-700">Comentario / Motivo *</label>
+              <input
+                type="text"
+                required
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
+                placeholder="Ej. Retiro caja chica para depósito bancario"
+                value={paseDetalle}
+                onChange={(e) => setPaseDetalle(e.target.value)}
+              />
+            </div>
+          </div>
+        </ModalLayout>
+      )}
     </Container>
   );
 }
+

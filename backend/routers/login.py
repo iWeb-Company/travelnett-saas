@@ -182,6 +182,11 @@ def get_me(current_user: User = Depends(get_current_user)):
         username=str(current_user.username),
     )
 
+@router.post("/logout")
+def logout(response: Response):
+    response.delete_cookie(key="access_token", path="/")
+    return {"detail": "Logged out successfully"}
+
 @router.post("/create-user/{iweb_client_id}", status_code=status.HTTP_201_CREATED)
 def create_user_by_iweb_client_id(
     iweb_client_id: str,

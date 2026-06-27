@@ -6,12 +6,14 @@ import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Regimen } from "@/app/types";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function RegimenesPage() {
+  const { user } = useAuth();
   const r = useRouter();
   const [modalOpenPut, setModalOpenPut] = useState(false);
   const [modalOpenAdd, setModalOpenAdd] = useState(false);
@@ -28,7 +30,7 @@ export default function RegimenesPage() {
   const getRegimenes = async () => {
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_regimenes");
+      const data = await apiClient.getParameters("get_regimenes", user?.iweb_client_id);
       const filtered = data.filter((e: any) => {
         const nameToFilter = e.name || e.name || "";
         return nameToFilter.toLowerCase().includes(search.toLowerCase());
@@ -53,7 +55,7 @@ export default function RegimenesPage() {
 
   const handleSubmitAdd = async () => {
     try {
-      await apiClient.createParameter("create_regimenes", regimenesData);
+      await apiClient.createParameter("create_regimenes", regimenesData, user?.iweb_client_id);
       toast.success("Régimen agregado correctamente");
       setModalOpenAdd(false);
       setRegimenesData({ name: "", sigla: "", description: "" });
@@ -67,7 +69,7 @@ export default function RegimenesPage() {
 
   const handleSubmitPut = async () => {
     try {
-      await apiClient.updateParameter("update_regimenes", regimenesData.id!, regimenesData);
+      await apiClient.updateParameter("update_regimenes", regimenesData.id!, regimenesData, user?.iweb_client_id);
       toast.success("Régimen actualizado correctamente");
       setModalOpenPut(false);
       getRegimenes();
@@ -81,7 +83,7 @@ export default function RegimenesPage() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Está seguro de que desea eliminar este régimen?")) return;
     try {
-      await apiClient.deleteParameter("delete_regimenes", id);
+      await apiClient.deleteParameter("delete_regimenes", id, user?.iweb_client_id);
       toast.success("Régimen eliminado correctamente");
       getRegimenes();
       r.refresh();

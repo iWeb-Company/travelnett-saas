@@ -4,8 +4,10 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Excel from "@/app/components/icons/salidas/Excel";
 import PDF from "@/app/components/icons/salidas/PDF";
 import ButacaDrop from "@/app/components/icons/salidas/ButacaDrop";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useMockData } from "@/context/MockDataContext";
+import toast from "react-hot-toast";
 
 // Datos de asientos semicama (null = vacío/pasillo, "logo" = logo empresa, number = asiento)
 const semicamaLayout: (number | null | "logo")[][] = [
@@ -197,15 +199,25 @@ function PasajeroCard({ pasajero }: { pasajero: Pasajero }) {
 
 export default function ButacasPage() {
   const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
+  const { salidas, updateSalida } = useMockData();
+  const salida = salidas.find(x => x.id === id);
+
   const handleBack = () => {
     router.back();
   };
 
-  const [asignaciones, setAsignaciones] = useState<Record<string, Pasajero>>(
-    {},
-  );
-  const [pasajerosDisponibles, setPasajerosDisponibles] =
-    useState<Pasajero[]>(pasajerosData);
+  const [asignaciones, setAsignaciones] = useState<Record<string, Pasajero>>({});
+  const [pasajerosDisponibles, setPasajerosDisponibles] = useState<Pasajero[]>(pasajerosData);
+
+  useEffect(() => {
+    if (salida) {
+      setAsignaciones(salida.asignaciones || {});
+      const assignedIds = Object.values(salida.asignaciones || {}).map((p: any) => p.id);
+      setPasajerosDisponibles(pasajerosData.filter(p => !assignedIds.includes(p.id)));
+    }
+  }, [salida]);
 
   const handleDrop = (asiento: number, pasajeroId: number) => {
     const key = `seat-${asiento}`;
@@ -216,6 +228,14 @@ export default function ButacasPage() {
 
     setAsignaciones((prev) => ({ ...prev, [key]: pasajero }));
     setPasajerosDisponibles((prev) => prev.filter((p) => p.id !== pasajeroId));
+  };
+
+  const handleConfirm = () => {
+    if (id) {
+      updateSalida(id, { asignaciones });
+      toast.success("Distribución de butacas guardada");
+      router.back();
+    }
   };
 
   return (
@@ -232,24 +252,12 @@ export default function ButacasPage() {
       </section>
       <section className="mx-3 flex flex-col gap-3 md:max-w-md md:mx-auto">
         <h2 className="my-5 text-black font-semibold md:hidden">Taquilla</h2>
-        <select
-          className="text-gray-500 font-medium bg-[#f1f1f1] w-full border border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
-          name="destino"
-          id="destino">
-          <option hidden className="text-gray-200 bg-[#f1f1f1]" value="">
-            Tipo de micro
-          </option>
-          <option className="bg-[#f1f1f1]" value="Termas de Rio Hondo">
-            Micro 1
-          </option>
-          <option className="bg-[#f1f1f1]" value="Termas de Rio Hondo">
-            Micro 2
-          </option>
-          <option className="bg-[#f1f1f1]" value="Termas de Rio Hondo">
-            Micro 3
-          </option>
-        </select>
-        <button className="w-full my-5 bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl">
+        <div className="text-gray-700 font-medium bg-[#f9f9fc] w-full border border-gray-300 py-3 px-4 rounded-lg shadow-sm">
+          <p className="text-xs text-gray-400 font-bold uppercase">Empresa / Micro</p>
+          <p className="text-sm font-semibold">{salida?.empresaNombre || "Cargando..."} ({salida?.empresaTipo === "aereo" ? "Aéreo" : "Bus"})</p>
+          <p className="text-xs text-gray-500 mt-1">Destino: {salida?.destinoNombre}</p>
+        </div>
+        <button onClick={handleConfirm} className="w-full my-5 bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl">
           Confirmar
         </button>
       </section>

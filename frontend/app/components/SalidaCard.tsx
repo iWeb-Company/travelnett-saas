@@ -7,10 +7,11 @@ import Delete from "@/app/components/icons/salidas/Delete";
 import Link from "next/link";
 
 interface SalidaCardProps {
-  id: number;
+  id: string | number;
   destino: string;
   fecha: string;
   categorias: { tipo: string; total: number; disponible: number }[];
+  onDelete?: (id: string | number) => void;
 }
 
 export default function SalidaCard({
@@ -18,6 +19,7 @@ export default function SalidaCard({
   destino,
   fecha,
   categorias,
+  onDelete,
 }: SalidaCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -96,7 +98,10 @@ export default function SalidaCard({
           </span>
           <p>Modificar</p>
         </Link>
-        <button className="flex items-center text-black gap-2 text-lg">
+        <button
+          onClick={() => onDelete && onDelete(id)}
+          className="flex items-center text-black gap-2 text-lg hover:text-red-600"
+        >
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Delete id={id} />
           </span>

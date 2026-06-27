@@ -5,6 +5,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import { AuthProvider } from "@/context/AuthContext";
 import { Toaster } from "react-hot-toast";
+import { MockDataProvider } from "@/context/MockDataContext";
 
 const montserrat = Montserrat({
   variable: "--font-montserrat",
@@ -30,29 +31,31 @@ export default function RootLayout({
       <body
         className={`${montserrat.className} fondo text-primary antialiased min-h-screen flex flex-col`}>
         <AuthProvider>
-          <Toaster toastOptions={{
-            success: {
-              style: {
-                background: '#0546F7',
-                color: "white",
+          <MockDataProvider>
+            <Toaster toastOptions={{
+              success: {
+                style: {
+                  background: '#0546F7',
+                  color: "white",
+                },
               },
-            },
-            iconTheme: {
-              primary: "white",
-              secondary: "black",
-            },
-            error: {
-              style: {
-                background: 'red',
-                color: "white",
+              iconTheme: {
+                primary: "white",
+                secondary: "black",
               },
-            },
-          }} />
-          <Header />
-          <main className="flex-grow">
-            {children}
-          </main>
-          <Footer />
+              error: {
+                style: {
+                  background: 'red',
+                  color: "white",
+                },
+              },
+            }} />
+            <Header />
+            <main className="flex-grow">
+              {children}
+            </main>
+            <Footer />
+          </MockDataProvider>
         </AuthProvider>
       </body>
     </html>

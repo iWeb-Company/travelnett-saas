@@ -6,6 +6,7 @@ import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { TransportCompany } from "@/app/types";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -14,6 +15,7 @@ import toast from "react-hot-toast";
 type TipoTransporte = "aereo" | "bus" | null;
 
 export default function TransportePage() {
+  const { user } = useAuth();
   const r = useRouter();
   const [empresas, setEmpresas] = useState<TransportCompany[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,7 @@ export default function TransportePage() {
   const getEmpresas = async () => {
     if (tipo) setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_transport_companies");
+      const data = await apiClient.getParameters("get_transport_companies", user?.iweb_client_id);
       const empresasFiltradas = data.filter((e: TransportCompany) =>
         e.type === tipo &&
         e.name.toLowerCase().includes(search.toLowerCase())
@@ -67,7 +69,7 @@ export default function TransportePage() {
         web,
         phone,
         type: tipo,
-      });
+      }, user?.iweb_client_id);
       toast.success("Empresa agregada correctamente");
       setModalOpenAdd(false);
       getEmpresas();
@@ -87,7 +89,7 @@ export default function TransportePage() {
         web,
         phone,
         type,
-      });
+      }, user?.iweb_client_id);
       toast.success("Empresa actualizada correctamente");
       setModalOpenPut(false);
       getEmpresas();
@@ -100,7 +102,7 @@ export default function TransportePage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await apiClient.deleteParameter("delete_transport_company", id);
+      await apiClient.deleteParameter("delete_transport_company", id, user?.iweb_client_id);
       toast.success("Empresa eliminada correctamente");
       getEmpresas();
       r.refresh();

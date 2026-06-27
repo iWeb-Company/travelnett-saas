@@ -1,11 +1,19 @@
+import { Paquete } from "@/context/MockDataContext";
 import Link from "next/link";
 
-export default function PaquetesCard() {
+export default function PaquetesCard({
+  paquete,
+  onDelete,
+  onToggleActive,
+}: {
+  paquete: Paquete;
+  onDelete: (id: string) => void;
+  onToggleActive: (id: string, active: boolean) => void;
+}) {
   return (
-    <section className="gradient-primary text-white w-full border rounded-lg p-5 flex flex-col md:flex-row gap-6 justify-between items-stretch">
+    <section className="gradient-primary text-white w-full border rounded-lg p-5 flex flex-col md:flex-row gap-6 justify-between items-stretch shadow-sm">
       <div className="flex justify-between items-center w-full">
         {/* Columna 1: Labels */}
-
         <div className="flex flex-col gap-3 text-xs md:text-lg font-semibold justify-between min-w-fit">
           <div className="flex gap-2 items-center">
             <svg
@@ -48,7 +56,7 @@ export default function PaquetesCard() {
                 fill="#3E2719"
               />
             </svg>
-            <p>Nombre del paquete</p>
+            <p className="truncate max-w-[200px] md:max-w-[300px]" title={paquete.nombre}>{paquete.nombre}</p>
           </div>
           <div className="flex gap-2 items-center">
             <svg
@@ -65,19 +73,19 @@ export default function PaquetesCard() {
               <path
                 d="M16 20C18.1217 20 20.1566 19.1571 21.6569 17.6569C23.1571 16.1566 24 14.1217 24 12C24 9.87827 23.1571 7.84344 21.6569 6.34315C20.1566 4.84285 18.1217 4 16 4C13.8783 4 11.8434 4.84285 10.3431 6.34315C8.84285 7.84344 8 9.87827 8 12C8 14.1217 8.84285 16.1566 10.3431 17.6569C11.8434 19.1571 13.8783 20 16 20ZM16 20V28"
                 stroke="black"
-                stroke-width="1.66667"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="1.66667"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
               <path
                 d="M12.667 12C12.667 11.1159 13.0182 10.2681 13.6433 9.64297C14.2684 9.01785 15.1163 8.66666 16.0003 8.66666"
                 stroke="white"
-                stroke-width="1.66667"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="1.66667"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </svg>
-            <p>Destino</p>
+            <p>{paquete.destinoNombre}</p>
           </div>
           <div className="flex gap-2 items-center">
             <svg
@@ -102,47 +110,47 @@ export default function PaquetesCard() {
               <path
                 d="M9.77865 10.1551C10.515 10.1551 11.112 9.55815 11.112 8.82177C11.112 8.08539 10.515 7.48843 9.77865 7.48843C9.04227 7.48843 8.44531 8.08539 8.44531 8.82177C8.44531 9.55815 9.04227 10.1551 9.77865 10.1551Z"
                 stroke="black"
-                stroke-width="0.888889"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="0.888889"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
               <path
                 d="M11.5579 5.38755H20.469M24.0068 5.38755H26.6663V12.4987H5.33301V5.38755H8.0139M9.78412 3.86133V8.44355"
                 stroke="black"
-                stroke-width="0.888889"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="0.888889"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
               <path
                 d="M22.224 10.1542C22.9603 10.1542 23.5573 9.55726 23.5573 8.82088C23.5573 8.0845 22.9603 7.48755 22.224 7.48755C21.4876 7.48755 20.8906 8.0845 20.8906 8.82088C20.8906 9.55726 21.4876 10.1542 22.224 10.1542Z"
                 stroke="black"
-                stroke-width="0.888889"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="0.888889"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
               <path
                 d="M22.2295 3.86133V8.44355"
                 stroke="black"
-                stroke-width="0.888889"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="0.888889"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
               <path
                 d="M5.33203 12.4853V26.7075L19.4027 26.7049L26.6654 21.3502V12.4853"
                 stroke="black"
-                stroke-width="0.888889"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="0.888889"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
               <path
                 d="M26.5542 21.3502H19.1729V23.7853"
                 stroke="black"
-                stroke-width="0.888889"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="0.888889"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </svg>
-            <p>Fecha de salida</p>
+            <p>Salida: {paquete.fechaSalida ? new Date(paquete.fechaSalida + "T00:00:00").toLocaleDateString("es-AR") : "-"}</p>
           </div>
           <div className="flex gap-2 items-center">
             <svg
@@ -177,29 +185,31 @@ export default function PaquetesCard() {
                 fill="#35494D"
               />
             </svg>
-            <p>Periodo</p>
+            <p>Periodo: {paquete.periodoNombre}</p>
           </div>
         </div>
 
         {/* Columna 2: Valores */}
-        <div className="flex-1 flex flex-col md:gap-5 gap-7 text-xs md:text-lg text-right justify-between">
-          <p>MDQ PRUEBA</p>
-          <p>Mar del Plata</p>
-          <p>25/06/2025</p>
-          <p>-</p>
+        <div className="flex-grow flex flex-col md:gap-5 gap-7 text-xs md:text-lg text-right justify-between ml-4">
+          <p className="font-bold text-yellow-300">
+            {paquete.moneda} {(paquete.precio + (paquete.gastosAdmin || 0)).toLocaleString("es-AR")}
+          </p>
+          <p className="truncate max-w-[150px] md:max-w-[250px]" title={paquete.hotelNombre}>{paquete.hotelNombre}</p>
+          <p className="truncate max-w-[150px] md:max-w-[250px]" title={paquete.regimenNombre}>{paquete.regimenNombre}</p>
+          <p className="truncate max-w-[150px] md:max-w-[250px]" title={paquete.excursionNombre}>{paquete.excursionNombre || "Ninguna"}</p>
         </div>
       </div>
       {/* Columna 3: Imagen + acciones */}
-      <div className="flex md:flex-col items-center md:items-end justify-between gap-2">
+      <div className="flex md:flex-col items-center md:items-end justify-between gap-2 border-t md:border-t-0 md:border-l border-white/20 pt-3 md:pt-0 md:pl-4">
         <img
           src="/paquete.png"
           alt="Paquete"
-          className="w-20 md:w-24 border mx-auto border-black rounded-xl"
+          className="w-20 md:w-24 border border-white/40 rounded-xl object-cover"
         />
         <div className="flex flex-col md:flex-row items-center gap-3 text-sm md:text-base font-semibold">
           <Link
-            href={"/paquetes/agregar-paquete?id=1"}
-            className="flex items-center gap-1 text-green-400 cursor-pointer"
+            href={`/paquetes/agregar-paquete?id=${paquete.id}`}
+            className="flex items-center gap-1 text-green-300 hover:text-green-200 cursor-pointer"
           >
             <svg
               width="20"
@@ -215,7 +225,10 @@ export default function PaquetesCard() {
             </svg>
             Modificar
           </Link>
-          <button className="flex items-center gap-1 text-red-400 cursor-pointer">
+          <button
+            onClick={() => onDelete(paquete.id)}
+            className="flex items-center gap-1 text-red-300 hover:text-red-200 cursor-pointer"
+          >
             <svg
               width="20"
               height="20"
@@ -231,10 +244,15 @@ export default function PaquetesCard() {
             Eliminar
           </button>
         </div>
-        <label className="inline-flex gap-2 items-center justify-center mx-auto cursor-pointer">
-          <input type="checkbox" value="" className="sr-only peer" />
-          <div className="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-4 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary dark:peer-checked:bg-primary"></div>
-          <span className="text-white font-medium text-sm">Activo</span>
+        <label className="inline-flex gap-2 items-center justify-center mx-auto cursor-pointer mt-2">
+          <input
+            type="checkbox"
+            checked={paquete.active}
+            onChange={(e) => onToggleActive(paquete.id, e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-white/50 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-500"></div>
+          <span className="text-white font-medium text-xs">Activo</span>
         </label>
       </div>
     </section>

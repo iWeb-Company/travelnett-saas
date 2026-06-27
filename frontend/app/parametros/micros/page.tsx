@@ -6,12 +6,14 @@ import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Micro } from "@/app/types";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 export default function MicrosPage() {
+  const { user } = useAuth();
   const r = useRouter();
   const [modalOpenPut, setModalOpenPut] = useState(false);
   const [modalOpenAdd, setModalOpenAdd] = useState(false);
@@ -30,7 +32,7 @@ export default function MicrosPage() {
   const getMicros = async () => {
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_bus_types");
+      const data = await apiClient.getParameters("get_bus_types", user?.iweb_client_id);
       const filtered = data.filter((e: Micro) =>
         e.name.toLowerCase().includes(search.toLowerCase())
       );
@@ -54,7 +56,7 @@ export default function MicrosPage() {
 
   const handleSubmitAdd = async () => {
     try {
-      await apiClient.createParameter("create_bus_types", microsData);
+      await apiClient.createParameter("create_bus_types", microsData, user?.iweb_client_id);
       toast.success("Tipo de micro agregado correctamente");
       setModalOpenAdd(false);
       setMicrosData({ name: "", cant_semi: "", cant_cama: "", cant_pano: "", observaciones: "" });
@@ -68,7 +70,7 @@ export default function MicrosPage() {
 
   const handleSubmitPut = async () => {
     try {
-      await apiClient.updateParameter("update_bus_types", microsData.id!, microsData);
+      await apiClient.updateParameter("update_bus_types", microsData.id!, microsData, user?.iweb_client_id);
       toast.success("Tipo de micro actualizado correctamente");
       setModalOpenPut(false);
       getMicros();
@@ -82,7 +84,7 @@ export default function MicrosPage() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Está seguro de que desea eliminar este tipo de micro?")) return;
     try {
-      await apiClient.deleteParameter("delete_bus_types", id);
+      await apiClient.deleteParameter("delete_bus_types", id, user?.iweb_client_id);
       toast.success("Tipo de micro eliminado correctamente");
       getMicros();
       r.refresh();
