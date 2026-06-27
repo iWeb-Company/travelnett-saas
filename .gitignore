@@ -19,7 +19,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# AI / Agents
 .aider*
 CLAUDE*
 .claude*
 AGENTS.md
+CONTEXT.md
