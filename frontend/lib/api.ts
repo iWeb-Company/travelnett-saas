@@ -56,7 +56,7 @@ export const apiClient = {
     await fetch(`${API_BASE_URL}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
-    }).catch(() => {});
+    }).catch(() => { });
   },
 
   // ---- PARAMETERS ----
@@ -330,4 +330,146 @@ export const apiClient = {
     });
     if (!response.ok) throw new Error('Failed to delete account');
   },
+
+  // SALIDAS
+
+  async getSalidas(iwebClientId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/salidas/get_salidas?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get salidas');
+    return response.json();
+  },
+
+  async getSalida(iwebClientId: string, id: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/salidas/get_salida/${id}?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get salida');
+    return response.json();
+  },
+
+  async createSalida(iwebClientId: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/salidas/create_salida?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create salida');
+    return response.json();
+  },
+
+  async updateSalida(iwebClientId: string, id: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/salidas/update_salida/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update salida');
+    return response.json();
+  },
+
+  async deleteSalida(iwebClientId: string, salidaId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/salidas/delete_salida/${salidaId}?iweb_client_id=${iwebClientId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete salida');
+  },
+
+  // PACKAGES
+
+  async getPackages(iwebClientId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/packages/get_packages?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get packages');
+    return response.json();
+  },
+
+  async getPackage(iwebClientId: string, id: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/packages/get_package/${id}?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get package');
+    return response.json();
+  },
+
+  async createPackage(iwebClientId: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/packages/create_package?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create package');
+    return response.json();
+  },
+
+  async updatePackage(iwebClientId: string, id: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/packages/update_package/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update package');
+    return response.json();
+  },
+
+  async deletePackage(iwebClientId: string, id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/packages/delete_package/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete package');
+  },
+
+  // RESERVAS / BOOKINGS
+
+  async getReservas(iwebClientId: string, salidaId?: string): Promise<any[]> {
+    const hasSalida = salidaId && salidaId !== 'undefined' && salidaId !== 'null' && salidaId !== 'none';
+    const url = hasSalida 
+      ? `${API_BASE_URL}/reservas/get_reservas?iweb_client_id=${iwebClientId}&salida_id=${salidaId}`
+      : `${API_BASE_URL}/reservas/get_reservas?iweb_client_id=${iwebClientId}`;
+    const response = await fetch(url, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get reservas');
+    return response.json();
+  },
+
+  async createReserva(iwebClientId: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/reservas/create_reserva?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create reserva');
+    return response.json();
+  },
+
+  async updateReserva(iwebClientId: string, id: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/reservas/update_reserva/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update reserva');
+    return response.json();
+  },
+
+  async deleteReserva(iwebClientId: string, id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/reservas/delete_reserva/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete reserva');
+  },
 };
+
+

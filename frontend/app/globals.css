@@ -5,6 +5,7 @@
   --color-primary: #0546F7;
   --color-secondary: #6005F7;
   --color-bg: #D9DFF5;
+  --color-skyblue: #5782F7;
   --color-border: #3DADFF;
   --animate-infinite-scroll: infinite-scroll 25s linear infinite;
 }
@@ -61,6 +62,7 @@ button {
   0% {
     transform: translateX(0);
   }
+
   100% {
     transform: translateX(-50%);
   }

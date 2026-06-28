@@ -348,3 +348,133 @@ class AccountUpdateRequest(BaseModel):
     cbu_cvu: Optional[int] = None
     alias: Optional[str] = None
     active: Optional[bool] = None 
+
+
+class LugarCargaPayload(BaseModel):
+    id: str
+    name: Optional[str] = None
+    type: Optional[str] = None
+    address: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SalidaResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    date_of_out: Optional[str] = None
+    type: Optional[str] = None
+    active: Optional[bool] = None
+    periodo: Optional[str] = None
+    transport_company: Optional[str] = None
+    destino: Optional[str] = None
+    passengers: Optional[int] = None
+    semicama: Optional[int] = None
+    cama: Optional[int] = None
+    cargas: list[LugarCargaPayload] = []
+
+    class Config:
+        from_attributes = True
+
+
+class SalidaCreateRequest(BaseModel):
+    date_of_out: Optional[str] = None
+    type: Optional[str] = None
+    active: Optional[bool] = True
+    periodo: Optional[str] = None
+    transport_company: Optional[str] = None
+    destino: Optional[str] = None
+    passengers: Optional[int] = None
+    semicama: Optional[int] = None
+    cama: Optional[int] = None
+    cargas_ids: list[str] = []
+
+
+class SalidaUpdateRequest(BaseModel):
+    date_of_out: Optional[str] = None
+    type: Optional[str] = None
+    active: Optional[bool] = None
+    periodo: Optional[str] = None
+    transport_company: Optional[str] = None
+    destino: Optional[str] = None
+    passengers: Optional[int] = None
+    semicama: Optional[int] = None
+    cama: Optional[int] = None
+    cargas_ids: list[str] = []
+
+
+class PackageResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str] = None
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[int] = None
+    gastos: Optional[int] = None
+    adicional: Optional[int] = None
+    destino: Optional[str] = None
+    hotel: Optional[str] = None
+    regimen: Optional[str] = None
+    excursion: Optional[str] = None
+    periodo: Optional[str] = None
+    image: Optional[str] = None
+    active: Optional[bool] = None
+    dates: list[str] = []
+
+    class Config:
+        from_attributes = True
+
+
+class PackageCreateRequest(BaseModel):
+    name: Optional[str] = None
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[int] = None
+    gastos: Optional[int] = None
+    adicional: Optional[int] = None
+    destino: Optional[str] = None
+    hotel: Optional[str] = None
+    regimen: Optional[str] = None
+    excursion: Optional[str] = None
+    periodo: Optional[str] = None
+    image: Optional[str] = None
+    active: Optional[bool] = True
+    dates: list[str] = []
+
+
+class PackageUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[int] = None
+    gastos: Optional[int] = None
+    adicional: Optional[int] = None
+    destino: Optional[str] = None
+    hotel: Optional[str] = None
+    regimen: Optional[str] = None
+    excursion: Optional[str] = None
+    periodo: Optional[str] = None
+    image: Optional[str] = None
+    active: Optional[bool] = None
+    dates: list[str] = []
+
+
+class ReservaResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    passenger_id: str
+    salida_id: Optional[str] = None
+    codigo_reserva: Optional[str] = None
+    cliente: Optional[str] = None
+    edad_categoria: Optional[str] = None
+    lugar_carga_id: Optional[str] = None
+    butaca: Optional[str] = None
+    hotel_id: Optional[str] = None
+    regimen_id: Optional[str] = None
+    rooming_id: Optional[str] = None
+    room_type: Optional[str] = None
+    active: Optional[bool] = None
+
+    class Config:
+        from_attributes = True

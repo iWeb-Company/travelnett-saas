@@ -1,5 +1,19 @@
-import { Paquete } from "@/context/MockDataContext";
 import Link from "next/link";
+
+export interface Paquete {
+  id: string;
+  nombre: string;
+  destinoNombre: string;
+  fechaSalida: string;
+  periodoNombre: string;
+  moneda: string;
+  precio: number;
+  gastosAdmin?: number;
+  hotelNombre: string;
+  regimenNombre: string;
+  excursionNombre: string;
+  active: boolean;
+}
 
 export default function PaquetesCard({
   paquete,

@@ -28,6 +28,7 @@ export default function SalidasPage() {
     rango: "",
     periodo: "",
   });
+  const [activeOnly, setActiveOnly] = useState(true);
 
   useEffect(() => {
     const loadFilters = async () => {
@@ -60,7 +61,7 @@ export default function SalidasPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     router.push(
-      `/salidas/result?tipo=${tipoSalida}&destino=${data.destino}&empresa=${data.empresa}&rango=${data.rango}&periodo=${data.periodo}`,
+      `/salidas/result?tipo=${tipoSalida}&destino=${data.destino}&empresa=${data.empresa}&rango=${data.rango}&periodo=${data.periodo}&active=${activeOnly}`,
     );
   };
 
@@ -193,7 +194,7 @@ export default function SalidasPage() {
               ))}
             </select>
 
-            <ToggleActiveFilters />
+            <ToggleActiveFilters checked={activeOnly} onChange={setActiveOnly} />
             <button className="w-full bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl">
               Buscar
             </button>

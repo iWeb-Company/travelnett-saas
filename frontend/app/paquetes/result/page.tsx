@@ -6,43 +6,101 @@ import ArrowUpDown from "@/app/components/icons/ArrowUpDown";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import PaquetesCard from "../PaquetesCard";
-import { useMockData } from "@/context/MockDataContext";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
+import { Loader } from "@/app/components/Loader";
 
 function ResultContent() {
   const searchParams = useSearchParams();
-  const { paquetes, deletePaquete, updatePaquete } = useMockData();
+  const { user } = useAuth();
+  const [paquetes, setPaquetes] = useState<any[]>([]);
+  const [destinos, setDestinos] = useState<any[]>([]);
+  const [periodos, setPeriodos] = useState<any[]>([]);
+  const [hoteles, setHoteles] = useState<any[]>([]);
+  const [regimenes, setRegimenes] = useState<any[]>([]);
+  const [excursiones, setExcursiones] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
 
   const destinoFilter = searchParams.get("destino") || "";
   const periodFilter = searchParams.get("periodo") || "";
 
+  useEffect(() => {
+    const loadAll = async () => {
+      if (!user?.iweb_client_id) return;
+      try {
+        const [pkgsData, destData, periodData, hotelData, regimenData, excursionData] = await Promise.all([
+          apiClient.getPackages(user.iweb_client_id).catch(() => []),
+          apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
+          apiClient.getParameters("get_periods", user.iweb_client_id).catch(() => []),
+          apiClient.getParameters("get_hotels", user.iweb_client_id).catch(() => []),
+          apiClient.getParameters("get_regimenes", user.iweb_client_id).catch(() => []),
+          apiClient.getParameters("get_excursiones", user.iweb_client_id).catch(() => []),
+        ]);
+        setPaquetes(pkgsData);
+        setDestinos(destData);
+        setPeriodos(periodData);
+        setHoteles(hotelData);
+        setRegimenes(regimenData);
+        setExcursiones(excursionData);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAll();
+  }, [user?.iweb_client_id]);
+
   const filtered = paquetes.filter((p) => {
-    if (destinoFilter && p.destinoId !== destinoFilter && p.destinoNombre !== destinoFilter) {
+    if (destinoFilter && p.destino !== destinoFilter) {
       return false;
     }
-    if (periodFilter && p.periodoId !== periodFilter && p.periodoNombre !== periodFilter) {
+    if (periodFilter && p.periodo !== periodFilter) {
       return false;
     }
     return true;
   });
 
   const sorted = [...filtered].sort((a, b) => {
-    const da = new Date(a.fechaSalida).getTime();
-    const db = new Date(b.fechaSalida).getTime();
+    const da = a.dates && a.dates.length > 0 ? new Date(a.dates[0]).getTime() : 0;
+    const db = b.dates && b.dates.length > 0 ? new Date(b.dates[0]).getTime() : 0;
     return sortAsc ? da - db : db - da;
   });
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    if (!user?.iweb_client_id) return;
     if (window.confirm("¿Está seguro de eliminar este paquete?")) {
-      deletePaquete(id);
+      try {
+        await apiClient.deletePackage(user.iweb_client_id, id);
+        setPaquetes((prev) => prev.filter((p) => p.id !== id));
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
-  const handleToggleActive = (id: string, active: boolean) => {
-    updatePaquete(id, { active });
+  const handleToggleActive = async (id: string, active: boolean) => {
+    if (!user?.iweb_client_id) return;
+    try {
+      await apiClient.updatePackage(user.iweb_client_id, id, { active });
+      setPaquetes((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, active } : p))
+      );
+    } catch (err) {
+      console.error(err);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader />
+      </div>
+    );
+  }
 
   return (
     <Container>
@@ -74,14 +132,37 @@ function ResultContent() {
           {sorted.length === 0 ? (
             <p className="text-center text-gray-500 py-10">No se encontraron paquetes que coincidan con los criterios.</p>
           ) : (
-            sorted.map((pkg) => (
-              <PaquetesCard
-                key={pkg.id}
-                paquete={pkg}
-                onDelete={handleDelete}
-                onToggleActive={handleToggleActive}
-              />
-            ))
+            sorted.map((pkg) => {
+              const destObj = destinos.find((d) => d.id === pkg.destino);
+              const periodObj = periodos.find((pr) => pr.id === pkg.periodo);
+              const hotelObj = hoteles.find((h) => h.id === pkg.hotel);
+              const regimenObj = regimenes.find((r) => r.id === pkg.regimen);
+              const excursionObj = excursiones.find((e) => e.id === pkg.excursion);
+
+              const mappedPkg = {
+                id: pkg.id,
+                nombre: pkg.name || "",
+                destinoNombre: destObj?.name || destObj?.nombre || "Desconocido",
+                fechaSalida: pkg.dates && pkg.dates.length > 0 ? pkg.dates[0] : "",
+                periodoNombre: periodObj?.name || periodObj?.nombre || periodObj?.description || "Desconocido",
+                moneda: "ARS",
+                precio: pkg.price || 0,
+                gastosAdmin: pkg.gastos || 0,
+                hotelNombre: hotelObj?.name || "Desconocido",
+                regimenNombre: regimenObj?.name || "Desconocido",
+                excursionNombre: excursionObj?.name || "Ninguna",
+                active: pkg.active ?? true,
+              };
+
+              return (
+                <PaquetesCard
+                  key={pkg.id}
+                  paquete={mappedPkg as any}
+                  onDelete={handleDelete}
+                  onToggleActive={handleToggleActive}
+                />
+              );
+            })
           )}
         </div>
       </section>

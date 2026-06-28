@@ -321,7 +321,20 @@ export interface Salida {
     id?: string;
     iweb_client_id?: string;
     date_of_out?: string;
+    type?: "aereo" | "bus" | string;
+    active?: boolean;
+    periodo?: string;
+    transport_company?: string;
+    destino?: string;
     passengers?: number;
-    semicama?: number;
-    cama?: number;
+    economy?: number;
+    business?: number;
+    lugaresCarga?: string[];
+}
+
+export interface SalidaLugarCarga {
+    id?: string;
+    iweb_client_id?: string;
+    salida_id?: string;
+    cargas?: string;
 }

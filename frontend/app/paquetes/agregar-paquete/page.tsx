@@ -11,14 +11,11 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { Loader } from "@/app/components/Loader";
-import { useMockData } from "@/context/MockDataContext";
-
 function AgregarPaqueteContent() {
   const searchParams = useSearchParams();
   const r = useRouter();
   const { user } = useAuth();
-  const { paquetes, addPaquete, updatePaquete } = useMockData();
-  
+
   const id = searchParams.get("id");
   const [loadingParams, setLoadingParams] = useState(true);
 
@@ -44,16 +41,18 @@ function AgregarPaqueteContent() {
   const [gastosAdmin, setGastosAdmin] = useState("");
   const [adicionalBuscama, setAdicionalBuscama] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [active, setActive] = useState(true);
 
   const loadParameters = async () => {
     if (!user?.iweb_client_id) return;
     try {
-      const [destData, hotelData, excData, periodData, regData] = await Promise.all([
+      const [destData, hotelData, excData, periodData, regData, pkgsData] = await Promise.all([
         apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
         apiClient.getParameters("get_hotels", user.iweb_client_id).catch(() => []),
         apiClient.getParameters("get_excursions", user.iweb_client_id).catch(() => []),
         apiClient.getParameters("get_periods", user.iweb_client_id).catch(() => []),
-        apiClient.getParameters("get_regimenes", user.iweb_client_id).catch(() => [])
+        apiClient.getParameters("get_regimenes", user.iweb_client_id).catch(() => []),
+        apiClient.getPackages(user.iweb_client_id).catch(() => [])
       ]);
 
       setDestinos(destData);
@@ -64,21 +63,22 @@ function AgregarPaqueteContent() {
 
       // If we are editing, populate existing package from context
       if (id) {
-        const pkg = paquetes.find((p) => p.id === id);
+        const pkg = pkgsData.find((p: any) => p.id === id);
         if (pkg) {
-          setNombre(pkg.nombre);
-          setSubtitulo(pkg.subtitulo || "");
-          setDescripcion(pkg.descripcion || "");
-          setDestino(pkg.destinoId || "");
-          setHotel(pkg.hotelId || "");
-          setRegimen(pkg.regimenId || "");
-          setExcursion(pkg.excursionId || "");
-          setFechaSalida(pkg.fechaSalida || "");
-          setPeriodo(pkg.periodoId || "");
-          setPrecio(pkg.precio?.toString() || "");
-          setMoneda(pkg.moneda || "ARS");
-          setGastosAdmin(pkg.gastosAdmin?.toString() || "");
-          setAdicionalBuscama(pkg.adicionalBuscama?.toString() || "");
+          setNombre(pkg.name || "");
+          setSubtitulo(pkg.subtitle || "");
+          setDescripcion(pkg.description || "");
+          setDestino(pkg.destino || "");
+          setHotel(pkg.hotel || "");
+          setRegimen(pkg.regimen || "");
+          setExcursion(pkg.excursion || "");
+          setFechaSalida(pkg.dates && pkg.dates.length > 0 ? pkg.dates[0] : "");
+          setPeriodo(pkg.periodo || "");
+          setPrecio(pkg.price?.toString() || "");
+          setMoneda("ARS");
+          setGastosAdmin(pkg.gastos?.toString() || "");
+          setAdicionalBuscama(pkg.adicional?.toString() || "");
+          setActive(pkg.active ?? true);
         }
       }
     } catch (error) {
@@ -93,7 +93,7 @@ function AgregarPaqueteContent() {
     if (user?.iweb_client_id) {
       loadParameters();
     }
-  }, [user?.iweb_client_id, paquetes]); // Reload when packages load or change
+  }, [user?.iweb_client_id]);
 
   const handleBack = () => {
     r.back();
@@ -102,51 +102,46 @@ function AgregarPaqueteContent() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const destObj = destinos.find((d) => d.id === destino);
-    const destName = destObj?.name || destObj?.nombre || "Desconocido";
-
-    const hotelObj = hoteles.find((h) => h.id === hotel);
-    const hotelName = hotelObj?.name || hotelObj?.nombre || "Desconocido";
-
-    const regObj = regimenes.find((rg) => rg.id === regimen);
-    const regName = regObj?.name || regObj?.nombre || regObj?.description || "Desconocido";
-
-    const excObj = excursion ? excursiones.find((ex) => ex.id === excursion) : null;
-    const excName = excObj ? (excObj.name || excObj.nombre) : "Ninguna";
-
-    const perObj = periodos.find((p) => p.id === periodo);
-    const perName = perObj?.name || perObj?.nombre || perObj?.description || "Desconocido";
-
-    const payload = {
-      nombre,
-      subtitulo,
-      descripcion,
-      destinoId: destino,
-      destinoNombre: destName,
-      hotelId: hotel,
-      hotelNombre: hotelName,
-      regimenId: regimen,
-      regimenNombre: regName,
-      excursionId: excursion,
-      excursionNombre: excName,
-      fechaSalida,
-      periodoId: periodo,
-      periodoNombre: perName,
-      precio: parseFloat(precio) || 0,
-      moneda,
-      gastosAdmin: parseFloat(gastosAdmin) || 0,
-      adicionalBuscama: parseFloat(adicionalBuscama) || 0,
-      active: true,
+    const apiPayload = {
+      name: nombre,
+      subtitle: subtitulo,
+      description: descripcion,
+      price: parseInt(precio) || 0,
+      gastos: parseInt(gastosAdmin) || 0,
+      adicional: parseInt(adicionalBuscama) || 0,
+      destino: destino,
+      hotel: hotel,
+      regimen: regimen,
+      excursion: excursion,
+      periodo: periodo,
+      image: "",
+      active: active,
+      dates: fechaSalida ? [fechaSalida] : [],
     };
 
+    if (!user?.iweb_client_id) return;
+
     if (id) {
-      updatePaquete(id, payload);
-      toast.success("Paquete modificado con éxito");
+      apiClient.updatePackage(user.iweb_client_id, id, apiPayload)
+        .then(() => {
+          toast.success("Paquete modificado con éxito");
+          r.push("/paquetes/result");
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Error al modificar el paquete");
+        });
     } else {
-      addPaquete(payload);
-      toast.success("Paquete agregado con éxito");
+      apiClient.createPackage(user.iweb_client_id, apiPayload)
+        .then(() => {
+          toast.success("Paquete agregado con éxito");
+          r.push("/paquetes/result");
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Error al agregar el paquete");
+        });
     }
-    r.push("/paquetes/result");
   };
 
   if (loadingParams) {
@@ -383,7 +378,7 @@ function AgregarPaqueteContent() {
           </div>
         </div>
 
-        <ToggleActiveFilters />
+        <ToggleActiveFilters checked={active} onChange={setActive} />
 
         <button className="w-full bg-primary hover:bg-blue-700 text-white font-semibold text-center py-3 rounded-xl mt-4 shadow transition-all cursor-pointer">
           {id ? "Modificar" : "Agregar"} Paquete

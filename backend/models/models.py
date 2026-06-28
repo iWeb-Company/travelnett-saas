@@ -208,3 +208,76 @@ class Accounts(Base):
     cbu_cvu: Mapped[int | None] = mapped_column(Integer, nullable=True)
     alias: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+
+
+class Salidas(Base):
+    __tablename__ = "salidas"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    date_of_out: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    passengers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    semicama: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cama: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    transport_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class SalidasLugaresCarga(Base):
+    __tablename__ = "salidas_lugares_carga"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    salida_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    cargas: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+
+class Packages(Base):
+    __tablename__ = "packages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    subtitle: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(510), nullable=True)
+    price: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    gastos: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    adicional: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hotel: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    regimen: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    excursion: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    image: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+
+
+class PackagesDatesOfExit(Base):
+    __tablename__ = "packages_dates_of_exit"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    package_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    dates: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class Reservas(Base):
+    __tablename__ = "reservas"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    passenger_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    salida_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    codigo_reserva: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    cliente: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    edad_categoria: Mapped[str | None] = mapped_column(String(63), nullable=True)
+    lugar_carga_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    butaca: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    regimen_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    rooming_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    room_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)

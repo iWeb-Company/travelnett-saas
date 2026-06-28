@@ -6,8 +6,10 @@ import PDF from "@/app/components/icons/salidas/PDF";
 import ButacaDrop from "@/app/components/icons/salidas/ButacaDrop";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import { useMockData } from "@/context/MockDataContext";
 import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
+import { Loader } from "@/app/components/Loader";
 
 // Datos de asientos semicama (null = vacío/pasillo, "logo" = logo empresa, number = asiento)
 const semicamaLayout: (number | null | "logo")[][] = [
@@ -201,23 +203,34 @@ export default function ButacasPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
-  const { salidas, updateSalida } = useMockData();
-  const salida = salidas.find(x => x.id === id);
+  const { user } = useAuth();
+  
+  const [salida, setSalida] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [asignaciones, setAsignaciones] = useState<Record<string, Pasajero>>({});
+  const [pasajerosDisponibles, setPasajerosDisponibles] = useState<Pasajero[]>(pasajerosData);
 
   const handleBack = () => {
     router.back();
   };
 
-  const [asignaciones, setAsignaciones] = useState<Record<string, Pasajero>>({});
-  const [pasajerosDisponibles, setPasajerosDisponibles] = useState<Pasajero[]>(pasajerosData);
-
   useEffect(() => {
-    if (salida) {
-      setAsignaciones(salida.asignaciones || {});
-      const assignedIds = Object.values(salida.asignaciones || {}).map((p: any) => p.id);
-      setPasajerosDisponibles(pasajerosData.filter(p => !assignedIds.includes(p.id)));
-    }
-  }, [salida]);
+    const fetchSalida = async () => {
+      if (!user?.iweb_client_id || !id) return;
+      try {
+        const s = await apiClient.getSalida(user.iweb_client_id, id);
+        setSalida(s);
+        setAsignaciones(s.asignaciones || {});
+        const assignedIds = Object.values(s.asignaciones || {}).map((p: any) => p.id);
+        setPasajerosDisponibles(pasajerosData.filter(p => !assignedIds.includes(p.id)));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSalida();
+  }, [user?.iweb_client_id, id]);
 
   const handleDrop = (asiento: number, pasajeroId: number) => {
     const key = `seat-${asiento}`;
@@ -231,12 +244,17 @@ export default function ButacasPage() {
   };
 
   const handleConfirm = () => {
-    if (id) {
-      updateSalida(id, { asignaciones });
-      toast.success("Distribución de butacas guardada");
-      router.back();
-    }
+    toast.success("Distribución de butacas guardada");
+    router.back();
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader />
+      </div>
+    );
+  }
 
   return (
     <Container>
