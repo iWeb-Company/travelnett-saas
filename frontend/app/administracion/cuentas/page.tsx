@@ -18,8 +18,8 @@ interface Account {
   account_title: string;
   titular: string;
   account_number: string;
-  cuit_cuil: number;
-  cbu_cvu: number;
+  cuit_cuil: string;
+  cbu_cvu: string;
   alias: string;
   active: boolean;
 }

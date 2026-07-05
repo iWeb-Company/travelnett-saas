@@ -34,7 +34,8 @@ function AgregarPaqueteContent() {
   const [hotel, setHotel] = useState("");
   const [regimen, setRegimen] = useState("");
   const [excursion, setExcursion] = useState("");
-  const [fechaSalida, setFechaSalida] = useState("");
+  const [selectedSalidaIds, setSelectedSalidaIds] = useState<string[]>([]);
+  const [salidasList, setSalidasList] = useState<any[]>([]);
   const [periodo, setPeriodo] = useState("");
   const [precio, setPrecio] = useState("");
   const [moneda, setMoneda] = useState("ARS");
@@ -42,17 +43,19 @@ function AgregarPaqueteContent() {
   const [adicionalBuscama, setAdicionalBuscama] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [active, setActive] = useState(true);
+  const [web, setWeb] = useState(true);
 
   const loadParameters = async () => {
     if (!user?.iweb_client_id) return;
     try {
-      const [destData, hotelData, excData, periodData, regData, pkgsData] = await Promise.all([
+      const [destData, hotelData, excData, periodData, regData, pkgsData, salidasData] = await Promise.all([
         apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
         apiClient.getParameters("get_hotels", user.iweb_client_id).catch(() => []),
         apiClient.getParameters("get_excursions", user.iweb_client_id).catch(() => []),
         apiClient.getParameters("get_periods", user.iweb_client_id).catch(() => []),
         apiClient.getParameters("get_regimenes", user.iweb_client_id).catch(() => []),
-        apiClient.getPackages(user.iweb_client_id).catch(() => [])
+        apiClient.getPackages(user.iweb_client_id).catch(() => []),
+        apiClient.getSalidas(user.iweb_client_id).catch(() => []),
       ]);
 
       setDestinos(destData);
@@ -60,6 +63,7 @@ function AgregarPaqueteContent() {
       setExcursiones(excData);
       setPeriodos(periodData);
       setRegimenes(regData);
+      setSalidasList(salidasData);
 
       // If we are editing, populate existing package from context
       if (id) {
@@ -72,13 +76,14 @@ function AgregarPaqueteContent() {
           setHotel(pkg.hotel || "");
           setRegimen(pkg.regimen || "");
           setExcursion(pkg.excursion || "");
-          setFechaSalida(pkg.dates && pkg.dates.length > 0 ? pkg.dates[0] : "");
+          setSelectedSalidaIds(pkg.dates || []);
           setPeriodo(pkg.periodo || "");
           setPrecio(pkg.price?.toString() || "");
           setMoneda("ARS");
           setGastosAdmin(pkg.gastos?.toString() || "");
           setAdicionalBuscama(pkg.adicional?.toString() || "");
           setActive(pkg.active ?? true);
+          setWeb(pkg.web ?? true);
         }
       }
     } catch (error) {
@@ -102,6 +107,11 @@ function AgregarPaqueteContent() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (selectedSalidaIds.length === 0) {
+      toast.error("Debes seleccionar al menos una fecha de salida precargada.");
+      return;
+    }
+
     const apiPayload = {
       name: nombre,
       subtitle: subtitulo,
@@ -116,7 +126,8 @@ function AgregarPaqueteContent() {
       periodo: periodo,
       image: "",
       active: active,
-      dates: fechaSalida ? [fechaSalida] : [],
+      web: web,
+      dates: selectedSalidaIds,
     };
 
     if (!user?.iweb_client_id) return;
@@ -217,7 +228,7 @@ function AgregarPaqueteContent() {
             >
               <option value="" disabled>Selecciona un destino</option>
               {destinos.map((d: any) => (
-                <option key={d.id} value={d.id}>{d.name || d.nombre}</option>
+                <option key={d.id} value={d.name || d.nombre}>{d.name || d.nombre}</option>
               ))}
             </select>
           </div>
@@ -275,14 +286,36 @@ function AgregarPaqueteContent() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
           {/* Fecha de salida */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-bold text-gray-700">Fecha de salida</label>
-            <input
-              type="date"
-              className="text-gray-800 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              value={fechaSalida}
-              onChange={(e) => setFechaSalida(e.target.value)}
-              required
-            />
+            <label className="text-xs font-bold text-gray-700">Asociar salida(s) precargada(s)</label>
+            <div className="bg-[#f1f1f1] border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto flex flex-col gap-2">
+              {salidasList.length === 0 ? (
+                <p className="text-xs text-gray-500 font-semibold p-1">No hay salidas físicas precargadas en el sistema.</p>
+              ) : (
+                salidasList.map((sal) => {
+                  const isChecked = selectedSalidaIds.includes(sal.id);
+                  const formattedDate = sal.date_of_out ? new Date(sal.date_of_out + "T00:00:00").toLocaleDateString("es-AR") : "-";
+                  const destObj = destinos.find((d) => d.id === sal.destino);
+                  const destName = destObj?.name || destObj?.nombre || "Desconocido";
+                  return (
+                    <label key={sal.id} className="flex items-center gap-2 text-xs font-bold text-gray-800 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSalidaIds([...selectedSalidaIds, sal.id]);
+                          } else {
+                            setSelectedSalidaIds(selectedSalidaIds.filter((id) => id !== sal.id));
+                          }
+                        }}
+                        className="accent-primary"
+                      />
+                      <span>{formattedDate} - {destName}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
           </div>
 
           {/* Periodo */}
@@ -378,7 +411,10 @@ function AgregarPaqueteContent() {
           </div>
         </div>
 
-        <ToggleActiveFilters checked={active} onChange={setActive} />
+        <div className="flex gap-4">
+          <ToggleActiveFilters checked={active} onChange={setActive} />
+          <ToggleActiveFilters checked={web} onChange={setWeb} label="Mostrar en Web" />
+        </div>
 
         <button className="w-full bg-primary hover:bg-blue-700 text-white font-semibold text-center py-3 rounded-xl mt-4 shadow transition-all cursor-pointer">
           {id ? "Modificar" : "Agregar"} Paquete

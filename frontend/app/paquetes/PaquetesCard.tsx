@@ -5,6 +5,7 @@ export interface Paquete {
   nombre: string;
   destinoNombre: string;
   fechaSalida: string;
+  fechasSalida?: string[];
   periodoNombre: string;
   moneda: string;
   precio: number;
@@ -13,16 +14,19 @@ export interface Paquete {
   regimenNombre: string;
   excursionNombre: string;
   active: boolean;
+  web?: boolean;
 }
 
 export default function PaquetesCard({
   paquete,
   onDelete,
   onToggleActive,
+  onToggleWeb,
 }: {
   paquete: Paquete;
   onDelete: (id: string) => void;
   onToggleActive: (id: string, active: boolean) => void;
+  onToggleWeb?: (id: string, web: boolean) => void;
 }) {
   return (
     <section className="gradient-primary text-white w-full border rounded-lg p-5 flex flex-col md:flex-row gap-6 justify-between items-stretch shadow-sm">
@@ -70,7 +74,7 @@ export default function PaquetesCard({
                 fill="#3E2719"
               />
             </svg>
-            <p className="truncate max-w-[200px] md:max-w-[300px]" title={paquete.nombre}>{paquete.nombre}</p>
+            <p className="truncate max-w-[200px] md:max-w-[300px]" title={paquete.nombre}>Nombre del paquete</p>
           </div>
           <div className="flex gap-2 items-center">
             <svg
@@ -99,7 +103,7 @@ export default function PaquetesCard({
                 strokeLinejoin="round"
               />
             </svg>
-            <p>{paquete.destinoNombre}</p>
+            <p>Destino</p>
           </div>
           <div className="flex gap-2 items-center">
             <svg
@@ -164,7 +168,7 @@ export default function PaquetesCard({
                 strokeLinejoin="round"
               />
             </svg>
-            <p>Salida: {paquete.fechaSalida ? new Date(paquete.fechaSalida + "T00:00:00").toLocaleDateString("es-AR") : "-"}</p>
+            Fechas de salida
           </div>
           <div className="flex gap-2 items-center">
             <svg
@@ -199,18 +203,27 @@ export default function PaquetesCard({
                 fill="#35494D"
               />
             </svg>
-            <p>Periodo: {paquete.periodoNombre}</p>
+            <p>Periodo</p>
           </div>
         </div>
 
         {/* Columna 2: Valores */}
-        <div className="flex-grow flex flex-col md:gap-5 gap-7 text-xs md:text-lg text-right justify-between ml-4">
-          <p className="font-bold text-yellow-300">
-            {paquete.moneda} {(paquete.precio + (paquete.gastosAdmin || 0)).toLocaleString("es-AR")}
+        <div className="flex-grow flex flex-col md:gap-5 font-semibold gap-7 text-xs md:text-lg text-right justify-between ml-4">
+          <p className="">
+            {paquete.nombre}
           </p>
-          <p className="truncate max-w-[150px] md:max-w-[250px]" title={paquete.hotelNombre}>{paquete.hotelNombre}</p>
-          <p className="truncate max-w-[150px] md:max-w-[250px]" title={paquete.regimenNombre}>{paquete.regimenNombre}</p>
-          <p className="truncate max-w-[150px] md:max-w-[250px]" title={paquete.excursionNombre}>{paquete.excursionNombre || "Ninguna"}</p>
+          <p className="truncate" title={paquete.destinoNombre}>{paquete.destinoNombre}</p>
+          <p className="truncate" title={paquete.fechaSalida}>
+            {paquete.fechasSalida && paquete.fechasSalida.length > 1 ? (
+              <>
+                {new Date(paquete.fechasSalida[0] + "T00:00:00").toLocaleDateString("es-AR")} y{" "}
+                {paquete.fechasSalida.length - 1} {paquete.fechasSalida.length - 1 === 1 ? "fecha más" : "fechas más"}...
+              </>
+            ) : (
+              <>{paquete.fechaSalida ? new Date(paquete.fechaSalida + "T00:00:00").toLocaleDateString("es-AR") : "-"}</>
+            )}
+          </p>
+          <p className="truncate" title={paquete.periodoNombre}>{paquete.periodoNombre}</p>
         </div>
       </div>
       {/* Columna 3: Imagen + acciones */}
@@ -218,7 +231,7 @@ export default function PaquetesCard({
         <img
           src="/paquete.png"
           alt="Paquete"
-          className="w-20 md:w-24 border border-white/40 rounded-xl object-cover"
+          className="w-20 md:w-24 mx-auto border border-white/40 rounded-xl object-cover"
         />
         <div className="flex flex-col md:flex-row items-center gap-3 text-sm md:text-base font-semibold">
           <Link
@@ -258,16 +271,28 @@ export default function PaquetesCard({
             Eliminar
           </button>
         </div>
-        <label className="inline-flex gap-2 items-center justify-center mx-auto cursor-pointer mt-2">
-          <input
-            type="checkbox"
-            checked={paquete.active}
-            onChange={(e) => onToggleActive(paquete.id, e.target.checked)}
-            className="sr-only peer"
-          />
-          <div className="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-white/50 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-500"></div>
-          <span className="text-white font-medium text-xs">Activo</span>
-        </label>
+        <div className="flex flex-col gap-2 mt-2">
+          <label className="inline-flex gap-2 items-center justify-start cursor-pointer">
+            <input
+              type="checkbox"
+              checked={paquete.active}
+              onChange={(e) => onToggleActive(paquete.id, e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-white/50 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-500"></div>
+            <span className="text-white font-medium text-xs">Activo</span>
+          </label>
+          <label className="inline-flex gap-2 items-center justify-start cursor-pointer">
+            <input
+              type="checkbox"
+              checked={paquete.web ?? true}
+              onChange={(e) => onToggleWeb && onToggleWeb(paquete.id, e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-white/50 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-500"></div>
+            <span className="text-white font-medium text-xs">Mostrar en Web</span>
+          </label>
+        </div>
       </div>
     </section>
   );

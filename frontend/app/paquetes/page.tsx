@@ -22,6 +22,7 @@ export default function PaquetesPage() {
     rango: "",
     periodo: "",
   });
+  const [activeOnly, setActiveOnly] = useState(true);
 
   useEffect(() => {
     const loadFilters = async () => {
@@ -45,7 +46,7 @@ export default function PaquetesPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     router.push(
-      `/paquetes/result?destino=${data.destino}&rango=${data.rango}&periodo=${data.periodo}`,
+      `/paquetes/result?destino=${data.destino}&rango=${data.rango}&periodo=${data.periodo}&active=${activeOnly}`,
     );
   };
 
@@ -92,7 +93,7 @@ export default function PaquetesPage() {
           >
             <option value="">Cualquier Destino</option>
             {destinos.map((d: any) => (
-              <option key={d.id} className="bg-[#f1f1f1]" value={d.id}>
+              <option key={d.id} className="bg-[#f1f1f1]" value={d.name || d.nombre}>
                 {d.name || d.nombre}
               </option>
             ))}
@@ -131,7 +132,7 @@ export default function PaquetesPage() {
             ))}
           </select>
 
-          <ToggleActiveFilters />
+          <ToggleActiveFilters checked={activeOnly} onChange={setActiveOnly} />
           <button className="w-full bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl">
             Buscar
           </button>

@@ -39,36 +39,21 @@ const camaLayout: (number | null)[][] = [
 ];
 
 interface Pasajero {
-  id: number;
+  id: string; // reservation_id
   nombre: string;
   localidad: string;
 }
 
-const pasajerosData: Pasajero[] = [
-  { id: 1, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 2, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 3, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 4, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 5, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 6, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 7, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 8, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 9, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 10, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 11, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 12, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 13, nombre: "Demarco Valentin", localidad: "Lanús" },
-  { id: 14, nombre: "Demarco Valentin", localidad: "Lanús" },
-];
-
 function SeatSlot({
   asiento,
   asignado,
+  layoutType,
   onDrop,
 }: {
   asiento: number;
   asignado?: Pasajero;
-  onDrop: (asiento: number, pasajeroId: number) => void;
+  layoutType: "S" | "C";
+  onDrop: (layoutType: "S" | "C", asiento: number, reservationId: string) => void;
 }) {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -76,9 +61,9 @@ function SeatSlot({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const pasajeroId = parseInt(e.dataTransfer.getData("pasajeroId"));
-    if (!isNaN(pasajeroId)) {
-      onDrop(asiento, pasajeroId);
+    const reservationId = e.dataTransfer.getData("reservationId");
+    if (reservationId) {
+      onDrop(layoutType, asiento, reservationId);
     }
   };
 
@@ -112,12 +97,14 @@ function SeatSlot({
 
 function SeatGrid({
   layout,
+  layoutType,
   asignaciones,
   onDrop,
 }: {
   layout: (number | null | "logo")[][];
+  layoutType: "S" | "C";
   asignaciones: Record<string, Pasajero>;
-  onDrop: (asiento: number, pasajeroId: number) => void;
+  onDrop: (layoutType: "S" | "C", asiento: number, reservationId: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -138,11 +125,12 @@ function SeatGrid({
               {leftPair.map((cell, colIdx) => {
                 if (cell === null)
                   return <div key={colIdx} className="w-[80px] h-8" />;
-                const seatKey = `seat-${cell}`;
+                const seatKey = `${layoutType}-${cell}`;
                 return (
                   <SeatSlot
                     key={colIdx}
                     asiento={cell as number}
+                    layoutType={layoutType}
                     asignado={asignaciones[seatKey]}
                     onDrop={onDrop}
                   />
@@ -164,11 +152,12 @@ function SeatGrid({
                 rightPair.map((cell, colIdx) => {
                   if (cell === null)
                     return <div key={colIdx} className="w-[80px] h-8" />;
-                  const seatKey = `seat-${cell}`;
+                  const seatKey = `${layoutType}-${cell}`;
                   return (
                     <SeatSlot
                       key={colIdx}
                       asiento={cell as number}
+                      layoutType={layoutType}
                       asignado={asignaciones[seatKey]}
                       onDrop={onDrop}
                     />
@@ -185,7 +174,7 @@ function SeatGrid({
 
 function PasajeroCard({ pasajero }: { pasajero: Pasajero }) {
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData("pasajeroId", pasajero.id.toString());
+    e.dataTransfer.setData("reservationId", pasajero.id);
   };
 
   return (
@@ -207,45 +196,136 @@ export default function ButacasPage() {
   
   const [salida, setSalida] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [asignaciones, setAsignaciones] = useState<Record<string, Pasajero>>({});
-  const [pasajerosDisponibles, setPasajerosDisponibles] = useState<Pasajero[]>(pasajerosData);
+  const [pasajerosDisponibles, setPasajerosDisponibles] = useState<Pasajero[]>([]);
+
+  // Guardamos el estado original para saber a quiénes desasignar al confirmar
+  const [initialReservations, setInitialReservations] = useState<any[]>([]);
 
   const handleBack = () => {
     router.back();
   };
 
   useEffect(() => {
-    const fetchSalida = async () => {
+    const fetchData = async () => {
       if (!user?.iweb_client_id || !id) return;
       try {
+        // Cargar detalles de la salida
         const s = await apiClient.getSalida(user.iweb_client_id, id);
         setSalida(s);
-        setAsignaciones(s.asignaciones || {});
-        const assignedIds = Object.values(s.asignaciones || {}).map((p: any) => p.id);
-        setPasajerosDisponibles(pasajerosData.filter(p => !assignedIds.includes(p.id)));
+
+        // Cargar todas las reservas de esta salida
+        const reservas = await apiClient.getReservas(user.iweb_client_id, id);
+        setInitialReservations(reservas);
+
+        const newAsignaciones: Record<string, Pasajero> = {};
+        const newDisponibles: Pasajero[] = [];
+
+        reservas.forEach((r: any) => {
+          const pData: Pasajero = {
+            id: r.id, // reservation_id
+            nombre: r.nombre_completo || "Desconocido",
+            localidad: r.lugar_carga_nombre || "-",
+          };
+
+          if (r.butaca && (r.butaca.startsWith("S-") || r.butaca.startsWith("C-"))) {
+            newAsignaciones[r.butaca] = pData;
+          } else {
+            newDisponibles.push(pData);
+          }
+        });
+
+        setAsignaciones(newAsignaciones);
+        setPasajerosDisponibles(newDisponibles);
       } catch (err) {
-        console.error(err);
+        console.error("Error loading manifest data:", err);
+        toast.error("Error al cargar los datos del viaje");
       } finally {
         setLoading(false);
       }
     };
-    fetchSalida();
+    fetchData();
   }, [user?.iweb_client_id, id]);
 
-  const handleDrop = (asiento: number, pasajeroId: number) => {
-    const key = `seat-${asiento}`;
-    if (asignaciones[key]) return; // ya asignado
+  const handleDrop = (layoutType: "S" | "C", asiento: number, reservationId: string) => {
+    const newKey = `${layoutType}-${asiento}`;
+    if (asignaciones[newKey]) return; // asiento ya ocupado
 
-    const pasajero = pasajerosDisponibles.find((p) => p.id === pasajeroId);
+    // Buscar pasajero en disponibles
+    let pasajero = pasajerosDisponibles.find((p) => p.id === reservationId);
+
+    // Si no está en disponibles, buscar en asignaciones actuales (movimiento de butaca a butaca)
+    let oldKey: string | null = null;
+    if (!pasajero) {
+      for (const [key, p] of Object.entries(asignaciones)) {
+        if (p.id === reservationId) {
+          pasajero = p;
+          oldKey = key;
+          break;
+        }
+      }
+    }
+
     if (!pasajero) return;
 
-    setAsignaciones((prev) => ({ ...prev, [key]: pasajero }));
-    setPasajerosDisponibles((prev) => prev.filter((p) => p.id !== pasajeroId));
+    setAsignaciones((prev) => {
+      const copy = { ...prev };
+      if (oldKey) {
+        delete copy[oldKey];
+      }
+      copy[newKey] = pasajero!;
+      return copy;
+    });
+
+    if (!oldKey) {
+      // Si vino de la lista de disponibles, removerlo de ahí
+      setPasajerosDisponibles((prev) => prev.filter((p) => p.id !== reservationId));
+    }
   };
 
-  const handleConfirm = () => {
-    toast.success("Distribución de butacas guardada");
-    router.back();
+  const handleConfirm = async () => {
+    if (!user?.iweb_client_id || isSaving) return;
+    setIsSaving(true);
+    const toastId = toast.loading("Guardando distribución de butacas...");
+
+    try {
+      // 1. Identificar asignaciones activas
+      // 2. Para cada reserva original, actualizar su butaca y tipo_butaca correspondientes
+      const promises = initialReservations.map((r) => {
+        // Buscar si esta reserva tiene un asiento asignado en el estado actual
+        let assignedKey: string | null = null;
+        for (const [key, p] of Object.entries(asignaciones)) {
+          if (p.id === r.id) {
+            assignedKey = key;
+            break;
+          }
+        }
+
+        if (assignedKey) {
+          const type = assignedKey.startsWith("S-") ? "semicama" : "cama";
+          return apiClient.updateReserva(user.iweb_client_id!, r.id, {
+            butaca: assignedKey,
+            tipo_butaca: type,
+          });
+        } else {
+          // Si no está asignado, limpiar butaca y tipo_butaca
+          return apiClient.updateReserva(user.iweb_client_id!, r.id, {
+            butaca: null,
+            tipo_butaca: null,
+          });
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success("Distribución de butacas guardada con éxito", { id: toastId });
+      router.back();
+    } catch (err) {
+      console.error("Error saving seat layout:", err);
+      toast.error("Error al guardar la distribución de butacas", { id: toastId });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (loading) {
@@ -272,11 +352,15 @@ export default function ButacasPage() {
         <h2 className="my-5 text-black font-semibold md:hidden">Taquilla</h2>
         <div className="text-gray-700 font-medium bg-[#f9f9fc] w-full border border-gray-300 py-3 px-4 rounded-lg shadow-sm">
           <p className="text-xs text-gray-400 font-bold uppercase">Empresa / Micro</p>
-          <p className="text-sm font-semibold">{salida?.empresaNombre || "Cargando..."} ({salida?.empresaTipo === "aereo" ? "Aéreo" : "Bus"})</p>
-          <p className="text-xs text-gray-500 mt-1">Destino: {salida?.destinoNombre}</p>
+          <p className="text-sm font-semibold">{salida?.transport_company || "Cargando..."}</p>
+          <p className="text-xs text-gray-500 mt-1">Destino: {salida?.destino}</p>
         </div>
-        <button onClick={handleConfirm} className="w-full my-5 bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl">
-          Confirmar
+        <button 
+          onClick={handleConfirm} 
+          disabled={isSaving}
+          className="w-full my-5 bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl disabled:opacity-50"
+        >
+          {isSaving ? "Guardando..." : "Confirmar"}
         </button>
       </section>
       <section className="text-black mx-3 md:max-w-md md:mx-auto">
@@ -298,10 +382,11 @@ export default function ButacasPage() {
         <div className="flex flex-col">
           {/* Butacas semicama */}
           <section className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3">
-            <h2 className="my-5 font-semibold">Butacas semicama</h2>
+            <h2 className="my-5 font-semibold">Butacas semicama ({salida?.semicama_disponibles} libres / {salida?.semicama} totales)</h2>
             <div className="flex justify-center md:justify-start">
               <SeatGrid
                 layout={semicamaLayout}
+                layoutType="S"
                 asignaciones={asignaciones}
                 onDrop={handleDrop}
               />
@@ -310,10 +395,11 @@ export default function ButacasPage() {
 
           {/* Butacas cama */}
           <section className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3">
-            <h2 className="my-5 font-semibold">Butacas cama</h2>
+            <h2 className="my-5 font-semibold">Butacas cama ({salida?.cama_disponibles} libres / {salida?.cama} totales)</h2>
             <div className="flex justify-center md:justify-start">
               <SeatGrid
                 layout={camaLayout}
+                layoutType="C"
                 asignaciones={asignaciones}
                 onDrop={handleDrop}
               />
@@ -326,11 +412,14 @@ export default function ButacasPage() {
 
         {/* Columna derecha: Pasajeros */}
         <section className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3 mb-6 md:w-80">
-          <h2 className="my-5 font-semibold">Pasajeros</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <h2 className="my-5 font-semibold">Pasajeros Sin Asignar ({pasajerosDisponibles.length})</h2>
+          <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto p-1">
             {pasajerosDisponibles.map((p) => (
               <PasajeroCard key={p.id} pasajero={p} />
             ))}
+            {pasajerosDisponibles.length === 0 && (
+              <p className="col-span-2 text-center text-xs text-gray-400 py-4">Todos los pasajeros tienen asiento asignado</p>
+            )}
           </div>
         </section>
       </div>

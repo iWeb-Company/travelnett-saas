@@ -24,7 +24,7 @@ export default function ReservasCard({ reserva }: { reserva: any }) {
             <div className="flex flex-col flex-1 justify-between items-start">
               <div className="flex gap-10 justify-between items-center">
                 <p>Destino: {reserva.destino}</p>
-                <p>Cliente: {reserva.cliente}</p>
+                <p>Cliente: {reserva.client_nombre || reserva.cliente}</p>
               </div>
               <p className="font-semibold">
                 Titulo de la reserva: {reserva.titulo}
@@ -152,7 +152,7 @@ export default function ReservasCard({ reserva }: { reserva: any }) {
           <div className="bg-secondary shadow-lg shadow-black/30 text-white rounded-b-lg py-3 px-4 flex gap-4 items-start">
             <div className="flex flex-col gap-0.5">
               <p className="text-xs text-white/70">Cliente</p>
-              <p className="font-bold text-sm">{reserva.cliente}</p>
+              <p className="font-bold text-sm">{reserva.client_nombre || reserva.cliente}</p>
             </div>
             <div className="flex flex-col gap-0.5 flex-1">
               <p className="text-xs text-white/70">Título de reserva</p>

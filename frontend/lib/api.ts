@@ -470,6 +470,90 @@ export const apiClient = {
     });
     if (!response.ok) throw new Error('Failed to delete reserva');
   },
+
+  async getReservaById(iwebClientId: string, id: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/reservas/get_reserva/${id}?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get reserva by id');
+    return response.json();
+  },
+
+  async getPassengers(
+    iwebClientId: string,
+    filters?: { name?: string; last_name?: string; dni?: string | number; reservation_number?: string }
+  ): Promise<any[]> {
+    let url = `${API_BASE_URL}/parameters/get_passengers?iweb_client_id=${iwebClientId}`;
+    if (filters) {
+      if (filters.name) url += `&name=${encodeURIComponent(filters.name)}`;
+      if (filters.last_name) url += `&last_name=${encodeURIComponent(filters.last_name)}`;
+      if (filters.dni) url += `&dni=${filters.dni}`;
+      if (filters.reservation_number) url += `&reservation_number=${encodeURIComponent(filters.reservation_number)}`;
+    }
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) throw new Error('Failed to get passengers');
+    return response.json();
+  },
+
+  async getPassengerByName(iwebClientId: string, name: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/parameters/get_passengers?iweb_client_id=${iwebClientId}&name=${encodeURIComponent(name)}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get passengers by name');
+    return response.json();
+  },
+
+  async getPassengerByLastName(iwebClientId: string, lastName: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/parameters/get_passengers?iweb_client_id=${iwebClientId}&last_name=${encodeURIComponent(lastName)}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get passengers by last name');
+    return response.json();
+  },
+
+  async getPassengerByDNI(iwebClientId: string, dni: number | string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/parameters/get_passengers?iweb_client_id=${iwebClientId}&dni=${dni}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get passengers by DNI');
+    return response.json();
+  },
+
+  async getPassengerByReservationNumber(iwebClientId: string, reservationNumber: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/parameters/get_passengers?iweb_client_id=${iwebClientId}&reservation_number=${encodeURIComponent(reservationNumber)}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get passengers by reservation number');
+    return response.json();
+  },
+
+  // PAGOS
+  async getPagosReserva(iwebClientId: string, reservaId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/get_pagos_reserva/${reservaId}?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get pagos');
+    return response.json();
+  },
+
+  async createPago(iwebClientId: string, formData: FormData): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/create_pago?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Failed to create pago');
+    return response.json();
+  },
+
+  async deletePago(iwebClientId: string, id: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/delete_pago/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete pago');
+    return response.json();
+  },
 };
 
 

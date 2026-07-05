@@ -18,15 +18,14 @@ async def get_packages(iweb_client_id: str, db: Session = Depends(get_db)):
     
     response = []
     for p in pkgs:
-        # Resolver fechas de salida
-        rel = db.query(PackagesDatesOfExit).filter(
+        # Resolver fechas de salida desde packages_dates_of_exit
+        rels = db.query(PackagesDatesOfExit).filter(
             PackagesDatesOfExit.iweb_client_id == iweb_client_id,
-            PackagesDatesOfExit.package_id == p.id
-        ).first()
+            PackagesDatesOfExit.package_id == p.id,
+            PackagesDatesOfExit.active == True
+        ).all()
         
-        dates_list = []
-        if rel and rel.dates:
-            dates_list = [d.strip() for d in rel.dates.split(",") if d.strip()]
+        dates_list = [r.salida_id for r in rels if r.salida_id]
             
         response.append(
             PackageResponse(
@@ -45,6 +44,7 @@ async def get_packages(iweb_client_id: str, db: Session = Depends(get_db)):
                 periodo=p.periodo,
                 image=p.image,
                 active=p.active,
+                web=p.web,
                 dates=dates_list
             )
         )
@@ -61,14 +61,13 @@ async def get_package(id: str, iweb_client_id: str, db: Session = Depends(get_db
     if not p:
         raise HTTPException(status_code=404, detail="Paquete no encontrado")
         
-    rel = db.query(PackagesDatesOfExit).filter(
+    rels = db.query(PackagesDatesOfExit).filter(
         PackagesDatesOfExit.iweb_client_id == iweb_client_id,
-        PackagesDatesOfExit.package_id == p.id
-    ).first()
+        PackagesDatesOfExit.package_id == p.id,
+        PackagesDatesOfExit.active == True
+    ).all()
     
-    dates_list = []
-    if rel and rel.dates:
-        dates_list = [d.strip() for d in rel.dates.split(",") if d.strip()]
+    dates_list = [r.salida_id for r in rels if r.salida_id]
         
     return PackageResponse(
         id=p.id,
@@ -86,6 +85,7 @@ async def get_package(id: str, iweb_client_id: str, db: Session = Depends(get_db
         periodo=p.periodo,
         image=p.image,
         active=p.active,
+        web=p.web,
         dates=dates_list
     )
 
@@ -112,19 +112,22 @@ async def create_package(
         excursion=body.excursion,
         periodo=body.periodo,
         image=body.image,
-        active=body.active
+        active=body.active,
+        web=body.web
     )
     db.add(new_pkg)
     
-    # Guardar fechas de salida
-    dates_str = ", ".join(body.dates) if body.dates else None
-    new_relation = PackagesDatesOfExit(
-        id=str(uuid.uuid4()),
-        iweb_client_id=iweb_client_id,
-        package_id=pkg_id,
-        dates=dates_str
-    )
-    db.add(new_relation)
+    # Guardar fechas de salida individuales
+    if body.dates:
+        for s_id in body.dates:
+            new_relation = PackagesDatesOfExit(
+                id=str(uuid.uuid4()),
+                iweb_client_id=iweb_client_id,
+                package_id=pkg_id,
+                salida_id=s_id,
+                active=True
+            )
+            db.add(new_relation)
     
     db.commit()
     db.refresh(new_pkg)
@@ -145,6 +148,7 @@ async def create_package(
         periodo=new_pkg.periodo,
         image=new_pkg.image,
         active=new_pkg.active,
+        web=new_pkg.web,
         dates=body.dates
     )
 
@@ -191,28 +195,36 @@ async def update_package(
         p.image = body.image
     if body.active is not None:
         p.active = body.active
+    if body.web is not None:
+        p.web = body.web
         
-    # Actualizar fechas
-    rel = db.query(PackagesDatesOfExit).filter(
-        PackagesDatesOfExit.iweb_client_id == iweb_client_id,
-        PackagesDatesOfExit.package_id == p.id
-    ).first()
-    
-    dates_str = ", ".join(body.dates) if body.dates else None
-    
-    if rel:
-        rel.dates = dates_str
-    else:
-        new_relation = PackagesDatesOfExit(
-            id=str(uuid.uuid4()),
-            iweb_client_id=iweb_client_id,
-            package_id=p.id,
-            dates=dates_str
-        )
-        db.add(new_relation)
+    # Actualizar fechas de salida asociadas
+    if body.dates is not None:
+        db.query(PackagesDatesOfExit).filter(
+            PackagesDatesOfExit.iweb_client_id == iweb_client_id,
+            PackagesDatesOfExit.package_id == p.id
+        ).delete(synchronize_session=False)
+        
+        for s_id in body.dates:
+            new_relation = PackagesDatesOfExit(
+                id=str(uuid.uuid4()),
+                iweb_client_id=iweb_client_id,
+                package_id=p.id,
+                salida_id=s_id,
+                active=True
+            )
+            db.add(new_relation)
         
     db.commit()
     db.refresh(p)
+    
+    # Obtener lista final de fechas
+    rels = db.query(PackagesDatesOfExit).filter(
+        PackagesDatesOfExit.iweb_client_id == iweb_client_id,
+        PackagesDatesOfExit.package_id == p.id,
+        PackagesDatesOfExit.active == True
+    ).all()
+    dates_list = [r.salida_id for r in rels if r.salida_id]
     
     return PackageResponse(
         id=p.id,
@@ -230,7 +242,8 @@ async def update_package(
         periodo=p.periodo,
         image=p.image,
         active=p.active,
-        dates=body.dates
+        web=p.web,
+        dates=dates_list
     )
 
 

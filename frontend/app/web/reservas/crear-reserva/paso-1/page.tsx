@@ -10,6 +10,12 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { Loader } from "@/app/components/Loader";
+import ModalOptions from "@/app/components/ModalOptions";
+import { Salida } from "@/app/types";
+import AddVioleta from "@/app/components/icons/AddVioleta";
+import ModalLayout from "@/app/components/ModalLayout";
+import Salidas from "@/app/components/icons/home/Salidas";
+import Paquetes from "@/app/components/icons/home/Paquetes";
 
 export default function Paso1Page() {
   const r = useRouter();
@@ -18,28 +24,56 @@ export default function Paso1Page() {
   const [loading, setLoading] = useState(true);
   const [destinos, setDestinos] = useState<any[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
+  const [modalSalidas, setModalSalidas] = useState(false)
+  const [modalPaquetes, setModalPaquetes] = useState(false)
+
 
   // Form states
   const [destino, setDestino] = useState("");
   const [cliente, setCliente] = useState("");
   const [tipoReserva, setTipoReserva] = useState<"tradicional" | "bloqueo">("tradicional");
-  const [seleccionadoId, setSeleccionadoId] = useState("");
-  const [seleccionadoTipo, setSeleccionadoTipo] = useState<"salida" | "paquete" | "">("");
+
+  const [salidas, setSalidas] = useState<Salida[]>([])
+  const [paquetes, setPaquetes] = useState<any[]>([])
+  const [salidaSelected, setSalidaSelected] = useState<string | null>(null)
+  const [paqueteSelected, setPaqueteSelected] = useState<string | null>(null)
+  const [tempSalidaSelected, setTempSalidaSelected] = useState<string | null>(null)
+  const [tempPaqueteSelected, setTempPaqueteSelected] = useState<string | null>(null)
 
   const loadData = async () => {
     if (!user?.iweb_client_id) return;
     try {
-      const [destData, clientData] = await Promise.all([
+      const [destData, clientData, salidasData, paquetesData] = await Promise.all([
         apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
-        apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => [])
+        apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []),
+        apiClient.getSalidas(user.iweb_client_id).catch(() => []),
+        apiClient.getPackages(user.iweb_client_id).catch(() => [])
       ]);
       setDestinos(destData);
       setClientes(clientData);
+      setSalidas(salidasData)
+      setPaquetes(paquetesData)
     } catch (error) {
       console.error(error);
       toast.error("Error al cargar destinos y clientes");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSalidaSelect = (salidaId: any) => {
+    if (salidaSelected === salidaId) {
+      setSalidaSelected(null)
+    } else {
+      setSalidaSelected(salidaId)
+    }
+  };
+
+  const handlePaqueteSelect = (paqueteId: any) => {
+    if (paqueteSelected === paqueteId) {
+      setPaqueteSelected(null)
+    } else {
+      setPaqueteSelected(paqueteId)
     }
   };
 
@@ -51,12 +85,20 @@ export default function Paso1Page() {
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!destino || !cliente || (tipoReserva === "tradicional" && !seleccionadoId)) {
+    if (!destino || !cliente) {
       toast.error("Por favor, completa todos los campos del paso 1");
       return;
     }
+    if (tipoReserva === "tradicional" && !salidaSelected && !paqueteSelected) {
+      toast.error("Por favor, selecciona una salida o un paquete");
+      return;
+    }
+
+    const itemId = salidaSelected || paqueteSelected || "";
+    const itemType = salidaSelected ? "salida" : (paqueteSelected ? "paquete" : "");
+
     // Navigate to step 2 passing values in query params
-    r.push(`/web/reservas/crear-reserva/paso-2?destino=${destino}&cliente=${cliente}&tipo=${tipoReserva}&item=${seleccionadoId}&itemType=${seleccionadoTipo}`);
+    r.push(`/web/reservas/crear-reserva/paso-2?destino=${destino}&cliente=${cliente}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}`);
   };
 
   if (loading) {
@@ -110,7 +152,7 @@ export default function Paso1Page() {
             >
               <option value="" disabled>Destino</option>
               {destinos.map((d: any) => (
-                <option key={d.id} value={d.id}>{d.name || d.nombre}</option>
+                <option key={d.id} value={d.name || d.nombre}>{d.name || d.nombre}</option>
               ))}
             </select>
           </div>
@@ -127,7 +169,7 @@ export default function Paso1Page() {
               <option value="" disabled>Cliente</option>
               <option value="as">En Espera</option>
               {clientes.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name || c.nombre || c.username}</option>
+                <option key={c.id} value={c.id}>{c.complete_name || c.name_system || c.name || c.nombre}</option>
               ))}
             </select>
           </div>
@@ -142,7 +184,7 @@ export default function Paso1Page() {
                   name="tipoReserva"
                   value="tradicional"
                   checked={tipoReserva === "tradicional"}
-                  onChange={() => { setTipoReserva("tradicional"); setSeleccionadoId(""); setSeleccionadoTipo(""); }}
+                  onChange={() => setTipoReserva("tradicional")}
                   className="w-5 h-5 accent-primary"
                 />
                 Reserva tradicional
@@ -153,7 +195,11 @@ export default function Paso1Page() {
                   name="tipoReserva"
                   value="bloqueo"
                   checked={tipoReserva === "bloqueo"}
-                  onChange={() => { setTipoReserva("bloqueo"); setSeleccionadoId("bloqueo-general"); setSeleccionadoTipo("salida"); }}
+                  onChange={() => {
+                    setTipoReserva("bloqueo");
+                    setSalidaSelected(null);
+                    setPaqueteSelected(null);
+                  }}
                   className="w-5 h-5 accent-primary"
                 />
                 Bloqueo/Grupo
@@ -167,30 +213,111 @@ export default function Paso1Page() {
               <div className="flex flex-col gap-4">
                 <button
                   type="button"
-                  onClick={() => { setSeleccionadoId("salida-mock-id"); setSeleccionadoTipo("salida"); }}
-                  className={`flex-1 py-2 px-4 text-start rounded-lg text-sm font-semibold transition-all"
+                  onClick={() => { setTempSalidaSelected(salidaSelected); setModalSalidas(true); }}
+                  className={`flex-1 flex items-center gap-2 py-2 text-start rounded-lg text-sm font-semibold transition-all"
                     }`}
                 >
-                  + Seleccionar Salida
+                  <AddVioleta color="#0546F7" /><p>Seleccionar salida</p>
                 </button>
+                {salidaSelected && (
+                  <p className="text-sm font-semibold text-black">
+                    Salida seleccionada: {
+                      (() => {
+                        const sObj = salidas.find(s => s.id === salidaSelected);
+                        const dest = destinos.find(d => d.id === sObj?.destino);
+                        return sObj ? `${dest?.name || dest?.nombre || "Salida"} - ${sObj.date_of_out || ""}` : "";
+                      })()
+                    }
+                  </p>
+                )}
                 <button
                   type="button"
-                  onClick={() => { setSeleccionadoId("paquete-mock-id"); setSeleccionadoTipo("paquete"); }}
-                  className={`flex-1 py-2 px-4 text-start rounded-lg text-sm font-semibold transition-all "
+                  onClick={() => { setTempPaqueteSelected(paqueteSelected); setModalPaquetes(true); }}
+                  className={`flex-1 flex items-center gap-2 py-2 text-start rounded-lg text-sm font-semibold transition-all "
                     }`}
                 >
-                  + Seleccionar Paquete
+                  <AddVioleta color="#0546F7" /><p>Seleccionar paquete</p>
                 </button>
+                {paqueteSelected && (
+                  <p className="text-sm font-semibold text-black">
+                    Paquete seleccionado: {
+                      paquetes.find(p => p.id === paqueteSelected)?.name || "Paquete"
+                    }
+                  </p>
+                )}
               </div>
-
-              {seleccionadoId && (
-                <div className="bg-green-50 border border-green-200 text-green-800 text-xs rounded-lg p-3 font-semibold">
-                  ✓ Seleccionado: {seleccionadoTipo === "salida" ? "Salida Grupal Especial (Bus/Aéreo)" : "Paquete Vacacional Todo Incluido"}
-                </div>
-              )}
             </div>
           )}
+          {modalSalidas && (
+            <ModalLayout
+              title="Listado de salidas"
+              setModalOpen={setModalSalidas}
+              svg={<Salidas />}
+              onSubmit={() => {
+                setSalidaSelected(tempSalidaSelected);
+                setPaqueteSelected(null);
+                setModalSalidas(false);
+              }}
+            >
+              <div className="space-y-2">
+                {salidas.map((option) => {
+                  const destinoObj = destinos.find((d) => d.id === option.destino);
+                  return (
+                    <div key={option.id} className="flex items-center justify-between gap-3">
+                      <label htmlFor={option.id} className="text-lg text-white font-medium cursor-pointer">
+                        {destinoObj?.name || destinoObj?.nombre} - {option.date_of_out}
+                      </label>
+                      <input
+                        className="w-5 h-5 cursor-pointer"
+                        type="radio"
+                        name="salidas"
+                        value={option.id}
+                        id={option.id}
+                        checked={tempSalidaSelected === option.id}
+                        onChange={() => {
+                          setTempSalidaSelected(option.id || null);
+                        }}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </ModalLayout>
+          )}
 
+          {modalPaquetes && (
+            <ModalLayout
+              title="Listado de paquetes"
+              setModalOpen={setModalPaquetes}
+              svg={<Paquetes />}
+              onSubmit={() => {
+                setPaqueteSelected(tempPaqueteSelected);
+                setSalidaSelected(null);
+                setModalPaquetes(false);
+              }}
+            >
+              <div className="space-y-2">
+                {paquetes.map((option) => (
+                  <div key={option.id} className="flex items-center justify-between gap-3">
+                    <label htmlFor={option.id} className="text-lg text-white font-medium cursor-pointer">
+                      {option.name}
+                    </label>
+                    <input
+                      className="w-5 h-5 cursor-pointer"
+                      type="radio"
+                      name="paquetes"
+                      value={option.id}
+                      id={option.id}
+                      checked={tempPaqueteSelected === option.id}
+                      onChange={() => {
+                        setTempPaqueteSelected(option.id || null);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </ModalLayout>
+          )}
           {/* Continuar */}
           <button
             type="submit"

@@ -16,14 +16,14 @@ export default function LoginPage() {
   const { login } = useAuth();
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!slug || !email || !password) {
+    if (!email || !password) {
       setError("Por favor completa todos los campos");
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
-     try {
+    try {
       await login(slug, email, password);
       router.push('/dashboard');
     } catch (err: any) {
@@ -31,7 +31,7 @@ export default function LoginPage() {
     } finally {
       setIsSubmitting(false);
     }
-    
+
   };
   return (
     <main className="login-page mx-5 h-screen max-w-3xl md:mx-auto overflow-hidden">

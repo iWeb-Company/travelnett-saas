@@ -33,36 +33,39 @@ export default function PasajerosPage() {
     birstday: "",
   });
 
-  const getPassengers = async () => {
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const fetchPassengers = async (filters?: { nombre?: string; last_name?: string; dni?: string; reserva?: string }) => {
+    setIsSearching(true);
     try {
-      const data = await apiClient.getParameters("get_passengers", user?.iweb_client_id);
-      setPassengers(data);
+      const clientId = user?.iweb_client_id || "";
+      if (!clientId) return;
+      
+      const results = await apiClient.getPassengers(clientId, {
+        name: filters?.nombre,
+        last_name: filters?.last_name,
+        dni: filters?.dni,
+        reservation_number: filters?.reserva
+      }).catch(() => []);
+      
+      setFilteredPassengers(results);
     } catch (error) {
       console.error("Error fetching passengers:", error);
     } finally {
-      setLoading(false);
+      setIsSearching(false);
     }
   };
 
   useEffect(() => {
-    getPassengers();
+    setLoading(false);
   }, []);
 
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSearch(input);
-
-    const filtered = passengers.filter((p: any) => {
-      const matchNombre = !input.nombre || (p.name || "").toLowerCase().includes(input.nombre.toLowerCase());
-      const matchApellido = !input.last_name || (p.last_name || "").toLowerCase().includes(input.last_name.toLowerCase());
-      const matchDni = !input.dni || (String(p.dni) || "").includes(input.dni);
-      // 'reserva' no está en el tipo base, pero lo incluimos por si viene del API
-      const matchReserva = !input.reserva || (String(p.reserva || "")).toLowerCase().includes(input.reserva.toLowerCase());
-
-      return matchNombre && matchApellido && matchDni && matchReserva;
-    });
-
-    setFilteredPassengers(filtered);
+    setHasSearched(true);
+    await fetchPassengers(input);
   };
 
   if (loading) {
@@ -135,68 +138,76 @@ export default function PasajerosPage() {
         />
         <input
           type="text"
+          placeholder="Numero de Reserva"
+          value={input.reserva}
+          onChange={(e) => setInput({ ...input, reserva: e.target.value })}
+          className="w-full border bg-white border-gray-300 rounded-sm p-2 pl-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        <input
+          type="text"
           placeholder="DNI"
           value={input.dni}
           onChange={(e) => setInput({ ...input, dni: e.target.value })}
           className="w-full border bg-white border-gray-300 rounded-sm p-2 pl-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        <input
-          type="text"
-          placeholder="Reserva"
-          value={input.reserva}
-          onChange={(e) => setInput({ ...input, reserva: e.target.value })}
-          className="w-full border bg-white border-gray-300 rounded-sm p-2 pl-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-        <button className="bg-primary text-white py-2 font-semibold rounded-sm">
-          Buscar
+        <button
+          disabled={isSearching}
+          className="bg-primary text-white py-2 font-semibold rounded-sm disabled:opacity-50"
+        >
+          {isSearching ? "Buscando..." : "Buscar"}
         </button>
       </form>
 
-      {/* RESULTADOS */}
-      {
-        (search.nombre || search.last_name || search.dni || search.reserva) ? (
-          <div className="flex flex-col justify-center mx-auto max-w-4xl items-end overflow-x-auto">
-            <button onClick={() => setSearch({ nombre: "", last_name: "", dni: "", reserva: "", birstday: "" })} className="hover:underline text-black py-2 px-4 mt-3 font-semibold rounded-sm">
-              Limpiar búsqueda
-            </button>
-            <table className="w-full mx-auto mt-6 border divide-x divide-white border-black rounded-lg overflow-hidden">
-              <thead className="bg-black text-white">
-                <tr>
-                  <th className="px-4 py-2 text-left">DNI</th>
-                  <th className="px-4 py-2 text-left">Reserva</th>
-                  <th className="px-4 py-2 text-left">Nombre</th>
-                  <th className="px-4 py-2 text-left">Apellido</th>
-                  <th className="px-4 py-2 text-left">Fecha de nacimiento</th>
-                </tr>
-              </thead>
+      {isSearching ? (
+        <div className="flex justify-center items-center py-10">
+          <Loader />
+        </div>
+      ) : hasSearched ? (
+        <div className="flex flex-col justify-center mx-auto max-w-4xl items-end overflow-x-auto">
+          <button
+            onClick={() => {
+              setSearch({ nombre: "", last_name: "", dni: "", reserva: "", birstday: "" });
+              setInput({ nombre: "", last_name: "", dni: "", reserva: "", birstday: "" });
+              setFilteredPassengers([]);
+              setHasSearched(false);
+            }}
+            className="hover:underline text-black py-2 px-4 mt-3 font-semibold rounded-sm"
+          >
+            Limpiar búsqueda
+          </button>
+          <table className="w-full mx-auto mt-6 border divide-x divide-white border-black rounded-lg overflow-hidden">
+            <thead className="bg-black text-white">
+              <tr>
+                <th className="px-4 py-2 text-left">DNI</th>
+                <th className="px-4 py-2 text-left">Reserva</th>
+                <th className="px-4 py-2 text-left">Nombre</th>
+                <th className="px-4 py-2 text-left">Apellido</th>
+                <th className="px-4 py-2 text-left">Fecha de nacimiento</th>
+              </tr>
+            </thead>
 
-              <tbody className="divide-y divide-black divide-x text-black bg-white">
-                {filteredPassengers.length > 0 ? (
-                  filteredPassengers.map((pasajero: any, index) => (
-                    <tr key={pasajero.id || index}>
-                      <td className="px-4 py-2 text-center">{pasajero.dni}</td>
-                      <td className="px-4 py-2 text-center">{pasajero.reserva || "-"}</td>
-                      <td className="px-4 py-2 text-center">{pasajero.name}</td>
-                      <td className="px-4 py-2 text-center">{pasajero.last_name}</td>
-                      <td className="px-4 py-2 text-center">{pasajero.date_of_birth}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                      No se encontraron pasajeros con esos criterios.
-                    </td>
+            <tbody className="divide-y divide-black divide-x text-black bg-white">
+              {filteredPassengers.length > 0 ? (
+                filteredPassengers.map((pasajero: any, index) => (
+                  <tr key={pasajero.id || index}>
+                    <td className="px-4 py-2 text-center">{pasajero.dni}</td>
+                    <td className="px-4 py-2 text-center">{pasajero.reserva || "-"}</td>
+                    <td className="px-4 py-2 text-center">{pasajero.name}</td>
+                    <td className="px-4 py-2 text-center">{pasajero.last_name}</td>
+                    <td className="px-4 py-2 text-center">{pasajero.date_of_birth}</td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-center text-gray-500 mt-6">
-            Ingrese un criterio de búsqueda para ver resultados.
-          </p>
-        )
-      }
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                    No se encontraron pasajeros con esos criterios.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
         <img src="/logo-grande.png" className="size-50" alt="Logo Empresa" />

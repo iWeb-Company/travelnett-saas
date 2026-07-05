@@ -1,9 +1,14 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useState } from "react";
+import ModalOptions from "./ModalOptions";
+import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 interface PasajeroRowProps {
+  id: string;
   nombre: string;
   ascenso: string;
+  lugar_carga_id?: string | null;
   butaca: string;
   telefono: string;
   reserva: string;
@@ -13,80 +18,129 @@ interface PasajeroRowProps {
 }
 
 export default function PasajeroRow({
-  pasajero
+  pasajero,
+  onUpdated,
 }: {
   pasajero: PasajeroRowProps;
+  onUpdated?: () => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState(0);
+  const { user } = useAuth();
+  const [isOpenModal, setIsOpenModal] = useState(false);
+  const [lugaresCarga, setLugaresCarga] = useState<any[]>([]);
+  const [selectedLugarCarga, setSelectedLugarCarga] = useState(pasajero.lugar_carga_id || "");
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const loadLugaresCarga = async () => {
+    if (!user?.iweb_client_id) return;
+    const data = await apiClient.getParameters("get_lugares_carga", user.iweb_client_id).catch(() => []);
+    setLugaresCarga(data);
+  };
 
   useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight);
+    if (user?.iweb_client_id) {
+      loadLugaresCarga();
     }
-  }, []);
+  }, [user?.iweb_client_id]);
+
+  useEffect(() => {
+    setSelectedLugarCarga(pasajero.lugar_carga_id || "");
+  }, [pasajero.lugar_carga_id]);
+
+  const handleConfirm = async () => {
+    if (!user?.iweb_client_id || !pasajero.id) return;
+    setIsUpdating(true);
+    try {
+      await apiClient.updateReserva(user.iweb_client_id, pasajero.id, {
+        lugar_carga_id: selectedLugarCarga || null,
+      });
+      setIsOpenModal(false);
+      if (onUpdated) {
+        onUpdated();
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
-    <div className="flex flex-col justify-center">
+    <div className="w-full flex flex-col justify-center">
       {/* Fila principal */}
-      <div className="flex items-center justify-center gap-2">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center justify-center cursor-pointer">
-          <svg
-            width="8"
-            viewBox="0 0 10 12"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className={`transition-transform duration-300 ${
-              isOpen ? "rotate-90" : "rotate-0"
-            }`}>
-            <path d="M10 6L0 12V0L10 6Z" fill="#6B7280" />
-          </svg>
-        </button>
-        <div className="flex-1 bg-[#D9DFF5] flex font-semibold border border-[#3DADFF] mx-auto rounded-t-md px-2 py-2.5 items-center justify-center text-xs text-black">
-          <span className="px-2 flex-1 text-end">{pasajero.nombre}</span>
-          <span className="px-2 border-l border-black md:block hidden">{pasajero.reserva}</span>
-          <span className="px-2 border-l border-black md:block hidden">{pasajero.cliente}</span>
-          <span className="px-2 border-l border-black">{pasajero.ascenso}</span>
-          <span className="px-2 border-l border-black md:block hidden">{pasajero.hotel}</span>
-          <span className="px-2 border-l border-black md:block hidden">{pasajero.edad}</span>
-          <span className="px-2 border-l border-black md:block hidden">{pasajero.telefono}</span>
-          <span className="px-2 border-l border-black">{pasajero.butaca}</span>
-          <span className="pl-2 border-l cursor-pointer  border-black">📄</span>
+      <div className="w-full flex items-center gap-2">
+        {/* Left 'Bus' Box */}
+        <input
+          type="text"
+          className="w-14 h-9 bg-[#D9DFF5]/70 border border-[#3DADFF] rounded-md flex items-center justify-center text-center text-xs font-semibold text-black cursor-pointer hover:bg-blue-100 transition-colors focus:outline-none"
+        />
+
+
+        {/* Right Columns Container */}
+        <div className="flex-1 h-9 bg-[#D9DFF5]/40 border border-[#3DADFF] rounded-md flex items-center justify-between px-3 text-xs font-semibold text-black">
+          <span className="flex-1 text-left md:truncate pr-2" title={pasajero.nombre}>
+            {pasajero.nombre}
+          </span>
+          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
+          <span className="w-20 md:block hidden text-center truncate" title={pasajero.reserva}>
+            {pasajero.reserva}
+          </span>
+          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
+          <span className="w-24 md:block hidden text-center truncate" title={pasajero.cliente}>
+            {pasajero.cliente}
+          </span>
+          <span className="text-black/35 font-normal px-1">|</span>
+          <span className="w-16 md:w-32 text-center md:truncate cursor-pointer" onClick={() => setIsOpenModal(true)} title={pasajero.ascenso}>
+            {pasajero.ascenso}
+          </span>
+          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
+          <span className="w-16 md:w-32 md:block hidden text-center truncate" title={pasajero.hotel}>
+            {pasajero.hotel}
+          </span>
+          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
+          <span className="w-12 md:block hidden text-center truncate" title={pasajero.edad}>
+            {pasajero.edad}
+          </span>
+          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
+          <span className="w-28 md:block hidden text-center truncate" title={pasajero.telefono}>
+            {pasajero.telefono}
+          </span>
+          <span className="text-black/35 font-normal px-1">|</span>
+          <span className="md:w-24 w-12 text-center md:truncate" title={pasajero.butaca}>
+            {pasajero.butaca}
+          </span>
+          <span className="text-black/35 font-normal px-1">|</span>
+          <span className="md:w-16 flex justify-center items-center cursor-pointer text-center">
+            📄
+          </span>
         </div>
       </div>
 
-      {/* Dropdown animado */}
-      <div
-        ref={contentRef}
-        style={{
-          maxHeight: isOpen ? `${contentHeight}px` : "0px",
-        }}
-        className="overflow-hidden transition-all duration-300 ease-in-out">
-        <div className="flex items-center gap-2 pl-5 pt-1.5">
-          <input className="text-xs text-primary font-semibold size-7 border rounded-md text-center" />
-          <div className="flex-1 bg-blue-50/70 rounded-lg px-3 py-2 flex items-center text-xs text-gray-400">
-            <span className="flex-1">{pasajero.nombre}</span>
-            <span className="px-2 border-l border-gray-200">{pasajero.ascenso}</span>
-            <span className="px-2 border-l border-gray-200">{pasajero.butaca}</span>
-            <button className="pl-2 border-l border-gray-200">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M21 16V14L13 9V3.5C13 2.67 12.33 2 11.5 2C10.67 2 10 2.67 10 3.5V9L2 14V16L10 13.5V19L8 20.5V22L11.5 21L15 22V20.5L13 19V13.5L21 16Z"
-                  fill="#D1D5DB"
+      {/* Expanded Detail Row */}
+      {isOpenModal && (
+        <ModalOptions
+          isOpen={isOpenModal}
+          onCancel={() => setIsOpenModal(false)}
+          onConfirmed={handleConfirm}
+        >
+          <div className="space-y-2">
+            {lugaresCarga.map((option) => (
+              <div key={option.id} className="flex items-center justify-between gap-3">
+                <label htmlFor={option.id} className="text-lg text-white font-medium cursor-pointer">
+                  {option.name} - {option.address || "Sin direccion especificada"}
+                </label>
+                <input
+                  className="w-5 h-5 cursor-pointer"
+                  type="radio"
+                  name={`lugares_carga_${pasajero.id}`}
+                  id={option.id}
+                  checked={selectedLugarCarga === option.id}
+                  onChange={() => setSelectedLugarCarga(option.id)}
                 />
-              </svg>
-            </button>
+              </div>
+            ))}
           </div>
-        </div>
-      </div>
+        </ModalOptions>
+      )}
     </div>
   );
 }

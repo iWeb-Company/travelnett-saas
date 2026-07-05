@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
-from models.models import Reservas, Passengers, Salidas, LugaresCarga, Hotels, Regimenes
+from models.models import Reservas, Passengers, Salidas, LugaresCarga, Hotels, Regimenes, Clients
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/reservas", tags=["Reservas / Pasajeros de Salidas"])
@@ -24,13 +24,15 @@ class ReservaDetailedResponse(BaseModel):
     
     # Reserva
     codigo_reserva: Optional[str] = None
-    cliente: Optional[str] = None
+    client_id: Optional[str] = None
+    client_nombre: Optional[str] = None
     
     # Asignaciones
     lugar_carga_id: Optional[str] = None
     lugar_carga_nombre: Optional[str] = None
     lugar_carga_direccion: Optional[str] = None
     butaca: Optional[str] = None
+    tipo_butaca: Optional[str] = None
     
     hotel_id: Optional[str] = None
     hotel_nombre: Optional[str] = None
@@ -48,10 +50,11 @@ class ReservaCreatePayload(BaseModel):
     passenger_id: str
     salida_id: str
     codigo_reserva: Optional[str] = None
-    cliente: Optional[str] = None
+    client_id: Optional[str] = None
     edad_categoria: Optional[str] = "ADL"
     lugar_carga_id: Optional[str] = None
     butaca: Optional[str] = None
+    tipo_butaca: Optional[str] = None
     hotel_id: Optional[str] = None
     regimen_id: Optional[str] = None
     rooming_id: Optional[str] = None
@@ -60,10 +63,11 @@ class ReservaCreatePayload(BaseModel):
 
 class ReservaUpdatePayload(BaseModel):
     codigo_reserva: Optional[str] = None
-    cliente: Optional[str] = None
+    client_id: Optional[str] = None
     edad_categoria: Optional[str] = None
     lugar_carga_id: Optional[str] = None
     butaca: Optional[str] = None
+    tipo_butaca: Optional[str] = None
     hotel_id: Optional[str] = None
     regimen_id: Optional[str] = None
     rooming_id: Optional[str] = None
@@ -123,6 +127,13 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
             rg = db.query(Regimenes).filter(Regimenes.id == r.regimen_id).first()
             if rg:
                 r_name = rg.name
+
+        # Buscar Cliente
+        cl_nombre = ""
+        if r.client_id:
+            cl = db.query(Clients).filter(Clients.id == r.client_id).first()
+            if cl:
+                cl_nombre = cl.complete_name or cl.name_system or ""
                 
         result.append(
             ReservaDetailedResponse(
@@ -136,11 +147,13 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
                 fecha_nacimiento=fecha_nac,
                 edad_categoria=r.edad_categoria or "ADL",
                 codigo_reserva=r.codigo_reserva,
-                cliente=r.cliente,
+                client_id=r.client_id,
+                client_nombre=cl_nombre,
                 lugar_carga_id=r.lugar_carga_id,
                 lugar_carga_nombre=lc_name,
                 lugar_carga_direccion=lc_dir,
                 butaca=r.butaca,
+                tipo_butaca=r.tipo_butaca,
                 hotel_id=r.hotel_id,
                 hotel_nombre=h_name,
                 regimen_id=r.regimen_id,
@@ -182,10 +195,11 @@ async def create_reserva(
         passenger_id=body.passenger_id,
         salida_id=body.salida_id,
         codigo_reserva=body.codigo_reserva,
-        cliente=body.cliente,
+        client_id=body.client_id,
         edad_categoria=body.edad_categoria or "ADL",
         lugar_carga_id=body.lugar_carga_id,
         butaca=body.butaca,
+        tipo_butaca=body.tipo_butaca,
         hotel_id=body.hotel_id,
         regimen_id=body.regimen_id,
         rooming_id=body.rooming_id,
@@ -220,6 +234,13 @@ async def create_reserva(
         if rg:
             r_name = rg.name
             
+    # Buscar Cliente
+    cl_nombre = ""
+    if new_res.client_id:
+        cl = db.query(Clients).filter(Clients.id == new_res.client_id).first()
+        if cl:
+            cl_nombre = cl.complete_name or cl.name_system or ""
+
     nombre_completo = f"{p.name or ''} {p.last_name or ''}".strip() or "Desconocido"
             
     return ReservaDetailedResponse(
@@ -233,11 +254,13 @@ async def create_reserva(
         fecha_nacimiento=str(p.date_of_birth) if p.date_of_birth else None,
         edad_categoria=new_res.edad_categoria,
         codigo_reserva=new_res.codigo_reserva,
-        cliente=new_res.cliente,
+        client_id=new_res.client_id,
+        client_nombre=cl_nombre,
         lugar_carga_id=new_res.lugar_carga_id,
         lugar_carga_nombre=lc_name,
         lugar_carga_direccion=lc_dir,
         butaca=new_res.butaca,
+        tipo_butaca=new_res.tipo_butaca,
         hotel_id=new_res.hotel_id,
         hotel_nombre=h_name,
         regimen_id=new_res.regimen_id,
@@ -265,14 +288,16 @@ async def update_reserva(
         
     if body.codigo_reserva is not None:
         r.codigo_reserva = body.codigo_reserva
-    if body.cliente is not None:
-        r.cliente = body.cliente
+    if body.client_id is not None:
+        r.client_id = body.client_id
     if body.edad_categoria is not None:
         r.edad_categoria = body.edad_categoria
     if body.lugar_carga_id is not None:
         r.lugar_carga_id = body.lugar_carga_id
     if body.butaca is not None:
         r.butaca = body.butaca
+    if body.tipo_butaca is not None:
+        r.tipo_butaca = body.tipo_butaca
     if body.hotel_id is not None:
         r.hotel_id = body.hotel_id
     if body.regimen_id is not None:
@@ -319,6 +344,13 @@ async def update_reserva(
         if rg:
             r_name = rg.name
             
+    # Buscar Cliente
+    cl_nombre = ""
+    if r.client_id:
+        cl = db.query(Clients).filter(Clients.id == r.client_id).first()
+        if cl:
+            cl_nombre = cl.complete_name or cl.name_system or ""
+            
     return ReservaDetailedResponse(
         id=r.id,
         iweb_client_id=r.iweb_client_id,
@@ -330,11 +362,91 @@ async def update_reserva(
         fecha_nacimiento=fecha_nac,
         edad_categoria=r.edad_categoria or "ADL",
         codigo_reserva=r.codigo_reserva,
-        cliente=r.cliente,
+        client_id=r.client_id,
+        client_nombre=cl_nombre,
         lugar_carga_id=r.lugar_carga_id,
         lugar_carga_nombre=lc_name,
         lugar_carga_direccion=lc_dir,
         butaca=r.butaca,
+        tipo_butaca=r.tipo_butaca,
+        hotel_id=r.hotel_id,
+        hotel_nombre=h_name,
+        regimen_id=r.regimen_id,
+        regimen_nombre=r_name,
+        rooming_id=r.rooming_id,
+        room_type=r.room_type,
+        active=bool(r.active if r.active is not None else True)
+    )
+
+
+@router.get("/get_reserva/{id}", response_model=ReservaDetailedResponse)
+async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+    r = db.query(Reservas).filter(
+        Reservas.id == id,
+        Reservas.iweb_client_id == iweb_client_id
+    ).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    
+    p = db.query(Passengers).filter(
+        Passengers.id == r.passenger_id,
+        Passengers.iweb_client_id == iweb_client_id
+    ).first()
+    
+    nombre_completo = "Desconocido"
+    telefono = ""
+    dni = None
+    fecha_nac = None
+    if p:
+        nombre_completo = f"{p.name or ''} {p.last_name or ''}".strip() or "Desconocido"
+        telefono = str(p.phone) if p.phone else ""
+        dni = p.dni
+        fecha_nac = str(p.date_of_birth) if p.date_of_birth else None
+        
+    lc_name = ""
+    lc_dir = ""
+    if r.lugar_carga_id:
+        lc = db.query(LugaresCarga).filter(LugaresCarga.id == r.lugar_carga_id).first()
+        if lc:
+            lc_name = lc.name
+            lc_dir = lc.address or ""
+            
+    h_name = ""
+    if r.hotel_id:
+        h = db.query(Hotels).filter(Hotels.id == r.hotel_id).first()
+        if h:
+            h_name = h.name
+            
+    r_name = ""
+    if r.regimen_id:
+        rg = db.query(Regimenes).filter(Regimenes.id == r.regimen_id).first()
+        if rg:
+            r_name = rg.name
+            
+    cl_nombre = ""
+    if r.client_id:
+        cl = db.query(Clients).filter(Clients.id == r.client_id).first()
+        if cl:
+            cl_nombre = cl.complete_name or cl.name_system or ""
+            
+    return ReservaDetailedResponse(
+        id=r.id,
+        iweb_client_id=r.iweb_client_id,
+        passenger_id=r.passenger_id,
+        salida_id=r.salida_id,
+        nombre_completo=nombre_completo,
+        telefono=telefono,
+        dni=dni,
+        fecha_nacimiento=fecha_nac,
+        edad_categoria=r.edad_categoria or "ADL",
+        codigo_reserva=r.codigo_reserva,
+        client_id=r.client_id,
+        client_nombre=cl_nombre,
+        lugar_carga_id=r.lugar_carga_id,
+        lugar_carga_nombre=lc_name,
+        lugar_carga_direccion=lc_dir,
+        butaca=r.butaca,
+        tipo_butaca=r.tipo_butaca,
         hotel_id=r.hotel_id,
         hotel_nombre=h_name,
         regimen_id=r.regimen_id,

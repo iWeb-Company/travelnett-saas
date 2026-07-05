@@ -5,10 +5,15 @@ import ToggleSalidas from "@/app/components/ToggleSalidas";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleActiveFilters from "@/app/components/ToggleActiveFilters";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
 
 export default function ReservasPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const [clientes, setClientes] = useState<any[]>([]);
+
   const [data, setData] = useState({
     numero: "",
     cliente: "",
@@ -16,6 +21,22 @@ export default function ReservasPage() {
     periodo: "",
     paquete: "",
   });
+
+  const loadClientes = async () => {
+    if (!user?.iweb_client_id) return;
+    try {
+      const data = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
+      setClientes(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.iweb_client_id) {
+      loadClientes();
+    }
+  }, [user?.iweb_client_id]);
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     router.push(
@@ -53,16 +74,19 @@ export default function ReservasPage() {
             placeholder="Número"
           />
           <select
-            className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
+            className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500 cursor-pointer"
             name="cliente"
             id="cliente"
+            value={data.cliente}
             onChange={handleChange}>
-            <option hidden className="text-gray-200 bg-[#f1f1f1]" value="">
+            <option className="text-gray-200 bg-[#f1f1f1]" value="">
               Cliente
             </option>
-            <option className="bg-[#f1f1f1]" value="Termas de Rio Hondo">
-              Termas de Rio Hondo
-            </option>
+            {clientes.map((c) => (
+              <option key={c.id} className="bg-[#f1f1f1]" value={c.id}>
+                {c.complete_name || c.name_system}
+              </option>
+            ))}
           </select>
           <select
             className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"

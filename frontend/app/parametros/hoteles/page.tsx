@@ -30,6 +30,20 @@ export default function HotelesPage() {
     web: "",
     images: [],
   });
+  const [destinos, setDestinos] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadDestinos = async () => {
+      if (!user?.iweb_client_id) return;
+      try {
+        const data = await apiClient.getParameters("get_destinos", user.iweb_client_id);
+        setDestinos(data);
+      } catch (err) {
+        console.error("Error loading destinos:", err);
+      }
+    };
+    loadDestinos();
+  }, [user?.iweb_client_id]);
 
   useEffect(() => {
     if (!selectedFiles) {
@@ -42,9 +56,10 @@ export default function HotelesPage() {
   }, [selectedFiles]);
 
   const getHoteles = async () => {
+    if (!user?.iweb_client_id) return;
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_hotels", user?.iweb_client_id);
+      const data = await apiClient.getParameters("get_hotels", user.iweb_client_id);
       const hotelesFiltered = data.filter((e: Hotel) =>
         e.name.toLowerCase().includes(search.toLowerCase())
       );
@@ -58,8 +73,10 @@ export default function HotelesPage() {
   };
 
   useEffect(() => {
-    getHoteles();
-  }, [search]);
+    if (user?.iweb_client_id) {
+      getHoteles();
+    }
+  }, [search, user?.iweb_client_id]);
 
   const handleClickPut = (hotel: Hotel) => {
     setHotelData(hotel);
@@ -315,6 +332,16 @@ export default function HotelesPage() {
         >
           <div className="flex flex-col gap-4">
             <div className="flex flex-col items-center gap-3">
+              <select
+                onChange={(e) => setHotelData({ ...hotelData, destino: e.target.value })}
+                value={hotelData.destino || ""}
+                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
+              >
+                <option className="text-black/90" value="" disabled>Destino</option>
+                {destinos.map((d: any) => (
+                  <option key={d.id} className="text-black/90" value={d.name || d.nombre}>{d.name || d.nombre}</option>
+                ))}
+              </select>
               <input
                 type="text"
                 placeholder="Nombre"
@@ -323,14 +350,14 @@ export default function HotelesPage() {
               />
               <input
                 type="text"
-                placeholder="Destino"
-                onChange={(e) => setHotelData({ ...hotelData, destino: e.target.value })}
+                placeholder="Dirección"
+                onChange={(e) => setHotelData({ ...hotelData, address: e.target.value })}
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
-                placeholder="Dirección"
-                onChange={(e) => setHotelData({ ...hotelData, address: e.target.value })}
+                placeholder="Telefono de contacto"
+                onChange={(e) => setHotelData({ ...hotelData, phone: Number(e.target.value) })}
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
@@ -383,6 +410,16 @@ export default function HotelesPage() {
         >
           <div className="flex flex-col gap-4">
             <div className="flex flex-col items-center gap-3">
+              <select
+                value={hotelData?.destino || ""}
+                onChange={(e) => setHotelData({ ...hotelData, destino: e.target.value })}
+                className="w-full border bg-white rounded-sm p-2 text-black/60 font-semibold shadow-sm focus:outline-none"
+              >
+                <option value="" disabled>Selecciona un destino</option>
+                {destinos.map((d: any) => (
+                  <option key={d.id} value={d.name || d.nombre}>{d.name || d.nombre}</option>
+                ))}
+              </select>
               <input
                 type="text"
                 value={hotelData.name}
@@ -390,13 +427,7 @@ export default function HotelesPage() {
                 placeholder="Nombre"
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
-              <input
-                type="text"
-                value={hotelData?.destino || ''}
-                onChange={(e) => setHotelData({ ...hotelData, destino: (e.target.value) })}
-                placeholder="Destino"
-                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-              />
+
               <input
                 type="text"
                 value={hotelData?.address}

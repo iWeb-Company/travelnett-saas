@@ -1,8 +1,9 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from db.database import get_db
-from models.models import Salidas, SalidasLugaresCarga, LugaresCarga
+from models.models import Salidas, SalidasLugaresCarga, LugaresCarga, Reservas
 from schemas.schemas import (
     SalidaResponse,
     SalidaCreateRequest,
@@ -27,15 +28,48 @@ async def get_salidas(iweb_client_id: str, db: Session = Depends(get_db)):
         
         cargas_resolved = []
         if rel and rel.cargas:
-            # Separar y limpiar IDs de lugares de carga
             carga_ids = [cid.strip() for cid in rel.cargas.split(",") if cid.strip()]
+            horarios_list = [h.strip() for h in rel.horarios.split(",") if h.strip()] if rel.horarios else []
+            while len(horarios_list) < len(carga_ids):
+                horarios_list.append("")
+                
             if carga_ids:
-                # Recuperar los objetos completos de lugares de carga
                 places = db.query(LugaresCarga).filter(
                     LugaresCarga.iweb_client_id == iweb_client_id,
                     LugaresCarga.id.in_(carga_ids)
                 ).all()
-                cargas_resolved = places
+                places_map = {p.id: p for p in places}
+                for idx, cid in enumerate(carga_ids):
+                    if cid in places_map:
+                        p = places_map[cid]
+                        cargas_resolved.append({
+                            "id": p.id,
+                            "name": p.name,
+                            "type": p.type,
+                            "address": p.address,
+                            "horario": horarios_list[idx]
+                        })
+                
+        # Count reservations by tipo_butaca for this salida_id
+        semicama_res_qty = db.query(Reservas).filter(
+            func.lower(Reservas.salida_id) == func.lower(s.id.strip()),
+            func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip()),
+            Reservas.active == True,
+            func.lower(Reservas.tipo_butaca) == "semicama"
+        ).count()
+        
+        cama_res_qty = db.query(Reservas).filter(
+            func.lower(Reservas.salida_id) == func.lower(s.id.strip()),
+            func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip()),
+            Reservas.active == True,
+            func.lower(Reservas.tipo_butaca) == "cama"
+        ).count()
+        
+        total_semicama = s.semicama or 0
+        dispo_semicama = max(0, total_semicama - semicama_res_qty)
+        
+        total_cama = s.cama or 0
+        dispo_cama = max(0, total_cama - cama_res_qty)
                 
         response.append(
             SalidaResponse(
@@ -47,10 +81,22 @@ async def get_salidas(iweb_client_id: str, db: Session = Depends(get_db)):
                 periodo=s.periodo,
                 transport_company=s.transport_company,
                 destino=s.destino,
-                passengers=s.passengers,
+                coordinador_nombre=s.coordinador_nombre,
+                coordinador_telefono=s.coordinador_telefono,
+                hotel_id=s.hotel_id,
+                regimen_id=s.regimen_id,
+                passengers=db.query(Reservas).filter(
+                    func.lower(Reservas.salida_id) == func.lower(s.id.strip()),
+                    func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip()),
+                    Reservas.active == True
+                ).count(),
                 semicama=s.semicama,
                 cama=s.cama,
-                cargas=cargas_resolved
+                cargas=cargas_resolved,
+                semicama_disponibles=dispo_semicama,
+                cama_disponibles=dispo_cama,
+                semicama_reservadas=semicama_res_qty,
+                cama_reservadas=cama_res_qty
             )
         )
     return response
@@ -74,12 +120,47 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
     cargas_resolved = []
     if rel and rel.cargas:
         carga_ids = [cid.strip() for cid in rel.cargas.split(",") if cid.strip()]
+        horarios_list = [h.strip() for h in rel.horarios.split(",") if h.strip()] if rel.horarios else []
+        while len(horarios_list) < len(carga_ids):
+            horarios_list.append("")
+            
         if carga_ids:
             places = db.query(LugaresCarga).filter(
                 LugaresCarga.iweb_client_id == iweb_client_id,
                 LugaresCarga.id.in_(carga_ids)
             ).all()
-            cargas_resolved = places
+            places_map = {p.id: p for p in places}
+            for idx, cid in enumerate(carga_ids):
+                if cid in places_map:
+                    p = places_map[cid]
+                    cargas_resolved.append({
+                        "id": p.id,
+                        "name": p.name,
+                        "type": p.type,
+                        "address": p.address,
+                        "horario": horarios_list[idx]
+                    })
+            
+    # Count reservations by tipo_butaca for this salida_id
+    semicama_res_qty = db.query(Reservas).filter(
+        func.lower(Reservas.salida_id) == func.lower(s.id.strip()),
+        func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip()),
+        Reservas.active == True,
+        func.lower(Reservas.tipo_butaca) == "semicama"
+    ).count()
+    
+    cama_res_qty = db.query(Reservas).filter(
+        func.lower(Reservas.salida_id) == func.lower(s.id.strip()),
+        func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip()),
+        Reservas.active == True,
+        func.lower(Reservas.tipo_butaca) == "cama"
+    ).count()
+    
+    total_semicama = s.semicama or 0
+    dispo_semicama = max(0, total_semicama - semicama_res_qty)
+    
+    total_cama = s.cama or 0
+    dispo_cama = max(0, total_cama - cama_res_qty)
             
     return SalidaResponse(
         id=s.id,
@@ -90,10 +171,22 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
         periodo=s.periodo,
         transport_company=s.transport_company,
         destino=s.destino,
-        passengers=s.passengers,
+        coordinador_nombre=s.coordinador_nombre,
+        coordinador_telefono=s.coordinador_telefono,
+        hotel_id=s.hotel_id,
+        regimen_id=s.regimen_id,
+        passengers=db.query(Reservas).filter(
+            func.lower(Reservas.salida_id) == func.lower(s.id.strip()),
+            func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip()),
+            Reservas.active == True
+        ).count(),
         semicama=s.semicama,
         cama=s.cama,
-        cargas=cargas_resolved
+        cargas=cargas_resolved,
+        semicama_disponibles=dispo_semicama,
+        cama_disponibles=dispo_cama,
+        semicama_reservadas=semicama_res_qty,
+        cama_reservadas=cama_res_qty
     )
 
 
@@ -115,17 +208,23 @@ async def create_salida(
         destino=body.destino,
         passengers=body.passengers,
         semicama=body.semicama,
-        cama=body.cama
+        cama=body.cama,
+        coordinador_nombre=body.coordinador_nombre,
+        coordinador_telefono=body.coordinador_telefono,
+        hotel_id=body.hotel_id,
+        regimen_id=body.regimen_id
     )
     db.add(new_salida)
     
     # Crear relación de lugares de carga
     cargas_str = ", ".join(body.cargas_ids) if body.cargas_ids else None
+    horarios_str = ", ".join(body.horarios) if body.horarios else None
     new_relation = SalidasLugaresCarga(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
         salida_id=salida_id,
-        cargas=cargas_str
+        cargas=cargas_str,
+        horarios=horarios_str
     )
     db.add(new_relation)
     
@@ -135,10 +234,21 @@ async def create_salida(
     # Resolver los objetos completos de carga para la respuesta
     cargas_resolved = []
     if body.cargas_ids:
-        cargas_resolved = db.query(LugaresCarga).filter(
+        places = db.query(LugaresCarga).filter(
             LugaresCarga.iweb_client_id == iweb_client_id,
             LugaresCarga.id.in_(body.cargas_ids)
         ).all()
+        places_map = {p.id: p for p in places}
+        for idx, cid in enumerate(body.cargas_ids):
+            if cid in places_map:
+                p = places_map[cid]
+                cargas_resolved.append({
+                    "id": p.id,
+                    "name": p.name,
+                    "type": p.type,
+                    "address": p.address,
+                    "horario": body.horarios[idx] if idx < len(body.horarios) else ""
+                })
         
     return SalidaResponse(
         id=new_salida.id,
@@ -149,6 +259,10 @@ async def create_salida(
         periodo=new_salida.periodo,
         transport_company=new_salida.transport_company,
         destino=new_salida.destino,
+        coordinador_nombre=new_salida.coordinador_nombre,
+        coordinador_telefono=new_salida.coordinador_telefono,
+        hotel_id=new_salida.hotel_id,
+        regimen_id=new_salida.regimen_id,
         passengers=new_salida.passengers,
         semicama=new_salida.semicama,
         cama=new_salida.cama,
@@ -190,6 +304,14 @@ async def update_salida(
         s.semicama = body.semicama
     if body.cama is not None:
         s.cama = body.cama
+    if body.coordinador_nombre is not None:
+        s.coordinador_nombre = body.coordinador_nombre
+    if body.coordinador_telefono is not None:
+        s.coordinador_telefono = body.coordinador_telefono
+    if body.hotel_id is not None:
+        s.hotel_id = body.hotel_id
+    if body.regimen_id is not None:
+        s.regimen_id = body.regimen_id
         
     # Actualizar o crear la relación de lugares de carga
     rel = db.query(SalidasLugaresCarga).filter(
@@ -197,16 +319,21 @@ async def update_salida(
         SalidasLugaresCarga.salida_id == s.id
     ).first()
     
-    cargas_str = ", ".join(body.cargas_ids) if body.cargas_ids else None
+    cargas_str = ", ".join(body.cargas_ids) if body.cargas_ids is not None else None
+    horarios_str = ", ".join(body.horarios) if body.horarios is not None else None
     
     if rel:
-        rel.cargas = cargas_str
+        if body.cargas_ids is not None:
+            rel.cargas = cargas_str
+        if body.horarios is not None:
+            rel.horarios = horarios_str
     else:
         new_relation = SalidasLugaresCarga(
             id=str(uuid.uuid4()),
             iweb_client_id=iweb_client_id,
             salida_id=s.id,
-            cargas=cargas_str
+            cargas=cargas_str,
+            horarios=horarios_str
         )
         db.add(new_relation)
         
@@ -215,11 +342,29 @@ async def update_salida(
     
     # Resolver los objetos de carga actuales para la respuesta
     cargas_resolved = []
-    if body.cargas_ids:
-        cargas_resolved = db.query(LugaresCarga).filter(
+    cargas_to_use = body.cargas_ids if body.cargas_ids is not None else (rel.cargas.split(",") if rel and rel.cargas else [])
+    cargas_to_use = [c.strip() for c in cargas_to_use if c.strip()]
+    horarios_to_use = body.horarios if body.horarios is not None else (rel.horarios.split(",") if rel and rel.horarios else [])
+    horarios_to_use = [h.strip() for h in horarios_to_use if h.strip()]
+    while len(horarios_to_use) < len(cargas_to_use):
+        horarios_to_use.append("")
+        
+    if cargas_to_use:
+        places = db.query(LugaresCarga).filter(
             LugaresCarga.iweb_client_id == iweb_client_id,
-            LugaresCarga.id.in_(body.cargas_ids)
+            LugaresCarga.id.in_(cargas_to_use)
         ).all()
+        places_map = {p.id: p for p in places}
+        for idx, cid in enumerate(cargas_to_use):
+            if cid in places_map:
+                p = places_map[cid]
+                cargas_resolved.append({
+                    "id": p.id,
+                    "name": p.name,
+                    "type": p.type,
+                    "address": p.address,
+                    "horario": horarios_to_use[idx]
+                })
         
     return SalidaResponse(
         id=s.id,
@@ -230,6 +375,10 @@ async def update_salida(
         periodo=s.periodo,
         transport_company=s.transport_company,
         destino=s.destino,
+        coordinador_nombre=s.coordinador_nombre,
+        coordinador_telefono=s.coordinador_telefono,
+        hotel_id=s.hotel_id,
+        regimen_id=s.regimen_id,
         passengers=s.passengers,
         semicama=s.semicama,
         cama=s.cama,

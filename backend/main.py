@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from routers import login, tenants, parameters, permissions, web, salidas, packages, reservas
+from routers import login, tenants, parameters, permissions, web, salidas, packages, reservas, pagos
 from db.database import SessionLocal
 from models.models import User, iWebClient
 from auth.login import get_password_hash
@@ -35,6 +35,7 @@ app.include_router(web.router)
 app.include_router(salidas.router)
 app.include_router(packages.router)
 app.include_router(reservas.router)
+app.include_router(pagos.router)
 
 # En dev: FastAPI sirve los archivos estáticos directamente.
 # En prod: nginx los sirve desde /home/iweb/data/travelnett/ sin pasar por FastAPI.

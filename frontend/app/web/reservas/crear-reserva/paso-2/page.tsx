@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { Loader } from "@/app/components/Loader";
+import AddVioleta from "@/app/components/icons/AddVioleta";
 
 function Paso2Content() {
   const searchParams = useSearchParams();
@@ -30,6 +31,7 @@ function Paso2Content() {
   const [hotel, setHotel] = useState("");
   const [tipoCama, setTipoCama] = useState("");
   const [tipoHabitacion, setTipoHabitacion] = useState("");
+  const [rooms, setRooms] = useState<any[]>([]);
 
   const loadHotels = async () => {
     if (!user?.iweb_client_id) return;
@@ -69,6 +71,14 @@ function Paso2Content() {
     );
   }
 
+  const handleAddRoom = () => {
+    if (!hotel || !tipoCama || !tipoHabitacion) {
+      toast.error("Por favor, selecciona el hotel y la configuración de la habitación");
+      return;
+    }
+    setRooms([...rooms, { hotel: "", tipoCama: "", tipoHabitacion: "" }]);
+  };
+
   return (
     <Container>
       <ToggleSalidas />
@@ -104,18 +114,17 @@ function Paso2Content() {
         </div>
 
         {/* Current status summary */}
-        <div className="flex flex-col gap-2 text-black items-start w-full font-semibold bg-gray-50 border border-gray-200 p-4 rounded-xl">
-          <p className="text-sm"><span className="text-primary font-bold">{destinoId ? "Mar del Plata" : "General"} - Mio Turismo</span></p>
-          <p className="text-sm"><span className="text-primary font-bold">25/06/2026 - MDQ</span></p>
-          <p className="text-sm">Tipo: <span className="text-primary font-bold">{tipoReserva === "bloqueo" ? "Bloqueo Grupal" : "Reserva Tradicional"}</span></p>
-          <p className="text-sm">Habitación 1</p>
-
+        <div className="flex flex-col gap-4 text-black items-start w-full font-semibold px-4">
+          <p className="text-sm"><span className="text-black text-lg font-medium">{destinoId ? "Mar del Plata" : "General"} - Mio Turismo</span></p>
+          <p className="text-sm"><span className="text-black text-lg font-medium">25/06/2026 - MDQ</span></p>
+          <p className="text-sm"><span className="text-black text-lg font-medium">Habitacion 1</span></p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleNext} className="flex flex-col w-full gap-5 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+        <form onSubmit={handleNext} className="flex flex-col w-full gap-5">
           {/* Hotel */}
           <div className="flex flex-col gap-1">
+
             <label className="text-xs font-bold text-gray-700">Hotel</label>
             <select
               className="w-full border border-gray-300 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -162,7 +171,9 @@ function Paso2Content() {
               <option value="cuadruple">Cuádruple (CPL)</option>
             </select>
           </div>
-
+          <button type="button" onClick={handleAddRoom} className="flex items-center justify-end">
+            <AddVioleta color="#0546f7" />
+          </button>
           {/* Continuar */}
           <button
             type="submit"

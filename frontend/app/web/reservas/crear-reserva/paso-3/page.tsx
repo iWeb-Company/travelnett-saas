@@ -97,7 +97,7 @@ function Paso3Content() {
     setPassengers(passengers.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validate passengers
@@ -109,11 +109,56 @@ function Paso3Content() {
       }
     }
 
-    toast.success("¡Reserva confirmada con éxito!");
-    // Redirect to result page with details
-    router.push(
-      `/web/reservas/result?success=true&destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&hotel=${hotelId}&cama=${cama}&habitacion=${habitacion}&pasajeros=${encodeURIComponent(JSON.stringify(passengers))}`
-    );
+    if (!user?.iweb_client_id) return;
+    setLoading(true);
+    try {
+      const codigoReserva = `RES-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      for (const p of passengers) {
+        // Find or create passenger
+        const existing = await apiClient.getPassengerByDNI(user.iweb_client_id, p.dni).catch(() => []);
+        let passengerId = "";
+        if (existing && existing.length > 0) {
+          passengerId = existing[0].id;
+        } else {
+          const newPass = await apiClient.createParameter("create_passengers", {
+            name: p.nombre,
+            last_name: p.apellido,
+            dni: Number(p.dni),
+            date_of_birth: p.fechaNacimiento || null,
+            sex: "Masculino",
+            phone: null
+          }, user.iweb_client_id);
+          passengerId = newPass.id;
+        }
+
+        // Create reservation
+        // If tipoReserva is "bloqueo", salida_id is not set. Otherwise use itemId
+        const isBloqueo = tipoReserva === "bloqueo";
+        const salidaId = isBloqueo ? null : (itemType === "salida" ? itemId : null);
+
+        await apiClient.createReserva(user.iweb_client_id, {
+          passenger_id: passengerId,
+          salida_id: salidaId,
+          codigo_reserva: codigoReserva,
+          client_id: clienteId || null,
+          edad_categoria: "ADL",
+          lugar_carga_id: p.puntoAscenso || null,
+          hotel_id: hotelId || null,
+          room_type: habitacion || null,
+        });
+      }
+
+      toast.success("¡Reserva confirmada con éxito!");
+      router.push(
+        `/web/reservas/result?success=true&destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&hotel=${hotelId}&cama=${cama}&habitacion=${habitacion}&pasajeros=${encodeURIComponent(JSON.stringify(passengers))}`
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al registrar la reserva");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {

@@ -4,7 +4,7 @@ from http import client
 from fastapi import File, UploadFile
 from datetime import datetime
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union, Any
 from datetime import date
 
 # Schemas for authentication and user management
@@ -175,6 +175,11 @@ class CreateBusTypesRequest(BaseModel):
     cama_quantity: Optional[int] = None
     panoramicos_quantity: Optional[int] = None
     description: Optional[str] = None
+    # Compatibility with frontend:
+    cant_semi: Optional[Union[int, str]] = None
+    cant_cama: Optional[Union[int, str]] = None
+    cant_pano: Optional[Union[int, str]] = None
+    observaciones: Optional[str] = None
 
 # Update
 
@@ -257,6 +262,11 @@ class UpdateBusTypesRequest(BaseModel):
     cama_quantity: Optional[int] = None
     panoramicos_quantity: Optional[int] = None
     description: Optional[str] = None
+    # Compatibility with frontend:
+    cant_semi: Optional[Union[int, str]] = None
+    cant_cama: Optional[Union[int, str]] = None
+    cant_pano: Optional[Union[int, str]] = None
+    observaciones: Optional[str] = None
 
 # Schemas for permissions management
 
@@ -323,8 +333,8 @@ class AccountCreateRequest(BaseModel):
     account_title: Optional[str] = None
     titular: Optional[str] = None
     account_number: Optional[str] = None
-    cuit_cuil: Optional[int] = None
-    cbu_cvu: Optional[int] = None
+    cuit_cuil: Optional[str] = None
+    cbu_cvu: Optional[str] = None
     alias: Optional[str] = None
     active: Optional[bool] = None
 
@@ -334,8 +344,8 @@ class AccountPayload(BaseModel):
     account_title: Optional[str] = None
     titular: Optional[str] = None
     account_number: Optional[str] = None
-    cuit_cuil: Optional[int] = None
-    cbu_cvu: Optional[int] = None
+    cuit_cuil: Optional[str] = None
+    cbu_cvu: Optional[str] = None
     alias: Optional[str] = None
     active: Optional[bool] = None
 
@@ -344,8 +354,8 @@ class AccountUpdateRequest(BaseModel):
     account_title: Optional[str] = None
     titular: Optional[str] = None
     account_number: Optional[str] = None
-    cuit_cuil: Optional[int] = None
-    cbu_cvu: Optional[int] = None
+    cuit_cuil: Optional[str] = None
+    cbu_cvu: Optional[str] = None
     alias: Optional[str] = None
     active: Optional[bool] = None 
 
@@ -355,6 +365,7 @@ class LugarCargaPayload(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     address: Optional[str] = None
+    horario: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -369,10 +380,18 @@ class SalidaResponse(BaseModel):
     periodo: Optional[str] = None
     transport_company: Optional[str] = None
     destino: Optional[str] = None
+    coordinador_nombre: Optional[str] = None
+    coordinador_telefono: Optional[str] = None
+    hotel_id: Optional[str] = None
+    regimen_id: Optional[str] = None
     passengers: Optional[int] = None
     semicama: Optional[int] = None
     cama: Optional[int] = None
     cargas: list[LugarCargaPayload] = []
+    semicama_disponibles: Optional[int] = None
+    cama_disponibles: Optional[int] = None
+    semicama_reservadas: Optional[int] = None
+    cama_reservadas: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -389,6 +408,11 @@ class SalidaCreateRequest(BaseModel):
     semicama: Optional[int] = None
     cama: Optional[int] = None
     cargas_ids: list[str] = []
+    horarios: list[str] = []
+    coordinador_nombre: Optional[str] = None
+    coordinador_telefono: Optional[str] = None
+    hotel_id: Optional[str] = None
+    regimen_id: Optional[str] = None
 
 
 class SalidaUpdateRequest(BaseModel):
@@ -401,7 +425,12 @@ class SalidaUpdateRequest(BaseModel):
     passengers: Optional[int] = None
     semicama: Optional[int] = None
     cama: Optional[int] = None
-    cargas_ids: list[str] = []
+    cargas_ids: Optional[list[str]] = None
+    horarios: Optional[list[str]] = None
+    coordinador_nombre: Optional[str] = None
+    coordinador_telefono: Optional[str] = None
+    hotel_id: Optional[str] = None
+    regimen_id: Optional[str] = None
 
 
 class PackageResponse(BaseModel):
@@ -420,6 +449,7 @@ class PackageResponse(BaseModel):
     periodo: Optional[str] = None
     image: Optional[str] = None
     active: Optional[bool] = None
+    web: Optional[bool] = None
     dates: list[str] = []
 
     class Config:
@@ -440,6 +470,7 @@ class PackageCreateRequest(BaseModel):
     periodo: Optional[str] = None
     image: Optional[str] = None
     active: Optional[bool] = True
+    web: Optional[bool] = True
     dates: list[str] = []
 
 
@@ -457,6 +488,7 @@ class PackageUpdateRequest(BaseModel):
     periodo: Optional[str] = None
     image: Optional[str] = None
     active: Optional[bool] = None
+    web: Optional[bool] = None
     dates: list[str] = []
 
 
@@ -466,15 +498,49 @@ class ReservaResponse(BaseModel):
     passenger_id: str
     salida_id: Optional[str] = None
     codigo_reserva: Optional[str] = None
-    cliente: Optional[str] = None
+    client_id: Optional[str] = None
     edad_categoria: Optional[str] = None
     lugar_carga_id: Optional[str] = None
     butaca: Optional[str] = None
+    tipo_butaca: Optional[str] = None
     hotel_id: Optional[str] = None
     regimen_id: Optional[str] = None
     rooming_id: Optional[str] = None
     room_type: Optional[str] = None
     active: Optional[bool] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PagoCreateRequest(BaseModel):
+    reserva_id: str
+    payment_method: Optional[str] = None
+    date_pay: Optional[str] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    observations: Optional[str] = None
+    card_number: Optional[str] = None
+    titular: Optional[str] = None
+    operation_number: Optional[str] = None
+    quotes_number: Optional[str] = None
+    receipt_number: Optional[str] = None
+
+
+class PagoResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    reserva_id: str
+    payment_method: Optional[str] = None
+    date_pay: Optional[str] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    observations: Optional[str] = None
+    card_number: Optional[str] = None
+    titular: Optional[str] = None
+    operation_number: Optional[str] = None
+    quotes_number: Optional[str] = None
+    receipt_number: Optional[str] = None
 
     class Config:
         from_attributes = True

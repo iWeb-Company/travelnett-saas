@@ -192,8 +192,7 @@ export default function RegimenesPage() {
                 className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
               >
                 <div className="flex flex-col">
-                  <span className="font-medium text-gray-800">{regimen.name}</span>
-                  <span className="text-xs text-gray-500 uppercase">{regimen.sigla} - {regimen.description}</span>
+                  <span className="font-medium text-gray-800">{regimen.sigla}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <button

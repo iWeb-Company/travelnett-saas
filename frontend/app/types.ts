@@ -227,8 +227,8 @@ export interface Account {
     account_title?: string;
     titular?: string;
     account_number?: string;
-    cuit_cuil?: number | null;
-    cbu_cvu?: number | null;
+    cuit_cuil?: string | null;
+    cbu_cvu?: string | null;
     alias?: string;
     active?: boolean;
 }

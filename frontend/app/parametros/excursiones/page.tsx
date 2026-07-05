@@ -20,6 +20,7 @@ export default function ExcursionesPage() {
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [excursiones, setExcursiones] = useState<Excursion[]>([]);
+  const [destinos, setDestinos] = useState([]);
   const [search, setSearch] = useState("");
   const [excursionData, setExcursionData] = useState<Excursion>({
     name: "",
@@ -27,15 +28,22 @@ export default function ExcursionesPage() {
     destino: "",
   });
 
-  const getExcursiones = async () => {
+  const getData = async () => {
+    const clientId = user?.iweb_client_id;
+    if (!clientId) return;
+
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_excursions", user?.iweb_client_id);
-      const filtered = data.filter((e: any) => {
+      const [excursionesData, destinosData] = await Promise.all([
+        apiClient.getParameters("get_excursions", clientId),
+        apiClient.getParameters("get_destinos", clientId),
+      ]);
+      const filtered = excursionesData.filter((e: any) => {
         const nameToFilter = e.name || e.nombre || "";
         return nameToFilter.toLowerCase().includes(search.toLowerCase());
       });
       setExcursiones(filtered);
+      setDestinos(destinosData);
     } catch (error) {
       console.error("Error fetching excursions:", error);
     } finally {
@@ -45,8 +53,10 @@ export default function ExcursionesPage() {
   };
 
   useEffect(() => {
-    getExcursiones();
-  }, [search]);
+    if (user?.iweb_client_id) {
+      getData();
+    }
+  }, [search, user?.iweb_client_id]);
 
   const handleClickPut = (excursion: Excursion) => {
     setExcursionData(excursion);
@@ -61,7 +71,7 @@ export default function ExcursionesPage() {
       toast.success("Excursión agregada correctamente");
       setModalOpenAdd(false);
       setExcursionData({ name: "", description: "", destino: "" });
-      getExcursiones();
+      getData();
       r.refresh();
     } catch (error) {
       toast.error("Error al agregar la excursión");
@@ -74,7 +84,7 @@ export default function ExcursionesPage() {
       await apiClient.updateParameter("update_excursions", excursionData.id!, excursionData, user?.iweb_client_id);
       toast.success("Excursión actualizada correctamente");
       setModalOpenPut(false);
-      getExcursiones();
+      getData();
       r.refresh();
     } catch (error) {
       toast.error("Error al actualizar la excursión");
@@ -87,7 +97,7 @@ export default function ExcursionesPage() {
     try {
       await apiClient.deleteParameter("delete_excursions", id, user?.iweb_client_id);
       toast.success("Excursión eliminada correctamente");
-      getExcursiones();
+      getData();
       r.refresh();
     } catch (error) {
       toast.error("Error al eliminar la excursión");
@@ -195,7 +205,6 @@ export default function ExcursionesPage() {
               >
                 <div className="flex flex-col">
                   <span className="font-medium text-gray-800">{excursion.name}</span>
-                  <span className="text-xs text-gray-500">{excursion.destino}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -257,6 +266,18 @@ export default function ExcursionesPage() {
           }
         >
           <div className="flex flex-col gap-4">
+            <select
+              value={excursionData.destino}
+              onChange={(e) => setExcursionData({ ...excursionData, destino: e.target.value })}
+              className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
+            >
+              <option className="text-black/90" value="">Destino</option>
+              {destinos.map((destino: any) => (
+                <option className="text-black/90" key={destino.id} value={destino.name}>
+                  {destino.name}
+                </option>
+              ))}
+            </select>
             <input
               type="text"
               placeholder="Nombre de la excursión"
@@ -264,13 +285,7 @@ export default function ExcursionesPage() {
               onChange={(e) => setExcursionData({ ...excursionData, name: e.target.value })}
               className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
             />
-            <input
-              type="text"
-              placeholder="Destino"
-              value={excursionData.destino}
-              onChange={(e) => setExcursionData({ ...excursionData, destino: e.target.value })}
-              className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-            />
+
             <textarea
               placeholder="Descripción"
               value={excursionData.description}
@@ -293,18 +308,23 @@ export default function ExcursionesPage() {
           }
         >
           <div className="flex flex-col gap-4">
+            <select
+              value={excursionData.destino}
+              onChange={(e) => setExcursionData({ ...excursionData, destino: e.target.value })}
+              className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
+            >
+              <option className="text-black/90" value="">Destino</option>
+              {destinos.map((destino: any) => (
+                <option className="text-black/90" key={destino.id} value={destino.name}>
+                  {destino.name}
+                </option>
+              ))}
+            </select>
             <input
               type="text"
               placeholder="Nombre de la excursión"
               value={excursionData.name}
               onChange={(e) => setExcursionData({ ...excursionData, name: e.target.value })}
-              className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-            />
-            <input
-              type="text"
-              placeholder="Destino"
-              value={excursionData.destino}
-              onChange={(e) => setExcursionData({ ...excursionData, destino: e.target.value })}
               className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
             />
             <textarea

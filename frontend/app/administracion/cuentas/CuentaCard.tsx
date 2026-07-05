@@ -1,17 +1,39 @@
 "use client";
 import ToggleActiveFilters from "@/app/components/ToggleActiveFilters";
 import { useState, useRef, useEffect } from "react";
+import { apiClient } from "@/lib/api";
+import toast from "react-hot-toast";
 
 export default function CuentaCard({ cuenta, onDelete }: { cuenta: any; onDelete?: (id: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
+  const [isActive, setIsActive] = useState(cuenta.active);
+
+  useEffect(() => {
+    setIsActive(cuenta.active);
+  }, [cuenta.active]);
 
   useEffect(() => {
     if (contentRef.current) {
       setContentHeight(contentRef.current.scrollHeight);
     }
   }, [isOpen]);
+
+  const handleToggleActive = async (newVal: boolean) => {
+    setIsActive(newVal);
+    const formData = new FormData();
+    formData.append("id", cuenta.id);
+    formData.append("active", String(newVal));
+    try {
+      await apiClient.updateAccount(cuenta.iweb_client_id, formData);
+      toast.success(newVal ? "Cuenta activada" : "Cuenta desactivada");
+    } catch (error) {
+      console.error(error);
+      setIsActive(!newVal); // revert
+      toast.error("Error al actualizar estado de la cuenta");
+    }
+  };
 
   return (
     <div
@@ -25,7 +47,13 @@ export default function CuentaCard({ cuenta, onDelete }: { cuenta: any; onDelete
             {cuenta.account_title || "Cuenta Bancaria"}
           </p>
           {/* Toggle Activo */}
-          <ToggleActiveFilters color="text-white" />
+          <div onClick={(e) => e.stopPropagation()}>
+            <ToggleActiveFilters
+              checked={isActive}
+              onChange={handleToggleActive}
+              color="text-white"
+            />
+          </div>
         </div>
 
         {/* Dropdown animado */}

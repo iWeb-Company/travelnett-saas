@@ -9,6 +9,9 @@ import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Suspense, useState, useEffect } from "react";
 import ReservasCard from "../ReservasCard";
 import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
+import { Loader } from "@/app/components/Loader";
 
 interface Passenger {
   dni: string;
@@ -21,6 +24,7 @@ interface Passenger {
 function ResultContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
 
   const success = searchParams.get("success") === "true";
   const destino = searchParams.get("destino") || "";
@@ -29,8 +33,69 @@ function ResultContent() {
   const cama = searchParams.get("cama") || "";
   const habitacion = searchParams.get("habitacion") || "";
   
+  const filterNumero = searchParams.get("numero") || "";
+  const filterCliente = searchParams.get("cliente") || "";
+
   const [pasajeros, setPasajeros] = useState<Passenger[]>([]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  const [reservas, setReservas] = useState<any[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+
+  const fetchReservas = async () => {
+    if (!user?.iweb_client_id) return;
+    try {
+      const resList = await apiClient.getReservas(user.iweb_client_id);
+      
+      // Group reservations by codigo_reserva
+      const groupedMap: Record<string, any> = {};
+      resList.forEach((r) => {
+        const code = r.codigo_reserva || `RES-${r.id.substring(0, 6).toUpperCase()}`;
+        if (!groupedMap[code]) {
+          groupedMap[code] = {
+            id: r.id,
+            numero: code,
+            destino: r.lugar_carga_nombre || "General",
+            cliente: r.client_nombre || "Particular",
+            client_id: r.client_id || "",
+            fecha: r.fecha_nacimiento || "10/06/2026",
+            titulo: `${r.nombre_completo} ${resList.filter(x => x.codigo_reserva === r.codigo_reserva).length > 1 ? `x${resList.filter(x => x.codigo_reserva === r.codigo_reserva).length}` : ""}`,
+            pasajeros: [],
+            active: r.active
+          };
+        }
+        groupedMap[code].pasajeros.push({
+          nombre: r.nombre_completo,
+          dni: r.dni ? String(r.dni) : "-",
+          telefono: r.telefono || "-",
+          email: "-",
+        });
+      });
+      
+      let list = Object.values(groupedMap);
+      
+      // Filter list
+      if (filterNumero) {
+        list = list.filter(r => r.numero.toLowerCase().includes(filterNumero.toLowerCase()));
+      }
+      if (filterCliente) {
+        list = list.filter(r => r.client_id === filterCliente);
+      }
+      
+      setReservas(list);
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al cargar listado de reservas");
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.iweb_client_id) {
+      fetchReservas();
+    }
+  }, [user?.iweb_client_id]);
 
   useEffect(() => {
     if (success) {
@@ -47,47 +112,13 @@ function ResultContent() {
     }
   }, [success, searchParams]);
 
-  // Mock reservations list
-  const [reservas, setReservas] = useState([
-    {
-      id: 1,
-      numero: "MDQ #1542",
-      destino: "Mar del Plata",
-      cliente: "Mio Turismo",
-      fecha: "10/06/2026",
-      titulo: "Demarco Valentin x2 MAT",
-      pasajeros: [
-        {
-          nombre: "Demarco Valentin",
-          dni: "43210987",
-          telefono: "2234567890",
-          email: "valentin@gmail.com",
-        },
-        {
-          nombre: "Sánchez Micaela",
-          dni: "44123456",
-          telefono: "2230001122",
-          email: "micaela@gmail.com",
-        },
-      ],
-    },
-    {
-      id: 2,
-      numero: "MDQ #1541",
-      destino: "Mar del Plata",
-      cliente: "Mio Turismo",
-      fecha: "09/06/2026",
-      titulo: "Gómez Carlos x1 IND",
-      pasajeros: [
-        {
-          nombre: "Gómez Carlos",
-          dni: "38987654",
-          telefono: "1198765432",
-          email: "carlos@gmail.com",
-        },
-      ],
-    },
-  ]);
+  if (loadingList) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader />
+      </div>
+    );
+  }
 
 
 

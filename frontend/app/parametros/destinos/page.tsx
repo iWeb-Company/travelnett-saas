@@ -100,9 +100,6 @@ export default function DestinosPage() {
     );
   }
 
-  console.log(destinos);
-
-
   return (
     <Container>
       <ToggleSalidas />
@@ -195,7 +192,6 @@ export default function DestinosPage() {
               >
                 <div className="flex flex-col">
                   <span className="font-medium text-gray-800">{destino.name}</span>
-                  <span className="text-xs text-gray-500 uppercase">{destino.sigla}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <button

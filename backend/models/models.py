@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import BOOLEAN, INT, Date, DateTime, Integer, SmallInteger, String
+from sqlalchemy import BOOLEAN, INT, Date, DateTime, Integer, SmallInteger, String, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.database import Base
@@ -106,7 +106,7 @@ class LugaresCarga(Base):
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 class ClientsType(Base):
-    __tablename__ = "clients_type"
+    __tablename__ = "clientsType"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
@@ -166,7 +166,7 @@ class BusTypes(Base):
     semicama_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cama_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     panoramicos_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column("observations", String(510), nullable=True)
 
 class Permission(Base):
     __tablename__ = "permissions"
@@ -204,8 +204,8 @@ class Accounts(Base):
     account_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     titular: Mapped[str | None] = mapped_column(String(255), nullable=True)
     account_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    cuit_cuil: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    cbu_cvu: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cuit_cuil: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    cbu_cvu: Mapped[str | None] = mapped_column(String(50), nullable=True)
     alias: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
 
@@ -224,6 +224,10 @@ class Salidas(Base):
     periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     transport_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    coordinador_nombre: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    coordinador_telefono: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    regimen_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
 
 class SalidasLugaresCarga(Base):
@@ -233,6 +237,7 @@ class SalidasLugaresCarga(Base):
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     salida_id: Mapped[str] = mapped_column(String(36), nullable=False)
     cargas: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    horarios: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
 
 class Packages(Base):
@@ -253,6 +258,7 @@ class Packages(Base):
     periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     image: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+    web: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True, default=True)
 
 
 class PackagesDatesOfExit(Base):
@@ -261,7 +267,8 @@ class PackagesDatesOfExit(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     package_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    dates: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    salida_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    active: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=True)
 
 
 class Reservas(Base):
@@ -272,12 +279,31 @@ class Reservas(Base):
     passenger_id: Mapped[str] = mapped_column(String(36), nullable=False)
     salida_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     codigo_reserva: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    cliente: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    client_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # FK → clients.id
     edad_categoria: Mapped[str | None] = mapped_column(String(63), nullable=True)
     lugar_carga_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     butaca: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tipo_butaca: Mapped[str | None] = mapped_column(String(50), nullable=True)
     hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     regimen_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     rooming_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     room_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
+
+
+class Pagos(Base):
+    __tablename__ = "pagos"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    reserva_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    payment_method: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    date_pay: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    amount: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    observations: Mapped[str | None] = mapped_column(String(510), nullable=True)
+    card_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    titular: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    operation_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    quotes_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    receipt_number: Mapped[str | None] = mapped_column(String(255), nullable=True)

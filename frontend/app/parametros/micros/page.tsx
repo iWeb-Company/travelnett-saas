@@ -30,9 +30,10 @@ export default function MicrosPage() {
   });
 
   const getMicros = async () => {
+    if (!user?.iweb_client_id) return;
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_bus_types", user?.iweb_client_id);
+      const data = await apiClient.getParameters("get_bus_types", user.iweb_client_id);
       const filtered = data.filter((e: Micro) =>
         e.name.toLowerCase().includes(search.toLowerCase())
       );
@@ -46,8 +47,10 @@ export default function MicrosPage() {
   };
 
   useEffect(() => {
-    getMicros();
-  }, [search]);
+    if (user?.iweb_client_id) {
+      getMicros();
+    }
+  }, [search, user?.iweb_client_id]);
 
   const handleClickPut = (micro: Micro) => {
     setMicrosData(micro);

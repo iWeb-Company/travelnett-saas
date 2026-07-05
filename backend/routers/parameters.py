@@ -1,7 +1,8 @@
 import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
-from typing import Iterable
+from typing import Iterable, Optional
+from sqlalchemy import func
 from db.database import get_db
 from models.models import (
     iWebClient,
@@ -17,6 +18,7 @@ from models.models import (
     Regimenes,
     Passengers,
     BusTypes,
+    Reservas,
 )
 from schemas.schemas import (
     CreateBusTypesRequest,
@@ -231,6 +233,7 @@ async def create_excursions(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
         name=body.name,
+        destino=body.destino,
         description=body.description,
     )
     db.add(new_excursion)
@@ -295,6 +298,8 @@ async def create_lugares_carga(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
         name=body.name,
+        type=body.type,
+        address=body.address,
     )
     db.add(new_lugar_carga)
     db.commit()
@@ -326,13 +331,41 @@ async def create_clients(
     iweb_client_id: str,
     db: Session = Depends(get_db),
 ):
+    parent_client_id = body.parent_client_id
+    if parent_client_id is not None:
+        parent_client_id = parent_client_id.strip()
+        if not parent_client_id or parent_client_id == "" or parent_client_id == "string":
+            parent_client_id = None
+
+    client_type_id = body.client_type_id
+    if client_type_id is not None:
+        client_type_id = client_type_id.strip()
+        if not client_type_id or client_type_id == "" or client_type_id == "string":
+            client_type_id = None
+
+    # Validate client_type_id exists
+    if client_type_id:
+        ct = db.query(ClientsType).filter(
+            ClientsType.id == client_type_id, ClientsType.iweb_client_id == iweb_client_id
+        ).first()
+        if not ct:
+            raise HTTPException(status_code=400, detail=f"Client type with id '{client_type_id}' does not exist")
+
+    # Validate parent_client_id exists
+    if parent_client_id:
+        parent = db.query(Clients).filter(
+            Clients.id == parent_client_id, Clients.iweb_client_id == iweb_client_id
+        ).first()
+        if not parent:
+            raise HTTPException(status_code=400, detail=f"Parent client with id '{parent_client_id}' does not exist")
+
     new_client = Clients(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
         name_system=body.name_system,
         complete_name=body.complete_name,
-        client_type_id=body.client_type_id,
-        parent_client_id=body.parent_client_id,
+        client_type=client_type_id,
+        parent_client_id=parent_client_id,
         dni=body.dni,
         birthday=body.birthday,
         email=body.email,
@@ -395,14 +428,39 @@ async def create_bus_types(
     iweb_client_id: str,
     db: Session = Depends(get_db),
 ):
+    semicama_qty = body.semicama_quantity
+    if body.cant_semi is not None:
+        try:
+            semicama_qty = int(body.cant_semi)
+        except ValueError:
+            semicama_qty = 0
+            
+    cama_qty = body.cama_quantity
+    if body.cant_cama is not None:
+        try:
+            cama_qty = int(body.cant_cama)
+        except ValueError:
+            cama_qty = 0
+            
+    panoramicos_qty = body.panoramicos_quantity
+    if body.cant_pano is not None:
+        try:
+            panoramicos_qty = int(body.cant_pano)
+        except ValueError:
+            panoramicos_qty = 0
+            
+    desc = body.observaciones if body.observaciones is not None else body.description
+    if desc is None:
+        desc = ""
+
     new_bus_type = BusTypes(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
         name=body.name,
-        semicama_quantity=body.semicama_quantity,
-        cama_quantity=body.cama_quantity,
-        panoramicos_quantity=body.panoramicos_quantity,
-        description=body.description,
+        semicama_quantity=semicama_qty,
+        cama_quantity=cama_qty,
+        panoramicos_quantity=panoramicos_qty,
+        description=desc,
     )
     db.add(new_bus_type)
     db.commit()
@@ -458,7 +516,26 @@ async def get_clients_type(iweb_client_id: str, db: Session = Depends(get_db)):
 
 @router.get("/get_clients", tags=["Get Endpoints Parameters"])
 async def get_clients(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(Clients).filter(Clients.iweb_client_id == iweb_client_id).all()
+    results = db.query(Clients).filter(Clients.iweb_client_id == iweb_client_id).all()
+    mapped_results = []
+    for r in results:
+        mapped_results.append({
+            "id": r.id,
+            "iweb_client_id": r.iweb_client_id,
+            "name_system": r.name_system,
+            "complete_name": r.complete_name,
+            "client_type": r.client_type,
+            "client_type_id": r.client_type,
+            "parent_client_id": r.parent_client_id,
+            "dni": r.dni,
+            "birthday": str(r.birthday) if r.birthday else None,
+            "email": r.email,
+            "phone": r.phone,
+            "payment_method": r.payment_method,
+            "commission": r.commission,
+            "created_at": str(r.created_at) if r.created_at else None,
+        })
+    return mapped_results
 
 
 @router.get("/get_regimenes", tags=["Get Endpoints Parameters"])
@@ -467,13 +544,83 @@ async def get_regimenes(iweb_client_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/get_passengers", tags=["Get Endpoints Parameters"])
-async def get_passengers(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(Passengers).filter(Passengers.iweb_client_id == iweb_client_id).all()
+async def get_passengers(
+    iweb_client_id: str,
+    name: Optional[str] = Query(None),
+    last_name: Optional[str] = Query(None),
+    dni: Optional[int] = Query(None),
+    reservation_number: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Passengers).filter(
+        func.lower(Passengers.iweb_client_id) == func.lower(iweb_client_id.strip())
+    )
+    
+    # Check if we should filter by reservation_number
+    if reservation_number and reservation_number.strip():
+        # Find reservations matching codigo_reserva
+        reservas = db.query(Reservas).filter(
+            func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip()),
+            Reservas.codigo_reserva.ilike(f"%{reservation_number.strip()}%")
+        ).all()
+        if not reservas:
+            return []
+        passenger_ids = [r.passenger_id for r in reservas]
+        query = query.filter(Passengers.id.in_(passenger_ids))
+        
+    if name and name.strip():
+        query = query.filter(Passengers.name.ilike(f"%{name.strip()}%"))
+        
+    if last_name and last_name.strip():
+        query = query.filter(Passengers.last_name.ilike(f"%{last_name.strip()}%"))
+        
+    if dni is not None:
+        query = query.filter(Passengers.dni == dni)
+        
+    passengers = query.all()
+    
+    # Map/serialize them to include 'reserva' field
+    result = []
+    for p in passengers:
+        # Find latest reservation code for this passenger
+        res = db.query(Reservas).filter(
+            Reservas.passenger_id == p.id
+        ).order_by(Reservas.id.desc()).first()
+        
+        result.append({
+            "id": p.id,
+            "iweb_client_id": p.iweb_client_id,
+            "name": p.name,
+            "last_name": p.last_name,
+            "dni": p.dni,
+            "date_of_birth": str(p.date_of_birth) if p.date_of_birth else None,
+            "sex": p.sex,
+            "phone": p.phone,
+            "reserva": res.codigo_reserva if res else "-"
+        })
+    return result
 
 
 @router.get("/get_bus_types", tags=["Get Endpoints Parameters"])
 async def get_bus_types(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(BusTypes).filter(BusTypes.iweb_client_id == iweb_client_id).all()
+    results = db.query(BusTypes).filter(BusTypes.iweb_client_id == iweb_client_id).all()
+    mapped_results = []
+    for r in results:
+        mapped_results.append({
+            "id": r.id,
+            "iweb_client_id": r.iweb_client_id,
+            "name": r.name,
+            "semicama_quantity": r.semicama_quantity,
+            "cama_quantity": r.cama_quantity,
+            "panoramicos_quantity": r.panoramicos_quantity,
+            "description": r.description,
+            # Frontend compatibility fields:
+            "cant_semi": r.semicama_quantity if r.semicama_quantity is not None else 0,
+            "cant_cama": r.cama_quantity if r.cama_quantity is not None else 0,
+            "cant_pano": r.panoramicos_quantity if r.panoramicos_quantity is not None else 0,
+            "observaciones": r.description or ""
+        })
+    return mapped_results
 
 
 # --- Update ---
@@ -695,7 +842,39 @@ async def update_clients(
     ).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    for key, value in body.model_dump(exclude_unset=True).items():
+    update_data = body.model_dump(exclude_unset=True)
+    
+    # Clean up and validate client_type_id
+    if "client_type_id" in update_data:
+        val = update_data.pop("client_type_id")
+        if val is not None:
+            val = val.strip()
+            if not val or val == "" or val == "string":
+                val = None
+        if val:
+            ct = db.query(ClientsType).filter(
+                ClientsType.id == val, ClientsType.iweb_client_id == iweb_client_id
+            ).first()
+            if not ct:
+                raise HTTPException(status_code=400, detail=f"Client type with id '{val}' does not exist")
+        update_data["client_type"] = val
+        
+    # Clean up and validate parent_client_id
+    if "parent_client_id" in update_data:
+        val = update_data["parent_client_id"]
+        if val is not None:
+            val = val.strip()
+            if not val or val == "" or val == "string":
+                val = None
+        if val:
+            parent = db.query(Clients).filter(
+                Clients.id == val, Clients.iweb_client_id == iweb_client_id
+            ).first()
+            if not parent:
+                raise HTTPException(status_code=400, detail=f"Parent client with id '{val}' does not exist")
+        update_data["parent_client_id"] = val
+        
+    for key, value in update_data.items():
         if key != "id":
             setattr(client, key, value)
     db.commit()
@@ -755,7 +934,36 @@ async def update_bus_types(
     ).first()
     if not bus_type:
         raise HTTPException(status_code=404, detail="Bus type not found")
-    for key, value in body.model_dump(exclude_unset=True).items():
+        
+    update_data = body.model_dump(exclude_unset=True)
+    
+    # Map frontend keys if they exist (always overwrite because they are the form inputs source of truth)
+    if "cant_semi" in update_data:
+        try:
+            update_data["semicama_quantity"] = int(update_data["cant_semi"]) if update_data["cant_semi"] is not None else None
+        except ValueError:
+            pass
+            
+    if "cant_cama" in update_data:
+        try:
+            update_data["cama_quantity"] = int(update_data["cant_cama"]) if update_data["cant_cama"] is not None else None
+        except ValueError:
+            pass
+            
+    if "cant_pano" in update_data:
+        try:
+            update_data["panoramicos_quantity"] = int(update_data["cant_pano"]) if update_data["cant_pano"] is not None else None
+        except ValueError:
+            pass
+            
+    if "observaciones" in update_data:
+        update_data["description"] = update_data["observaciones"]
+        
+    # Remove frontend-only keys so setattr doesn't crash on DB model attributes
+    for key in ["cant_semi", "cant_cama", "cant_pano", "observaciones"]:
+        update_data.pop(key, None)
+
+    for key, value in update_data.items():
         if key != "id":
             setattr(bus_type, key, value)
     db.commit()
@@ -920,3 +1128,4 @@ async def delete_bus_types(bus_type_id: str, iweb_client_id: str, db: Session = 
     db.delete(bus_type)
     db.commit()
     return {"detail": "Bus type deleted successfully"}
+

@@ -149,8 +149,8 @@ function ResultContent() {
                   destino={destName}
                   fecha={salida.date_of_out ? new Date(salida.date_of_out + "T00:00:00").toLocaleDateString("es-AR") : "-"}
                   categorias={[
-                    { tipo: "Semicama", total: salida.semicama || 0, disponible: salida.semicama || 0 },
-                    { tipo: "Cama", total: salida.cama || 0, disponible: salida.cama || 0 }
+                    { tipo: "Semicama", total: salida.semicama || 0, disponible: salida.semicama_disponibles ?? (salida.semicama || 0) },
+                    { tipo: "Cama", total: salida.cama || 0, disponible: salida.cama_disponibles ?? (salida.cama || 0) }
                   ]}
                   onDelete={handleDelete}
                 />

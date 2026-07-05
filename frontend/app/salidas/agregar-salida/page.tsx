@@ -168,7 +168,7 @@ function AgregarSalidaContent() {
         >
           <option value="" disabled>Destino</option>
           {destinos.map((d: any) => (
-            <option key={d.id} value={d.id}>{d.name || d.nombre}</option>
+            <option key={d.id} value={d.name || d.nombre}>{d.name || d.nombre}</option>
           ))}
         </select>
 
