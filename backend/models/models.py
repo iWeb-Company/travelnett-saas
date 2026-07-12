@@ -307,3 +307,67 @@ class Pagos(Base):
     operation_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quotes_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
     receipt_number: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+class cuentasCorrientsClients(Base):
+    __tablename__ = "cuentas_corrients_clients"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    booking_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    balance: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    total_bookings: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    total_payments: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+class cuentasCorrientesProviders(Base):
+    __tablename__ = "cuentas_corrientes_providers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    transport_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    balance: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    total_consumption: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    total_payments: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    created_at: Mapped[date | None] = mapped_column(DateTime, nullable=True)
+
+
+class ccProvidersConsumptionPayments(Base):
+    __tablename__ = "cc_providers_consumption_payments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    cc_provider_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    provider_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    transport_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    transf_account: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    amount: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+
+
+class Liquidaciones(Base):
+    __tablename__ = "liquidaciones"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    booking_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    total_amout: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    total_commission: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    commission: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+
+
+class GastosNoCommission(Base):
+    __tablename__ = "gastos_no_commission"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    liquidacion_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    amount: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+

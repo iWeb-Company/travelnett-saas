@@ -544,3 +544,126 @@ class PagoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class cuentasCorrientsClientsCreateRequest(BaseModel):
+    id: Optional[str] = None
+    iweb_client_id: Optional[str] = None
+    client_id: Optional[str] = None
+    booking_id: Optional[str] = None
+    description: Optional[str] = None
+    balance: Optional[float] = None
+    total_bookings: Optional[float] = None
+    total_payments: Optional[float] = None
+    created_at: Optional[str] = None
+
+class cuentasCorrientsClientsResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    client_id: str
+    booking_id: str
+    description: Optional[str] = None
+    balance: Optional[float] = None
+    total_bookings: Optional[float] = None
+    total_payments: Optional[float] = None
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class cuentasCorrientsProvidersCreateRequest(BaseModel):
+    id: Optional[str] = None
+    iweb_client_id: Optional[str] = None
+    type: Optional[str] = None
+    transport_id: Optional[str] = None
+    hotel_id: Optional[str] = None
+    detail: Optional[str] = None
+    balance: Optional[float] = None
+    total_consumption: Optional[float] = None
+    total_payments: Optional[float] = None
+    created_at: Optional[str] = None
+
+class cuentasCorrientsProvidersResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    type: Optional[str] = None
+    transport_id: Optional[str] = None
+    hotel_id: Optional[str] = None
+    detail: Optional[str] = None
+    balance: Optional[float] = None
+    total_consumption: Optional[float] = None
+    total_payments: Optional[float] = None
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
+    id: Optional[str] = None
+    cc_provider_id: Optional[str] = None
+    provider_type: Optional[str] = None
+    hotel_id: Optional[str] = None
+    transport_id: Optional[str] = None
+    date: Optional[date] = None
+    detail: Optional[str] = None
+    type: Optional[str] = None
+    transf_account: Optional[str] = None
+    amount: Optional[float] = None
+    iweb_client_id: Optional[str] = None
+
+
+class ccProvidersConsumptionPaymentsResponse(BaseModel):
+    id: str
+    cc_provider_id: Optional[str] = None
+    provider_type: Optional[str] = None
+    hotel_id: Optional[str] = None
+    transport_id: Optional[str] = None
+    date: Optional[date] = None
+    detail: Optional[str] = None
+    type: Optional[str] = None
+    transf_account: Optional[str] = None
+    amount: Optional[float] = None
+    iweb_client_id: str
+
+    class Config:
+        from_attributes = True
+
+
+class GastoNoCommissionCreate(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    amount: Optional[float] = None
+    iweb_client_id: Optional[str] = None
+
+
+class GastoNoCommissionResponse(BaseModel):
+    id: str
+    liquidacion_id: Optional[str] = None
+    name: Optional[str] = None
+    amount: Optional[float] = None
+    iweb_client_id: str
+
+    class Config:
+        from_attributes = True
+
+
+class LiquidacionCreateRequest(BaseModel):
+    id: Optional[str] = None
+    booking_id: Optional[str] = None
+    total_amout: Optional[float] = None
+    total_commission: Optional[float] = None
+    commission: Optional[float] = None
+    gastos: Optional[list[GastoNoCommissionCreate]] = []
+
+
+class LiquidacionResponse(BaseModel):
+    id: str
+    booking_id: Optional[str] = None
+    total_amout: Optional[float] = None
+    total_commission: Optional[float] = None
+    commission: Optional[float] = None
+    gastos: list[GastoNoCommissionResponse] = []
+
+    class Config:
+        from_attributes = True
+
