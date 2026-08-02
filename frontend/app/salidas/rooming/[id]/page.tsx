@@ -47,8 +47,13 @@ export default function RoomingPage() {
 
   // Group passengers by rooming_id
   const roomsGrouped: Record<string, { id: string; type: string; pasajeros: string[] }> = {};
+  let totalPaxSum = 0;
 
   reservas.forEach((r) => {
+    const paxs = r.reservation_passengers && r.reservation_passengers.length > 0
+      ? r.reservation_passengers
+      : [r];
+
     const rId = r.rooming_id || `sin-asignar-${r.id}`;
     if (!roomsGrouped[rId]) {
       roomsGrouped[rId] = {
@@ -57,7 +62,11 @@ export default function RoomingPage() {
         pasajeros: [],
       };
     }
-    roomsGrouped[rId].pasajeros.push(r.nombre_completo);
+
+    paxs.forEach((pax: any) => {
+      roomsGrouped[rId].pasajeros.push(pax.nombre_completo || r.nombre_completo || "Desconocido");
+      totalPaxSum++;
+    });
   });
 
   const roomsList = Object.values(roomsGrouped);
@@ -83,7 +92,7 @@ export default function RoomingPage() {
   const individualStats = getStatsForType(["doble_individual"]);
   const tripleStats = getStatsForType(["triple_individual"]);
   const cuadrupleStats = getStatsForType(["cuadruple_individual"]);
-  
+
   const hasOthers = otherRooms.length > 0;
   const otherStats = getStatsForType(
     roomsList
@@ -92,7 +101,6 @@ export default function RoomingPage() {
   );
 
   const totalHabs = roomsList.length;
-  const totalPaxSum = reservas.length;
 
   const renderRoomGrid = (rooms: any[], label: string) => {
     if (rooms.length === 0) return null;
@@ -104,11 +112,12 @@ export default function RoomingPage() {
         <section className="flex flex-wrap items-center justify-center gap-4">
           {rooms.map((room) => (
             <section key={room.id} className="flex flex-col text-xs md:text-sm font-medium border-border border rounded-xl w-max shadow-sm">
-              <div className="flex bg-[#F1F3F9] text-black p-3 divide-gray-300 divide-x items-center rounded-t-xl gap-2">
+              <div className="flex flex-wrap bg-[#F1F3F9] text-black py-3 divide-gray-300 divide-x items-center justify-center rounded-t-xl gap-2">
                 {room.pasajeros.map((p: string, idx: number) => (
-                  <small key={idx} className={`${idx > 0 ? "pl-2" : "pr-2"} text-nowrap font-semibold`}>
+                  <span key={idx} className={`px-2 text-nowrap font-semibold`}>
                     {p}
-                  </small>
+                  </span>
+
                 ))}
               </div>
               <div className="bg-primary text-white text-center py-1.5 rounded-b-xl px-4">
@@ -131,7 +140,7 @@ export default function RoomingPage() {
           className="flex items-center justify-start gap-3"
         >
           <ArrowLeft />
-          <h1 className="font-bold text-black text-sm md:text-base">Volver al menú</h1>
+          <h1 className="font-bold text-primary text-sm md:text-base">Volver al menú</h1>
         </Link>
         <button
           onClick={handleBack}

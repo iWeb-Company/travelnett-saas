@@ -51,8 +51,11 @@ function AgregarSalidaContent() {
         apiClient.getSalidas(user.iweb_client_id).catch(() => [])
       ]);
 
+      const transportFilterByType = transData.filter((x: any) => x.type === typeParam);
+
+
       setDestinos(destData);
-      setTransportes(transData);
+      setTransportes(transportFilterByType);
       setPeriodos(periodData);
       setLugaresCarga(cargaData);
 
@@ -168,7 +171,7 @@ function AgregarSalidaContent() {
         >
           <option value="" disabled>Destino</option>
           {destinos.map((d: any) => (
-            <option key={d.id} value={d.name || d.nombre}>{d.name || d.nombre}</option>
+            <option key={d.id} value={d.id}>{d.name || d.nombre}</option>
           ))}
         </select>
 
@@ -214,7 +217,7 @@ function AgregarSalidaContent() {
         {/* Semicama */}
         <input
           type="number"
-          placeholder="Economy"
+          placeholder="Semicama"
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={economy}
           onChange={(e) => setEconomy(e.target.value)}
@@ -223,7 +226,7 @@ function AgregarSalidaContent() {
         {/* Cama */}
         <input
           type="number"
-          placeholder="Business"
+          placeholder="Cama"
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={business}
           onChange={(e) => setBusiness(e.target.value)}

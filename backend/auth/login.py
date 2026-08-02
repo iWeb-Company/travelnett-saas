@@ -17,8 +17,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-# 7 días por defecto (en minutos) si no se configura en .env
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(7 * 24 * 60)))
+# 30 días por defecto (en minutos) si no se configura en .env
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(30 * 24 * 60)))
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login-system")
 

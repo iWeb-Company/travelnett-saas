@@ -277,8 +277,6 @@ export interface Package {
     subtitle: string;
     description: string;
     destino?: string;
-    regimen?: string;
-    excursion?: string;
     dates: PackageDateOfExit[];
     periodo?: string;
     price: number;
@@ -287,6 +285,25 @@ export interface Package {
     hotel?: string;
     image: string;
     active: boolean;
+    web?: boolean;
+    comisionable?: boolean;
+    moneda?: string;
+    moneda_gastos?: string;
+    moneda_adicional?: string;
+    hotel_noches?: number | null;
+    hotel_fecha_in?: string | null;
+    hotel_fecha_out?: string | null;
+    hotel_fecha_salida_mas?: string | null;
+    hotel_regimen_id?: string | null;
+    tarifa_single?: number | null;
+    comisionable_single?: boolean;
+    tarifa_doble?: number | null;
+    tarifa_triple?: number | null;
+    tarifa_cuadruple?: number | null;
+    tarifa_quintuple?: number | null;
+    tarifa_menores?: number | null;
+    pricing_type?: string;
+    excursiones?: string | null;
 }
 
 export interface PackageDateOfExit {
@@ -311,25 +328,90 @@ export interface Pago {
     quotes_number?: string;
 }
 
+export interface ReservationPassengerDetail {
+    id: string;
+    reserva_id: string;
+    pasajero_id: string;
+    pasajero_type: string;
+    butaca_number?: number | null;
+    butaca_type?: string | null;
+    nombre_completo?: string | null;
+    name?: string | null;
+    last_name?: string | null;
+    dni?: number | null;
+    fecha_nacimiento?: string | null;
+    sex?: string | null;
+    telefono?: string | null;
+}
+
 export interface Reserva {
-    id?: string;
-    iweb_client_id?: string;
-    passenger_id?: string;
+    id: string;
+    iweb_client_id: string;
+    salida_id?: string | null;
+    package_id?: string | null;
+    codigo_reserva?: string | null;
+    client_id?: string | null;
+    client_nombre?: string | null;
+    vendedor: string | null;
+    lugar_carga_id?: string | null;
+    lugar_carga_nombre?: string | null;
+    lugar_carga_direccion?: string | null;
+    hotel_id?: string | null;
+    hotel_nombre?: string | null;
+    regimen_id?: string | null;
+    regimen_nombre?: string | null;
+    rooming_id?: string | null;
+    room_type?: string | null;
+    active?: boolean;
+    venciment?: string | null;
+    observations?: string | null;
+
+    // Virtuales/compatibilidad legacy
+    passenger_id?: string | null;
+    nombre_completo?: string | null;
+    telefono?: string | null;
+    dni?: number | null;
+    fecha_nacimiento?: string | null;
+    edad_categoria?: string | null;
+    butaca?: string | null;
+    tipo_butaca?: string | null;
+
+    // Detalle de todos los pasajeros intermedios
+    reservation_passengers?: ReservationPassengerDetail[];
+
+    // Virtuales extras cruzados
+    destino?: string | null;
+    fecha?: string | null;
+    numero?: number | null;
 }
 
 export interface Salida {
-    id?: string;
-    iweb_client_id?: string;
-    date_of_out?: string;
-    type?: "aereo" | "bus" | string;
+    id: string;
+    iweb_client_id: string;
+    date_of_out?: string | null;
+    type?: "aereo" | "bus" | string | null;
     active?: boolean;
-    periodo?: string;
-    transport_company?: string;
-    destino?: string;
+    periodo?: string | null;
+    transport_company?: string | null;
+    destino?: string | null;
+    coordinador_nombre?: string | null;
+    coordinador_telefono?: string | null;
+    hotel_id?: string | null;
+    regimen_id?: string | null;
     passengers?: number;
-    economy?: number;
-    business?: number;
-    lugaresCarga?: string[];
+    semicama?: number | null;
+    cama?: number | null;
+    cargas?: {
+        id: string;
+        name?: string | null;
+        type?: string | null;
+        address?: string | null;
+        horario?: string | null;
+    }[];
+    semicama_disponibles?: string;
+    cama_disponibles?: string;
+    semicama_reservadas?: string;
+    cama_reservadas?: string;
 }
 
 export interface SalidaLugarCarga {
@@ -337,4 +419,32 @@ export interface SalidaLugarCarga {
     iweb_client_id?: string;
     salida_id?: string;
     cargas?: string;
+}
+
+export interface GastoNoCommission {
+    id: string;
+    liquidacion_id?: string | null;
+    name?: string | null;
+    amount?: number | null;
+    iweb_client_id: string;
+}
+
+export interface Liquidacion {
+    id: string;
+    iweb_client_id: string;
+    booking_id?: string | null;
+    total_amout?: number | null;
+    total_commission?: number | null;
+    commission?: number | null;
+    gastos?: GastoNoCommission[];
+}
+
+export interface TesoroMovement {
+    id: string;
+    iweb_client_id: string;
+    account_id: string;
+    movement_type: string;
+    recibo_number?: string | null;
+    ammount: number;
+    created_at?: string;
 }

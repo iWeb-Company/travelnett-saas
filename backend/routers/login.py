@@ -103,8 +103,8 @@ def login(
         }
     )
 
-    # HTTP-only cookie, 7-day expiry
-    max_age = 7 * 24 * 60 * 60  # seconds
+    # HTTP-only cookie, 30-day expiry
+    max_age = 30 * 24 * 60 * 60  # seconds (2,592,000)
     response.set_cookie(
         key="access_token",
         value=f"Bearer {token}",
@@ -159,7 +159,7 @@ def login_web(
         }
     )
 
-    max_age = 7 * 24 * 60 * 60 
+    max_age = 30 * 24 * 60 * 60  # 30 days in seconds
     response.set_cookie(
         key="access_token",
         value=f"Bearer {token}",
@@ -180,6 +180,7 @@ def get_me(current_user: User = Depends(get_current_user)):
         name=current_user.name,
         last_name=current_user.last_name,
         username=str(current_user.username),
+        rol=current_user.rol or "admin",
     )
 
 @router.post("/logout")
@@ -211,9 +212,10 @@ def create_user_by_iweb_client_id(
         birthday=body.user.birthday,
         last_name=body.user.last_name,
         username=body.user.username,
-        hashed_password=get_password_hash(body.user.password),
+        hashed_password=get_password_hash(body.user.password or ""),
         phone=body.user.phone,
         active=body.user.active,
+        rol=body.user.rol or "admin",
     )
     db.add(user)
     db.commit()
@@ -254,6 +256,8 @@ def update_user_by_id(
         user.hashed_password = get_password_hash(body.user.password)
     user.phone = body.user.phone
     user.active = body.user.active
+    if body.user.rol is not None:
+        user.rol = body.user.rol
     db.commit()
     db.refresh(user)
     return {"detail": "User updated successfully", "id": str(user.id), "iweb_client_id": str(user.iweb_client_id)}

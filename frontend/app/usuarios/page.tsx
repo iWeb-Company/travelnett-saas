@@ -22,6 +22,7 @@ interface UserInternal {
   birthday?: string;
   phone?: number;
   active: boolean;
+  rol?: string;
 }
 
 interface Permission {
@@ -44,6 +45,7 @@ const emptyUser = {
   dni: '',
   birthday: '',
   phone: '',
+  rol: 'admin',
 };
 
 const emptyPermission = {
@@ -119,6 +121,7 @@ export default function UsuariosPage() {
       birthday: userData.birthday || null,
       phone: userData.phone ? Number(userData.phone) : null,
       active: true,
+      rol: userData.rol || 'admin',
     };
     try {
       await apiClient.createUser(user.iweb_client_id, payload);
@@ -140,6 +143,7 @@ export default function UsuariosPage() {
       dni: userData.dni ? Number(userData.dni) : null,
       birthday: userData.birthday || null,
       phone: userData.phone ? Number(userData.phone) : null,
+      rol: userData.rol || 'admin',
     };
     if (userData.password) {
       payload.password = userData.password;
@@ -191,6 +195,7 @@ export default function UsuariosPage() {
       dni: u.dni ? String(u.dni) : '',
       birthday: u.birthday || '',
       phone: u.phone ? String(u.phone) : '',
+      rol: u.rol || 'admin',
     });
     setModalOpenEditUser(true);
   };
@@ -330,7 +335,12 @@ export default function UsuariosPage() {
                 users.map((u) => (
                   <li key={u.id} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50">
                     <div className="flex flex-col">
-                      <span className="font-medium text-gray-800">{u.name} {u.last_name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-800">{u.name} {u.last_name}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 capitalize">
+                          {u.rol || 'admin'}
+                        </span>
+                      </div>
                       <span className="text-xs text-gray-500">@{u.username}</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -434,6 +444,23 @@ export default function UsuariosPage() {
             <input type="text" placeholder="Apellido" value={userData.last_name} onChange={e => setUserData({ ...userData, last_name: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" required />
             <input type="text" placeholder="Usuario" value={userData.username} onChange={e => setUserData({ ...userData, username: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" required />
             <input type="password" placeholder="Contraseña" value={userData.password} onChange={e => setUserData({ ...userData, password: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" required />
+            
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-white/90">Rol / Permiso</label>
+              <select
+                value={userData.rol || 'admin'}
+                onChange={e => setUserData({ ...userData, rol: e.target.value })}
+                className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none capitalize"
+              >
+                <option value="admin">admin (Acceso Total)</option>
+                {permissions.map((p) => (
+                  <option key={p.id} value={p.name || 'sin_nombre'}>
+                    {p.name || 'Sin Nombre'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <input type="text" placeholder="DNI" value={userData.dni} onChange={e => setUserData({ ...userData, dni: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" />
             <input type="text" placeholder="Teléfono" value={userData.phone} onChange={e => setUserData({ ...userData, phone: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" />
             <input type="date" placeholder="Fecha de Nacimiento" value={userData.birthday} onChange={e => setUserData({ ...userData, birthday: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" />
@@ -454,6 +481,23 @@ export default function UsuariosPage() {
             <input type="text" placeholder="Apellido" value={userData.last_name} onChange={e => setUserData({ ...userData, last_name: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" required />
             <input type="text" placeholder="Usuario" value={userData.username} onChange={e => setUserData({ ...userData, username: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" required />
             <input type="password" placeholder="Nueva contraseña (dejar vacío para mantener)" value={userData.password} onChange={e => setUserData({ ...userData, password: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" />
+            
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-white/90">Rol / Permiso</label>
+              <select
+                value={userData.rol || 'admin'}
+                onChange={e => setUserData({ ...userData, rol: e.target.value })}
+                className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none capitalize"
+              >
+                <option value="admin">admin (Acceso Total)</option>
+                {permissions.map((p) => (
+                  <option key={p.id} value={p.name || 'sin_nombre'}>
+                    {p.name || 'Sin Nombre'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <input type="text" placeholder="DNI" value={userData.dni} onChange={e => setUserData({ ...userData, dni: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" />
             <input type="text" placeholder="Teléfono" value={userData.phone} onChange={e => setUserData({ ...userData, phone: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" />
             <input type="date" placeholder="Fecha de Nacimiento" value={userData.birthday} onChange={e => setUserData({ ...userData, birthday: e.target.value })} className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none" />

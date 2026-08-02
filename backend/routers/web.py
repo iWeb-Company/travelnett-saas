@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from db.database import get_db
-from models.models import Flyers, iWebClient, News, Accounts
+from models.models import Flyers, iWebClient, News, Accounts, FormaDePago, AccountsWeb, CardsWeb, Documentations
 from routers.tenants import _guess_extension, _save_upload, public_tenant_asset_url, tenant_dir
-from schemas.schemas import FlyerPayload, NewsPayload, AccountPayload
+from schemas.schemas import FlyerPayload, NewsPayload, AccountPayload, FormaDePagoPayload, AccountsWebPayload, CardsWebPayload, DocumentationPayload, CreateDocumentationRequest, UpdateDocumentationRequest
 
 router = APIRouter(prefix="/web")
 
@@ -86,6 +86,7 @@ def _delete_news_file(folder_id: int, news_url: str | None) -> None:
 async def create_flyer(
         iweb_client_id: str = Query(...),
         name: str = Form(None),
+        periodo: str = Form(None),
         url: UploadFile = File(None),
         db: Session = Depends(get_db),
     ):
@@ -94,6 +95,7 @@ async def create_flyer(
             id=str(uuid.uuid4()),
             iweb_client_id=iweb_client_id,
             name=name,
+            periodo=periodo,
         )
 
         if url:
@@ -209,6 +211,7 @@ async def update_flyer(
         iweb_client_id: str = Query(...),
         id: str = Form(...),
         name: str = Form(None),
+        periodo: str = Form(None),
         url: UploadFile = File(None),
         db: Session = Depends(get_db),
     ):
@@ -218,6 +221,9 @@ async def update_flyer(
 
         if name is not None:
             existing_flyer.name = name
+
+        if periodo is not None:
+            existing_flyer.periodo = periodo
 
         if url:
             tenant = _get_tenant_or_404(db, iweb_client_id)
@@ -341,3 +347,237 @@ async def delete_account(account_id: str, iweb_client_id: str, db: Session = Dep
     db.delete(existing_account)
     db.commit()
     return {"detail": "Account deleted successfully"}
+
+
+# --- FORMA DE PAGO SETTINGS ---
+
+@router.get("/get_forma_de_pago", tags=["Web"], response_model=FormaDePagoPayload)
+async def get_forma_de_pago(iweb_client_id: str, db: Session = Depends(get_db)):
+    record = db.query(FormaDePago).filter(FormaDePago.iweb_client_id == iweb_client_id).first()
+    if not record:
+        record = FormaDePago(
+            id=str(uuid.uuid4()),
+            iweb_client_id=iweb_client_id,
+            calculator=True,
+            card_text="📋 Las tarjetas que aceptamos para cuotas son bancarizadas y de crédito."
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+    return record
+
+@router.put("/update_forma_de_pago", tags=["Web"], response_model=FormaDePagoPayload)
+async def update_forma_de_pago(
+    iweb_client_id: str = Query(...),
+    calculator: bool = Form(None),
+    card_text: str = Form(None),
+    db: Session = Depends(get_db),
+):
+    record = db.query(FormaDePago).filter(FormaDePago.iweb_client_id == iweb_client_id).first()
+    if not record:
+        record = FormaDePago(
+            id=str(uuid.uuid4()),
+            iweb_client_id=iweb_client_id,
+            calculator=True if calculator is None else calculator,
+            card_text=card_text
+        )
+        db.add(record)
+    else:
+        if calculator is not None:
+            record.calculator = calculator
+        if card_text is not None:
+            record.card_text = card_text
+
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+# --- ACCOUNTS WEB ---
+
+@router.get("/get_accounts_web", tags=["Web"], response_model=List[AccountsWebPayload])
+async def get_accounts_web(iweb_client_id: str, db: Session = Depends(get_db)):
+    return db.query(AccountsWeb).filter(AccountsWeb.iweb_client_id == iweb_client_id).all()
+
+@router.post("/create_account_web", tags=["Web"], response_model=AccountsWebPayload)
+async def create_account_web(
+    iweb_client_id: str = Query(...),
+    type_account: str = Form(None),
+    titular: str = Form(None),
+    account_number: str = Form(None),
+    cbu_cvu: str = Form(None),
+    alias: str = Form(None),
+    active: bool = Form(True),
+    db: Session = Depends(get_db),
+):
+    new_account = AccountsWeb(
+        id=str(uuid.uuid4()),
+        iweb_client_id=iweb_client_id,
+        type_account=type_account,
+        titular=titular,
+        account_number=account_number,
+        cbu_cvu=cbu_cvu,
+        alias=alias,
+        active=active,
+    )
+    db.add(new_account)
+    db.commit()
+    db.refresh(new_account)
+    return new_account
+
+@router.put("/update_account_web", tags=["Web"], response_model=AccountsWebPayload)
+async def update_account_web(
+    iweb_client_id: str = Query(...),
+    id: str = Form(...),
+    type_account: str = Form(None),
+    titular: str = Form(None),
+    account_number: str = Form(None),
+    cbu_cvu: str = Form(None),
+    alias: str = Form(None),
+    active: bool = Form(None),
+    db: Session = Depends(get_db),
+):
+    existing = db.query(AccountsWeb).filter(AccountsWeb.id == id, AccountsWeb.iweb_client_id == iweb_client_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    if type_account is not None:
+        existing.type_account = type_account
+    if titular is not None:
+        existing.titular = titular
+    if account_number is not None:
+        existing.account_number = account_number
+    if cbu_cvu is not None:
+        existing.cbu_cvu = cbu_cvu
+    if alias is not None:
+        existing.alias = alias
+    if active is not None:
+        existing.active = active
+
+    db.commit()
+    db.refresh(existing)
+    return existing
+
+@router.delete("/delete_account_web/{account_id}", tags=["Web"])
+async def delete_account_web(account_id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+    existing = db.query(AccountsWeb).filter(AccountsWeb.id == account_id, AccountsWeb.iweb_client_id == iweb_client_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    db.delete(existing)
+    db.commit()
+    return {"detail": "Account web deleted successfully"}
+
+
+# --- CARDS WEB ---
+
+@router.get("/get_cards_web", tags=["Web"], response_model=List[CardsWebPayload])
+async def get_cards_web(iweb_client_id: str, db: Session = Depends(get_db)):
+    return db.query(CardsWeb).filter(CardsWeb.iweb_client_id == iweb_client_id).all()
+
+@router.post("/create_card_web", tags=["Web"], response_model=CardsWebPayload)
+async def create_card_web(
+    iweb_client_id: str = Query(...),
+    name: str = Form(None),
+    quotes: int = Form(1),
+    recargo: float = Form(0.0),
+    db: Session = Depends(get_db),
+):
+    new_card = CardsWeb(
+        id=str(uuid.uuid4()),
+        iweb_client_id=iweb_client_id,
+        name=name,
+        quotes=quotes,
+        recargo=recargo,
+    )
+    db.add(new_card)
+    db.commit()
+    db.refresh(new_card)
+    return new_card
+
+@router.put("/update_card_web", tags=["Web"], response_model=CardsWebPayload)
+async def update_card_web(
+    iweb_client_id: str = Query(...),
+    id: str = Form(...),
+    name: str = Form(None),
+    quotes: int = Form(None),
+    recargo: float = Form(None),
+    db: Session = Depends(get_db),
+):
+    existing = db.query(CardsWeb).filter(CardsWeb.id == id, CardsWeb.iweb_client_id == iweb_client_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    if name is not None:
+        existing.name = name
+    if quotes is not None:
+        existing.quotes = quotes
+    if recargo is not None:
+        existing.recargo = recargo
+
+    db.commit()
+    db.refresh(existing)
+    return existing
+
+@router.delete("/delete_card_web/{card_id}", tags=["Web"])
+async def delete_card_web(card_id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+    existing = db.query(CardsWeb).filter(CardsWeb.id == card_id, CardsWeb.iweb_client_id == iweb_client_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    db.delete(existing)
+    db.commit()
+    return {"detail": "Card web deleted successfully"}
+
+# --- Documentations ---
+
+@router.get("/get_documentations", tags=["Web"], response_model=List[DocumentationPayload])
+async def get_documentations(iweb_client_id: str, db: Session = Depends(get_db)):
+    return db.query(Documentations).filter(Documentations.iweb_client_id == iweb_client_id).all()
+
+@router.post("/create_documentation", tags=["Web"], response_model=DocumentationPayload)
+async def create_documentation(
+    payload: CreateDocumentationRequest,
+    iweb_client_id: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    tenant = _get_tenant_or_404(db, iweb_client_id)
+    new_doc = Documentations(
+        id=str(uuid.uuid4()),
+        iweb_client_id=iweb_client_id,
+        title=payload.title,
+        body=payload.body,
+    )
+    db.add(new_doc)
+    db.commit()
+    db.refresh(new_doc)
+    return new_doc
+
+@router.put("/update_documentation", tags=["Web"], response_model=DocumentationPayload)
+async def update_documentation(
+    payload: UpdateDocumentationRequest,
+    iweb_client_id: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    existing = db.query(Documentations).filter(Documentations.id == payload.id, Documentations.iweb_client_id == iweb_client_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Documentation not found")
+
+    if payload.title is not None:
+        existing.title = payload.title
+    if payload.body is not None:
+        existing.body = payload.body
+
+    db.commit()
+    db.refresh(existing)
+    return existing
+
+@router.delete("/delete_documentation/{doc_id}", tags=["Web"])
+async def delete_documentation(doc_id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+    existing = db.query(Documentations).filter(Documentations.id == doc_id, Documentations.iweb_client_id == iweb_client_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Documentation not found")
+
+    db.delete(existing)
+    db.commit()
+    return {"detail": "Documentation deleted successfully"}

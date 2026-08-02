@@ -1,20 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Rutas que no requieren autenticación
+// Rutas públicas que no requieren autenticación
 const publicRoutes = ['/login'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('access_token');
 
-  // Verificar si la ruta es pública
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
-  if (!token && !isPublicRoute && pathname !== '/') {
+  // Si la ruta es el root '/'
+  if (pathname === '/') {
+    if (token && token.value) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    } else {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+  }
+
+  // Si no hay token y se intenta acceder a una ruta protegida
+  if ((!token || !token.value) && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  if (token && pathname === '/login') {
+  // Si ya hay token y se intenta acceder a /login
+  if (token && token.value && pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
@@ -24,12 +34,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - .png, .jpg, .jpeg, .gif, .svg, .webp (image files)
+     * Excluir rutas estáticas, API, favicons e imágenes
      */
     '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp)$).*)',
   ],

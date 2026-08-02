@@ -19,29 +19,33 @@ export default function Header() {
             {path === "/dashboard" ? (
               <div className="text-black flex-col hidden md:flex items-start justify-center gap-2">
                 <div className="font-semibold text-3xl">
-                  {isLoading && !user ? (
-                    "Cargando datos de informacion..."
-                  ) : (
+                  {isLoading ? (
+                    "Cargando información..."
+                  ) : user ? (
                     <p>
-                      Hola 👋 {user?.name || "Usuario"}
+                      Hola 👋 {user.name}
                     </p>
-                  )}
+                  ) : null}
                 </div>
-                <h1 className="font-bold text-lg text-start">
-                  ¡Bienvenido a Trannet!
-                </h1>
+                {user && (
+                  <h1 className="font-bold text-lg text-start">
+                    ¡Bienvenido a Trannet!
+                  </h1>
+                )}
               </div>
             ) : (
-              <div className="hidden md:flex flex-col items-center absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2">
-                <img
-                  src="/logo-empresa.png"
-                  alt="Logo empresa logeada"
-                  className="w-20 md:w-28"
-                />
-                <span className="text-lg text-black font-medium">
-                  {user?.name}
-                </span>
-              </div>
+              user && (
+                <div className="hidden md:flex flex-col items-center absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2">
+                  <img
+                    src="/logo-empresa.png"
+                    alt="Logo empresa logeada"
+                    className="w-20 md:w-28"
+                  />
+                  <span className="text-lg text-black font-medium">
+                    {user.name}
+                  </span>
+                </div>
+              )
             )}
           </div>
           <button

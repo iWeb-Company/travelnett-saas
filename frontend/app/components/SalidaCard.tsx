@@ -36,11 +36,10 @@ export default function SalidaCard({
       <div className="flex-1 flex flex-col">
         <div
           onClick={() => setIsOpen(!isOpen)}
-          className={`bg-primary text-white rounded-md justify-between px-2 md:text-xl md:px-5 font-semibold text-xs py-3 flex gap-2 cursor-pointer select-none transition-all duration-300 ${
-            isOpen ? "rounded-t-lg" : "rounded-lg"
-          }`}>
+          className={`bg-primary text-white rounded-md justify-between px-2 md:text-xl md:px-5 font-semibold text-xs py-3 flex gap-2 cursor-pointer select-none transition-all duration-300 ${isOpen ? "rounded-t-lg" : "rounded-lg"
+            }`}>
           <p>{destino}</p>
-          <p>{fecha}</p>
+          <p>{new Date(fecha).toLocaleDateString()}</p>
         </div>
 
         {/* Dropdown animado */}

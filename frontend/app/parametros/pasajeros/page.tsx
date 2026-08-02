@@ -58,8 +58,12 @@ export default function PasajerosPage() {
   };
 
   useEffect(() => {
-    setLoading(false);
-  }, []);
+    if (user?.iweb_client_id) {
+      fetchPassengers().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [user?.iweb_client_id]);
 
   const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

@@ -1,5 +1,6 @@
+"use client";
 import Link from "next/link";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Salidas from "../components/icons/home/Salidas";
 import Paquetes from "../components/icons/home/Paquetes";
 import Administracion from "../components/icons/home/Administracion";
@@ -8,8 +9,38 @@ import Usuarios from "../components/icons/home/Usuarios";
 import Web from "../components/icons/home/Web";
 import Mail from "../components/icons/Mail";
 import Wpp from "../components/icons/Wpp";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
 
 export default function DashboardPage() {
+  const { user, permissions } = useAuth();
+  const [summary, setSummary] = useState({
+    proxima_salida: "Cargando...",
+    reservas_hoy: 0,
+    saldo_mes: "$0",
+    reservas_mes: 0,
+    paquetes_activos: 0,
+    cliente_del_mes: "Cargando...",
+  });
+
+  useEffect(() => {
+    if (user?.iweb_client_id) {
+      apiClient
+        .getDashboardSummary(user.iweb_client_id)
+        .then((data) => setSummary(data))
+        .catch((err) => console.error("Error fetching dashboard summary:", err));
+    }
+  }, [user?.iweb_client_id]);
+
+  const sections = [
+    { key: "salidas", label: "SALIDAS", href: "/salidas", icon: <Salidas />, allowed: permissions?.salidas ?? true },
+    { key: "paquetes", label: "PAQUETES", href: "/paquetes", icon: <Paquetes />, allowed: permissions?.paquetes ?? true },
+    { key: "administracion", label: "ADMINISTRACIÓN", href: "/administracion", icon: <Administracion />, allowed: permissions?.administracion ?? true },
+    { key: "parametros", label: "PARÁMETROS", href: "/parametros", icon: <Parametros />, allowed: permissions?.parametros ?? true },
+    { key: "permisos_users", label: "USUARIOS Y PERMISOS", href: "/usuarios", icon: <Usuarios />, allowed: permissions?.permisos_users ?? true },
+    { key: "web", label: "WEB", href: "/web", icon: <Web />, allowed: permissions?.web ?? true },
+  ];
+
   return (
     <main>
       <section className="px-5">
@@ -18,29 +49,29 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-5 justify-between items-center">
             <div className="flex flex-col items-center">
               <p>Proxima salida</p>
-              <b>TRH 22/06/2025</b>
+              <b>{summary.proxima_salida}</b>
             </div>
             <div className="flex flex-col items-center">
               <p>Reservas este día</p>
-              <b>10</b>
+              <b>{summary.reservas_hoy}</b>
             </div>
             <div className="flex flex-col items-center">
               <p>Saldo Gral del mes</p>
-              <b>$10.000.000</b>
+              <b>{summary.saldo_mes}</b>
             </div>
           </div>
           <div className="flex flex-col gap-5 justify-between items-center">
             <div className="flex flex-col items-center">
               <p>Reservas este mes</p>
-              <b>45</b>
+              <b>{summary.reservas_mes}</b>
             </div>
             <div className="flex flex-col items-center">
               <p>Paquetes activos</p>
-              <b>12</b>
+              <b>{summary.paquetes_activos}</b>
             </div>
             <div className="flex flex-col items-center">
               <p>Cliente del mes</p>
-              <b>Mio Turismo</b>
+              <b>{summary.cliente_del_mes}</b>
             </div>
           </div>
         </div>
@@ -56,27 +87,27 @@ export default function DashboardPage() {
                 className="flex items-center gap-8 text-lg px-8 py-3 whitespace-nowrap"
               >
                 <p>
-                  Proxima salida <b>TRH 22/06/2025</b>
+                  Proxima salida <b>{summary.proxima_salida}</b>
                 </p>
                 <span className="opacity-30">|</span>
                 <p>
-                  Reservas este día <b>10</b>
+                  Reservas este día <b>{summary.reservas_hoy}</b>
                 </p>
                 <span className="opacity-30">|</span>
                 <p>
-                  Saldo Gral del mes <b>$10.000.000</b>
+                  Saldo Gral del mes <b>{summary.saldo_mes}</b>
                 </p>
                 <span className="opacity-30">|</span>
                 <p>
-                  Reservas este mes <b>45</b>
+                  Reservas este mes <b>{summary.reservas_mes}</b>
                 </p>
                 <span className="opacity-30">|</span>
                 <p>
-                  Paquetes activos <b>12</b>
+                  Paquetes activos <b>{summary.paquetes_activos}</b>
                 </p>
                 <span className="opacity-30">|</span>
                 <p>
-                  Cliente del mes <b>Mio Turismo</b>
+                  Cliente del mes <b>{summary.cliente_del_mes}</b>
                 </p>
                 <span className="opacity-30">|</span>
               </div>
@@ -88,60 +119,40 @@ export default function DashboardPage() {
         <div className="flex flex-col mx-auto">
           <hr className="my-5 border-gray-400" />
           <ul className="text-white flex md:grid grid-cols-2 place-content-center mx-auto flex-col md:gap-x-20 gap-7">
-            <Link
-              href={"/salidas"}
-              className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium"
-            >
-              <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
-                <Salidas />
-              </span>
-              <i>SALIDAS</i>
-            </Link>
-            <Link
-              href="/paquetes"
-              className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium"
-            >
-              <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
-                <Paquetes />
-              </span>
-              <i>PAQUETES</i>
-            </Link>
-            <Link
-              href="/administracion"
-              className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium"
-            >
-              <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
-                <Administracion />
-              </span>
-              <i>ADMINISTRACIÓN</i>
-            </Link>
-            <Link
-              href="/parametros"
-              className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium"
-            >
-              <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
-                <Parametros />
-              </span>
-              <i>PARÁMETROS</i>
-            </Link>
-            <Link
-              href="/usuarios"
-              className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium"
-            >
-              <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
-                <Usuarios />
-              </span>
-              <i>USUARIOS Y PERMISOS</i>
-            </Link>
-            <Link
-              href="/web"
-              className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium"
-            >
-              <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
-                <Web />
-              </span>
-              <i>WEB</i>
-            </Link>
+            {sections.map((sec) => {
+              if (sec.allowed) {
+                return (
+                  <Link
+                    key={sec.key}
+                    href={sec.href}
+                    className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium transition-all hover:scale-[1.02]"
+                  >
+                    <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
+                      {sec.icon}
+                    </span>
+                    <i>{sec.label}</i>
+                  </Link>
+                );
+              } else {
+                return (
+                  <div
+                    key={sec.key}
+                    title="No tienes permiso para acceder a esta sección"
+                    className="bg-gray-300 text-gray-500 flex items-center justify-between py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium opacity-60 cursor-not-allowed select-none pointer-events-none"
+                  >
+                    <div className="flex items-center gap-3 md:gap-5">
+                      <span className="flex items-center grayscale opacity-70 [&>svg]:md:w-8 [&>svg]:md:h-8">
+                        {sec.icon}
+                      </span>
+                      <i>{sec.label}</i>
+                    </div>
+                    <span className="text-xs bg-gray-400 text-white font-bold px-2 py-1 rounded uppercase tracking-wider">
+                      Deshabilitado
+                    </span>
+                  </div>
+                );
+              }
+            })}
           </ul>
           <ul className="flex flex-col md:grid grid-cols-2  md:gap-x-20 gap-4 mt-6 text-sm md:text-lg text-black">
             <hr className="my-2 border-gray-400 hidden md:block" />

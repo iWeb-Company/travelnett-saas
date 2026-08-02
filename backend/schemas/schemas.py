@@ -2,10 +2,10 @@ import email
 from http import client
 
 from fastapi import File, UploadFile
-from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, Union, Any
-from datetime import date
+from datetime import datetime, date
+PyDate = date
 
 # Schemas for authentication and user management
 
@@ -41,6 +41,7 @@ class UserPayload(BaseModel):
     name: Optional[str]
     last_name: Optional[str]
     username: str
+    rol: Optional[str] = "admin"
 
 class UserCreatePayload(BaseModel):
     name: Optional[str] = None
@@ -48,9 +49,10 @@ class UserCreatePayload(BaseModel):
     dni: Optional[int] = None
     birthday: Optional[str] = None
     username: str
-    password: str
+    password: Optional[str] = None
     phone: Optional[int] = None
     active: int = 1
+    rol: Optional[str] = "admin"
 
 class ClientsCreatePayload(BaseModel):
     name_system: Optional[str] = None
@@ -307,15 +309,18 @@ class FlyerPayload(BaseModel):
     iweb_client_id: str
     name: Optional[str] = None
     url: Optional[str] = None
+    periodo: Optional[str] = None
 
 class CreateFlyerRequest(BaseModel):
     name: Optional[str] = None
     url: Optional[str] = None
+    periodo: Optional[str] = None
     
 class UpdateFlyerRequest(BaseModel):
     id: Optional[str] = None
     name: Optional[str] = None
     url: Optional[str] = None
+    periodo: Optional[str] = None
 
 class NewsPayload(BaseModel):
     id: str
@@ -328,6 +333,21 @@ class CreateNewsRequest(BaseModel):
 class UpdateNewsRequest(BaseModel):
     id: Optional[str] = None
     url: Optional[str] = None
+
+class DocumentationPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    title: Optional[str] = None
+    body: Optional[str] = None
+
+class CreateDocumentationRequest(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+
+class UpdateDocumentationRequest(BaseModel):
+    id: Optional[str] = None
+    title: Optional[str] = None
+    body: Optional[str] = None
 
 class AccountCreateRequest(BaseModel):
     account_title: Optional[str] = None
@@ -444,13 +464,29 @@ class PackageResponse(BaseModel):
     adicional: Optional[int] = None
     destino: Optional[str] = None
     hotel: Optional[str] = None
-    regimen: Optional[str] = None
-    excursion: Optional[str] = None
     periodo: Optional[str] = None
     image: Optional[str] = None
     active: Optional[bool] = None
     web: Optional[bool] = None
     dates: list[str] = []
+    comisionable: Optional[bool] = False
+    moneda: Optional[str] = "pesos"
+    moneda_gastos: Optional[str] = "pesos"
+    moneda_adicional: Optional[str] = "pesos"
+    hotel_noches: Optional[int] = None
+    hotel_fecha_in: Optional[str] = None
+    hotel_fecha_out: Optional[str] = None
+    hotel_fecha_salida_mas: Optional[str] = None
+    hotel_regimen_id: Optional[str] = None
+    tarifa_single: Optional[int] = None
+    comisionable_single: Optional[bool] = False
+    tarifa_doble: Optional[int] = None
+    tarifa_triple: Optional[int] = None
+    tarifa_cuadruple: Optional[int] = None
+    tarifa_quintuple: Optional[int] = None
+    tarifa_menores: Optional[int] = None
+    pricing_type: Optional[str] = "persona"
+    excursiones: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -465,13 +501,29 @@ class PackageCreateRequest(BaseModel):
     adicional: Optional[int] = None
     destino: Optional[str] = None
     hotel: Optional[str] = None
-    regimen: Optional[str] = None
-    excursion: Optional[str] = None
     periodo: Optional[str] = None
     image: Optional[str] = None
     active: Optional[bool] = True
     web: Optional[bool] = True
     dates: list[str] = []
+    comisionable: Optional[bool] = False
+    moneda: Optional[str] = "pesos"
+    moneda_gastos: Optional[str] = "pesos"
+    moneda_adicional: Optional[str] = "pesos"
+    hotel_noches: Optional[int] = None
+    hotel_fecha_in: Optional[str] = None
+    hotel_fecha_out: Optional[str] = None
+    hotel_fecha_salida_mas: Optional[str] = None
+    hotel_regimen_id: Optional[str] = None
+    tarifa_single: Optional[int] = None
+    comisionable_single: Optional[bool] = False
+    tarifa_doble: Optional[int] = None
+    tarifa_triple: Optional[int] = None
+    tarifa_cuadruple: Optional[int] = None
+    tarifa_quintuple: Optional[int] = None
+    tarifa_menores: Optional[int] = None
+    pricing_type: Optional[str] = "persona"
+    excursiones: Optional[str] = None
 
 
 class PackageUpdateRequest(BaseModel):
@@ -483,13 +535,29 @@ class PackageUpdateRequest(BaseModel):
     adicional: Optional[int] = None
     destino: Optional[str] = None
     hotel: Optional[str] = None
-    regimen: Optional[str] = None
-    excursion: Optional[str] = None
     periodo: Optional[str] = None
     image: Optional[str] = None
     active: Optional[bool] = None
     web: Optional[bool] = None
     dates: list[str] = []
+    comisionable: Optional[bool] = None
+    moneda: Optional[str] = None
+    moneda_gastos: Optional[str] = None
+    moneda_adicional: Optional[str] = None
+    hotel_noches: Optional[int] = None
+    hotel_fecha_in: Optional[str] = None
+    hotel_fecha_out: Optional[str] = None
+    hotel_fecha_salida_mas: Optional[str] = None
+    hotel_regimen_id: Optional[str] = None
+    tarifa_single: Optional[int] = None
+    comisionable_single: Optional[bool] = None
+    tarifa_doble: Optional[int] = None
+    tarifa_triple: Optional[int] = None
+    tarifa_cuadruple: Optional[int] = None
+    tarifa_quintuple: Optional[int] = None
+    tarifa_menores: Optional[int] = None
+    pricing_type: Optional[str] = None
+    excursiones: Optional[str] = None
 
 
 class ReservaResponse(BaseModel):
@@ -541,6 +609,7 @@ class PagoResponse(BaseModel):
     operation_number: Optional[str] = None
     quotes_number: Optional[str] = None
     receipt_number: Optional[str] = None
+    account_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -604,7 +673,7 @@ class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
     transport_id: Optional[str] = None
-    date: Optional[date] = None
+    date: Optional[Union[PyDate, str]] = None
     detail: Optional[str] = None
     type: Optional[str] = None
     transf_account: Optional[str] = None
@@ -618,7 +687,7 @@ class ccProvidersConsumptionPaymentsResponse(BaseModel):
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
     transport_id: Optional[str] = None
-    date: Optional[date] = None
+    date: Optional[Union[PyDate, str]] = None
     detail: Optional[str] = None
     type: Optional[str] = None
     transf_account: Optional[str] = None
@@ -649,6 +718,7 @@ class GastoNoCommissionResponse(BaseModel):
 
 class LiquidacionCreateRequest(BaseModel):
     id: Optional[str] = None
+    iweb_client_id: str
     booking_id: Optional[str] = None
     total_amout: Optional[float] = None
     total_commission: Optional[float] = None
@@ -658,11 +728,78 @@ class LiquidacionCreateRequest(BaseModel):
 
 class LiquidacionResponse(BaseModel):
     id: str
+    iweb_client_id: Optional[str] = None
     booking_id: Optional[str] = None
     total_amout: Optional[float] = None
     total_commission: Optional[float] = None
     commission: Optional[float] = None
     gastos: list[GastoNoCommissionResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class TesoroMovimientoCreateRequest(BaseModel):
+    iweb_client_id: str
+    account_id: str
+    movement_type: str  # 'ingreso' or 'egreso'
+    recibo_number: Optional[str] = None
+    amount: float
+    detail: str
+    date: Optional[Union[PyDate, str]] = None
+
+
+class TesoroPaseDineroCreateRequest(BaseModel):
+    iweb_client_id: str
+    account_origen_id: str
+    account_destino_id: str
+    amount: float
+    detail: str
+    date: Optional[Union[PyDate, str]] = None
+
+
+class TesoroMovimientoResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    account_id: str
+    cuenta: str
+    fecha: str
+    recibo: str
+    monto: float
+    tipo: str
+    detalle: str
+
+
+class FormaDePagoPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    calculator: bool = True
+    card_text: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AccountsWebPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    type_account: Optional[str] = None
+    titular: Optional[str] = None
+    account_number: Optional[str] = None
+    cbu_cvu: Optional[str] = None
+    alias: Optional[str] = None
+    active: bool = True
+
+    class Config:
+        from_attributes = True
+
+
+class CardsWebPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str] = None
+    quotes: Optional[int] = 1
+    recargo: Optional[float] = 0.0
 
     class Config:
         from_attributes = True

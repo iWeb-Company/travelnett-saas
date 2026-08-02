@@ -85,20 +85,25 @@ export default function Paso1Page() {
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!destino || !cliente) {
+    if (!destino) {
       toast.error("Por favor, completa todos los campos del paso 1");
       return;
     }
-    if (tipoReserva === "tradicional" && !salidaSelected && !paqueteSelected) {
-      toast.error("Por favor, selecciona una salida o un paquete");
+    if (tipoReserva === "tradicional" && (!salidaSelected || !paqueteSelected)) {
+      toast.error("Por favor, selecciona tanto una salida como un paquete para la reserva tradicional");
       return;
     }
+    if (tipoReserva === "bloqueo" && !salidaSelected) {
+      toast.error("Por favor, selecciona una salida");
+      return;
+    }
+
 
     const itemId = salidaSelected || paqueteSelected || "";
     const itemType = salidaSelected ? "salida" : (paqueteSelected ? "paquete" : "");
 
     // Navigate to step 2 passing values in query params
-    r.push(`/web/reservas/crear-reserva/paso-2?destino=${destino}&cliente=${cliente}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}`);
+    r.push(`/web/reservas/crear-reserva/paso-2?destino=${destino}&cliente=${cliente}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${salidaSelected || ""}&paquete=${paqueteSelected || ""}`);
   };
 
   if (loading) {
@@ -108,6 +113,25 @@ export default function Paso1Page() {
       </div>
     );
   }
+
+  const destinoObj = destinos.find((d) => d.id === destino || d.name === destino || d.nombre === destino);
+  const destinoNombre = destinoObj?.name || destinoObj?.nombre || "";
+
+  const filteredSalidas = destino
+    ? salidas.filter((s) => {
+      if (!s.destino) return false;
+      const dVal = String(s.destino).trim().toLowerCase();
+      return dVal === String(destino).trim().toLowerCase() || (destinoNombre && dVal === String(destinoNombre).trim().toLowerCase());
+    })
+    : salidas;
+
+  const filteredPaquetes = destino
+    ? paquetes.filter((p) => {
+      if (!p.destino) return false;
+      const dVal = String(p.destino).trim().toLowerCase();
+      return dVal === String(destino).trim().toLowerCase() || (destinoNombre && dVal === String(destinoNombre).trim().toLowerCase());
+    })
+    : paquetes;
 
   return (
     <Container>
@@ -140,19 +164,23 @@ export default function Paso1Page() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleNext} className="flex flex-col w-full gap-5 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+        <form onSubmit={handleNext} className="flex flex-col w-full gap-5  p-6 rounded-xl ">
           {/* Destino */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-gray-700">Destino</label>
             <select
               className="w-full border border-gray-300 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
               value={destino}
-              onChange={(e) => setDestino(e.target.value)}
+              onChange={(e) => {
+                setDestino(e.target.value);
+                setSalidaSelected(null);
+                setPaqueteSelected(null);
+              }}
               required
             >
               <option value="" disabled>Destino</option>
               {destinos.map((d: any) => (
-                <option key={d.id} value={d.name || d.nombre}>{d.name || d.nombre}</option>
+                <option key={d.id} value={d.id}>{d.name || d.nombre}</option>
               ))}
             </select>
           </div>
@@ -164,10 +192,8 @@ export default function Paso1Page() {
               className="w-full border border-gray-300 bg-[#E8E8E8] rounded-lg py-2.5 px-4 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
               value={cliente}
               onChange={(e) => setCliente(e.target.value)}
-              required
             >
-              <option value="" disabled>Cliente</option>
-              <option value="as">En Espera</option>
+              <option value="" selected disabled>Cliente</option>
               {clientes.map((c: any) => (
                 <option key={c.id} value={c.id}>{c.complete_name || c.name_system || c.name || c.nombre}</option>
               ))}
@@ -197,8 +223,6 @@ export default function Paso1Page() {
                   checked={tipoReserva === "bloqueo"}
                   onChange={() => {
                     setTipoReserva("bloqueo");
-                    setSalidaSelected(null);
-                    setPaqueteSelected(null);
                   }}
                   className="w-5 h-5 accent-primary"
                 />
@@ -208,19 +232,19 @@ export default function Paso1Page() {
           </div>
 
           {/* Seleccionar salida / paquete */}
-          {tipoReserva === "tradicional" && (
-            <div className="flex flex-col gap-3 border-gray-100 pt-3">
-              <div className="flex flex-col gap-4">
-                <button
-                  type="button"
-                  onClick={() => { setTempSalidaSelected(salidaSelected); setModalSalidas(true); }}
-                  className={`flex-1 flex items-center gap-2 py-2 text-start rounded-lg text-sm font-semibold transition-all"
-                    }`}
-                >
-                  <AddVioleta color="#0546F7" /><p>Seleccionar salida</p>
-                </button>
-                {salidaSelected && (
-                  <p className="text-sm font-semibold text-black">
+          <div className="flex flex-col gap-3 border-gray-100 pt-3">
+            <div className="flex flex-col gap-4">
+              <button
+                type="button"
+                onClick={() => { setTempSalidaSelected(salidaSelected); setModalSalidas(true); }}
+                className="flex-1 flex items-center gap-2 py-2 text-start rounded-lg text-sm font-semibold transition-all cursor-pointer"
+              >
+                <AddVioleta color="#0546F7" />
+                <p>Seleccionar salida </p>
+              </button>
+              {salidaSelected && (
+                <p className="text-sm font-semibold text-black flex items-center justify-between bg-blue-50 p-2 rounded-md">
+                  <span>
                     Salida seleccionada: {
                       (() => {
                         const sObj = salidas.find(s => s.id === salidaSelected);
@@ -228,26 +252,31 @@ export default function Paso1Page() {
                         return sObj ? `${dest?.name || dest?.nombre || "Salida"} - ${sObj.date_of_out || ""}` : "";
                       })()
                     }
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => { setTempPaqueteSelected(paqueteSelected); setModalPaquetes(true); }}
-                  className={`flex-1 flex items-center gap-2 py-2 text-start rounded-lg text-sm font-semibold transition-all "
-                    }`}
-                >
-                  <AddVioleta color="#0546F7" /><p>Seleccionar paquete</p>
-                </button>
-                {paqueteSelected && (
-                  <p className="text-sm font-semibold text-black">
+                  </span>
+                  <button type="button" onClick={() => setSalidaSelected(null)} className="text-red-500 font-bold ml-2">✕</button>
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => { setTempPaqueteSelected(paqueteSelected); setModalPaquetes(true); }}
+                className="flex-1 flex items-center gap-2 py-2 text-start rounded-lg text-sm font-semibold transition-all cursor-pointer"
+              >
+                <AddVioleta color="#0546F7" />
+                <p>Seleccionar paquete {tipoReserva === "bloqueo" ? "(opcional)" : ""}</p>
+              </button>
+              {paqueteSelected && (
+                <p className="text-sm font-semibold text-black flex items-center justify-between bg-purple-50 p-2 rounded-md">
+                  <span>
                     Paquete seleccionado: {
                       paquetes.find(p => p.id === paqueteSelected)?.name || "Paquete"
                     }
-                  </p>
-                )}
-              </div>
+                  </span>
+                  <button type="button" onClick={() => setPaqueteSelected(null)} className="text-red-500 font-bold ml-2">✕</button>
+                </p>
+              )}
             </div>
-          )}
+          </div>
+
           {modalSalidas && (
             <ModalLayout
               title="Listado de salidas"
@@ -255,32 +284,34 @@ export default function Paso1Page() {
               svg={<Salidas />}
               onSubmit={() => {
                 setSalidaSelected(tempSalidaSelected);
-                setPaqueteSelected(null);
                 setModalSalidas(false);
               }}
             >
               <div className="space-y-2">
-                {salidas.map((option) => {
+                {filteredSalidas.map((option) => {
                   const destinoObj = destinos.find((d) => d.id === option.destino);
                   return (
                     <div key={option.id} className="flex items-center justify-between gap-3">
-                      <label htmlFor={option.id} className="text-lg text-white font-medium cursor-pointer">
-                        {destinoObj?.name || destinoObj?.nombre} - {option.date_of_out}
+                      <label htmlFor={`salida-${option.id}`} className="text-lg text-white font-medium cursor-pointer">
+                        {destinoObj?.name || destinoObj?.nombre || "Salida"} - {option.date_of_out}
                       </label>
                       <input
                         className="w-5 h-5 cursor-pointer"
                         type="radio"
                         name="salidas"
                         value={option.id}
-                        id={option.id}
+                        id={`salida-${option.id}`}
                         checked={tempSalidaSelected === option.id}
                         onChange={() => {
                           setTempSalidaSelected(option.id || null);
                         }}
                       />
                     </div>
-                  )
+                  );
                 })}
+                {filteredSalidas.length === 0 && (
+                  <p className="text-white text-center py-4">No hay salidas disponibles para este destino.</p>
+                )}
               </div>
             </ModalLayout>
           )}
@@ -292,14 +323,13 @@ export default function Paso1Page() {
               svg={<Paquetes />}
               onSubmit={() => {
                 setPaqueteSelected(tempPaqueteSelected);
-                setSalidaSelected(null);
                 setModalPaquetes(false);
               }}
             >
               <div className="space-y-2">
-                {paquetes.map((option) => (
+                {filteredPaquetes.map((option) => (
                   <div key={option.id} className="flex items-center justify-between gap-3">
-                    <label htmlFor={option.id} className="text-lg text-white font-medium cursor-pointer">
+                    <label htmlFor={`paquete-${option.id}`} className="text-lg text-white font-medium cursor-pointer">
                       {option.name}
                     </label>
                     <input
@@ -307,7 +337,7 @@ export default function Paso1Page() {
                       type="radio"
                       name="paquetes"
                       value={option.id}
-                      id={option.id}
+                      id={`paquete-${option.id}`}
                       checked={tempPaqueteSelected === option.id}
                       onChange={() => {
                         setTempPaqueteSelected(option.id || null);
@@ -315,6 +345,9 @@ export default function Paso1Page() {
                     />
                   </div>
                 ))}
+                {filteredPaquetes.length === 0 && (
+                  <p className="text-white text-center py-4">No hay paquetes disponibles para este destino.</p>
+                )}
               </div>
             </ModalLayout>
           )}

@@ -4,21 +4,21 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import PasajeroRow from "@/app/components/PasajeroRow";
 import Link from "next/link";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import Butaca from "@/app/components/icons/salidas/Butaca";
 import Excel from "@/app/components/icons/salidas/Excel";
 import Subir from "@/app/components/icons/salidas/Subir";
 import Reloj from "@/app/components/icons/salidas/Reloj";
 import Hotel from "@/app/components/icons/salidas/Hotel";
-import AddVioleta from "@/app/components/icons/AddVioleta";
+import Transporte from "@/app/components/icons/salidas/Transporte";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
 import toast from "react-hot-toast";
+import { exportListaToExcel, PasajeroListaData, LugarCargaListaData } from "@/app/utils/exportLista";
 
 export default function SalidasIDPage() {
-  const router = useRouter();
   const params = useParams();
   const id = params.id as string;
   const { user } = useAuth();
@@ -185,9 +185,6 @@ export default function SalidasIDPage() {
     }
   }, [user?.iweb_client_id, id]);
 
-  const handleBack = () => {
-    router.back();
-  };
 
   const handleSearchPassenger = async () => {
     if (!user?.iweb_client_id || !searchPassengerQuery.trim()) return;
@@ -249,84 +246,62 @@ export default function SalidasIDPage() {
     }
   };
 
-  const handleSaveReserva = async () => {
-    if (!user?.iweb_client_id || !id || !selectedPassenger) return;
-    setIsSavingReserva(true);
-    try {
-      await apiClient.createReserva(user.iweb_client_id, {
-        passenger_id: selectedPassenger.id,
-        salida_id: id,
-        codigo_reserva: bookingCodigo || null,
-        client_id: bookingClienteId || null,
-        edad_categoria: bookingEdadCategoria,
-        lugar_carga_id: bookingLugarCargaId || null,
-        tipo_butaca: bookingTipoButaca,
-        butaca: bookingButaca || null,
-        hotel_id: bookingHotelId || null,
-        regimen_id: bookingRegimenId || null,
-      });
+  // const handleSaveReserva = async () => {
+  //   if (!user?.iweb_client_id || !id || !selectedPassenger) return;
+  //   setIsSavingReserva(true);
+  //   try {
+  //     await apiClient.createReserva(user.iweb_client_id, {
+  //       passenger_id: selectedPassenger.id,
+  //       salida_id: id,
+  //       codigo_reserva: bookingCodigo || null,
+  //       client_id: bookingClienteId || null,
+  //       edad_categoria: bookingEdadCategoria,
+  //       lugar_carga_id: bookingLugarCargaId || null,
+  //       tipo_butaca: bookingTipoButaca,
+  //       butaca: bookingButaca || null,
+  //       hotel_id: bookingHotelId || null,
+  //       regimen_id: bookingRegimenId || null,
+  //     });
 
-      toast.success("Reserva creada correctamente");
-      // Reset form states
-      setShowNuevaReservaModal(false);
-      setReservaPaso(1);
-      setSelectedPassenger(null);
-      setSearchPassengerQuery("");
-      setPassengersFound([]);
-      setBookingCodigo("");
-      setBookingClienteId("");
-      setBookingEdadCategoria("ADL");
-      setBookingLugarCargaId("");
-      setBookingTipoButaca("semicama");
-      setBookingButaca("");
+  //     toast.success("Reserva creada correctamente");
+  //     // Reset form states
+  //     setShowNuevaReservaModal(false);
+  //     setReservaPaso(1);
+  //     setSelectedPassenger(null);
+  //     setSearchPassengerQuery("");
+  //     setPassengersFound([]);
+  //     setBookingCodigo("");
+  //     setBookingClienteId("");
+  //     setBookingEdadCategoria("ADL");
+  //     setBookingLugarCargaId("");
+  //     setBookingTipoButaca("semicama");
+  //     setBookingButaca("");
 
-      // Reset passenger fields
-      setNewPassName("");
-      setNewPassLastName("");
-      setNewPassDNI("");
-      setNewPassPhone("");
-      setNewPassBirth("");
-      setNewPassSex("Masculino");
+  //     // Reset passenger fields
+  //     setNewPassName("");
+  //     setNewPassLastName("");
+  //     setNewPassDNI("");
+  //     setNewPassPhone("");
+  //     setNewPassBirth("");
+  //     setNewPassSex("Masculino");
 
-      loadData();
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al guardar reserva");
-    } finally {
-      setIsSavingReserva(false);
-    }
-  };
+  //     loadData();
+  //   } catch (error) {
+  //     console.error(error);
+  //     toast.error("Error al guardar reserva");
+  //   } finally {
+  //     setIsSavingReserva(false);
+  //   }
+  // };
 
-  // Age group stats
-  const chdCount = reservas.filter(r => r.edad_categoria === "CHD").length;
-  const adlCount = reservas.filter(r => r.edad_categoria === "ADL" || !r.edad_categoria).length;
-  const infCount = reservas.filter(r => r.edad_categoria === "INF").length;
-
-  // boarding stats
-  const ascensosGrouped: Record<string, { cantidad: number; nombre: string; direccion: string }> = {};
-  reservas.forEach(r => {
-    const key = r.lugar_carga_nombre || "Sin especificar";
-    if (!ascensosGrouped[key]) {
-      ascensosGrouped[key] = {
-        cantidad: 0,
-        nombre: key,
-        direccion: r.lugar_carga_direccion || "-"
-      };
-    }
-    ascensosGrouped[key].cantidad++;
-  });
-  const ascensosList = Object.values(ascensosGrouped);
+  // Age group stats & boarding stats are computed below, after mappedPasajeros is built.
 
   // Open modal initializers
   const handleOpenRelojModal = () => {
     setTempCoordinadorNombre(salida?.coordinador_nombre || "");
     setTempCoordinadorTelefono(salida?.coordinador_telefono || "");
-    // Siempre mostramos todos los lugaresCarga; pre-rellenamos con horarios ya guardados
-    const horariosMap: Record<string, string> = {};
-    (salida?.cargas || []).forEach((c: any) => {
-      if (c.id) horariosMap[c.id] = c.horario || "";
-    });
-    setTempHorarios(lugaresCarga.map((lc: any) => horariosMap[lc.id] || ""));
+    // Solo mostramos los lugares de carga asociados a la salida
+    setTempHorarios((salida?.cargas || []).map((c: any) => c.horario || ""));
     setShowRelojModal(true);
   };
 
@@ -375,8 +350,8 @@ export default function SalidasIDPage() {
     if (!user?.iweb_client_id || !id) return;
     setIsSavingHorarios(true);
     try {
-      // Siempre guardamos todos los lugaresCarga con sus horarios
-      const cargasIds: string[] = lugaresCarga.map((lc: any) => lc.id).filter(Boolean);
+      // Guardamos solo los lugares de carga asociados a la salida
+      const cargasIds: string[] = (salida?.cargas || []).map((lc: any) => lc.id).filter(Boolean);
 
       await apiClient.updateSalida(user.iweb_client_id, id, {
         ...(tempCoordinadorNombre !== undefined ? { coordinador_nombre: tempCoordinadorNombre } : {}),
@@ -397,10 +372,15 @@ export default function SalidasIDPage() {
   // Resolved departure's destination name for hotel filtering
   const departureDestObj = destinos.find(d => d.id === salida?.destino);
   const destName = departureDestObj ? (departureDestObj.name || departureDestObj.nombre) : "";
-  const filteredHoteles = hoteles.filter(h => {
-    if (!destName) return true;
-    return h.destino?.toLowerCase() === destName.toLowerCase();
+  const destId = salida?.destino || "";
+  const _filtered = hoteles.filter(h => {
+    if (!destName && !destId) return true;
+    const hDest = (h.destino || "").toLowerCase();
+    // Match by name or by ID
+    return hDest === destName.toLowerCase() || hDest === destId.toLowerCase();
   });
+  // If the filter returns nothing (mismatch), show all hotels as fallback
+  const filteredHoteles = _filtered.length > 0 ? _filtered : hoteles;
 
   if (loading) {
     return (
@@ -410,24 +390,127 @@ export default function SalidasIDPage() {
     );
   }
 
-  const mappedPasajeros = reservas.map((r, i) => ({
-    id: r.id,
-    numero: i + 1,
-    nombre: r.nombre_completo || "Desconocido",
-    reserva: r.codigo_reserva || "-",
-    cliente: r.client_nombre || "-",
-    client_id: r.client_id || null,
-    ascenso: r.lugar_carga_nombre || "-",
-    lugar_carga_id: r.lugar_carga_id || null,
-    hotel: r.hotel_nombre || "-",
-    hotel_id: r.hotel_id || null,
-    regimen_id: r.regimen_id || null,
-    edad: r.edad_categoria || "ADL",
-    butaca: r.butaca || "-",
-    telefono: r.telefono || "-",
-  }));
+  const mappedPasajeros: any[] = [];
+  let counter = 1;
+  reservas.forEach((r: any) => {
+    const paxs = r.reservation_passengers && r.reservation_passengers.length > 0
+      ? r.reservation_passengers
+      : [r];
 
-  console.log('lugaresCarga', lugaresCarga);
+    paxs.forEach((pax: any) => {
+      let apellido = pax.last_name || "";
+      let nombres = pax.name || "";
+      if (!apellido && !nombres) {
+        const full = (pax.nombre_completo || r.nombre_completo || "").trim();
+        const parts = full.split(" ");
+        if (parts.length > 1) {
+          apellido = parts[0];
+          nombres = parts.slice(1).join(" ");
+        } else {
+          apellido = full;
+          nombres = "";
+        }
+      }
+
+      let servicio = "Bus Semicama";
+      const bType = (pax.butaca_type || r.butaca_type || "").toLowerCase();
+      if (bType.includes("cama") && !bType.includes("semicama")) {
+        servicio = "Bus Cama";
+      } else if (bType.includes("semicama")) {
+        servicio = "Bus Semicama";
+      }
+
+      mappedPasajeros.push({
+        id: pax.id || r.id,
+        reserva_id: r.id,
+        numero: counter++,
+        apellido: apellido,
+        nombres: nombres,
+        nombre: pax.nombre_completo || r.nombre_completo || "Desconocido",
+        reserva: r.codigo_reserva || "-",
+        cliente: r.client_nombre || "-",
+        client_id: r.client_id || null,
+        ascenso: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
+        lugar_carga_id: pax.lugar_carga_id || r.lugar_carga_id || null,
+        hotel: r.hotel_nombre || "-",
+        hotel_id: r.hotel_id || null,
+        regimen_id: r.regimen_id || null,
+        edad: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
+        servicio: servicio,
+        butaca: pax.butaca_number !== undefined && pax.butaca_number !== null ? String(pax.butaca_number) : (pax.butaca || r.butaca || "-"),
+        telefono: pax.telefono || r.telefono || "-",
+        bus_number: pax.bus_number || "",
+        butaca_type: pax.butaca_type || r.butaca_type || "",
+        observations: r.observations || pax.observations || "",
+      });
+    });
+  });
+
+  // Age group stats – computed from the expanded passenger list
+  const chdCount = mappedPasajeros.filter(p => p.edad === "CHD").length;
+  const adlCount = mappedPasajeros.filter(p => p.edad === "ADL" || !p.edad).length;
+  const infCount = mappedPasajeros.filter(p => p.edad === "INF").length;
+
+  // Boarding stats – count each individual passenger, not each reserva
+  const ascensosGrouped: Record<string, { cantidad: number; nombre: string; direccion: string }> = {};
+  mappedPasajeros.forEach(p => {
+    const key = p.ascenso || "Sin especificar";
+    if (!ascensosGrouped[key]) {
+      // Find the matching lugar de carga to get the address
+      const lc = lugaresCarga.find((l: any) => (l.name || l.nombre) === key);
+      ascensosGrouped[key] = {
+        cantidad: 0,
+        nombre: key,
+        direccion: lc?.address || lc?.direccion || "-"
+      };
+    }
+    ascensosGrouped[key].cantidad++;
+  });
+
+  const handleExportExcel = async () => {
+    try {
+      toast.loading("Generando Excel de lista...", { id: "export-lista" });
+
+      const destObj = destinos.find((d: any) => d.id === salida?.destino);
+      const destName = destObj?.name || destObj?.nombre || salida?.destino || "Salida";
+
+      const lcData: LugarCargaListaData[] = (salida?.cargas || []).map((lc: any) => ({
+        name: lc.name || lc.nombre || "",
+        address: lc.address || lc.direccion || "",
+        horario: lc.horario || "",
+      }));
+
+      const pasajerosData: PasajeroListaData[] = mappedPasajeros.map((p) => ({
+        numero: p.numero,
+        bus_number: p.bus_number || "-",
+        apellido: p.apellido || "-",
+        nombres: p.nombres || "-",
+        dni: p.dni || "-",
+        fecha_nacimiento: p.fecha_nacimiento || "-",
+        telefono: p.telefono || "-",
+        pax_type: p.edad || "ADL",
+        hotel: p.hotel || "-",
+        servicio: p.servicio || "Bus Semicama",
+        sube_en: p.ascenso || "-",
+        file: p.reserva || "-",
+        vendio: p.cliente || "-",
+        observaciones: p.observations || "-",
+      }));
+
+      await exportListaToExcel({
+        destinoName: destName,
+        salidaDate: salida?.date_of_out ? String(salida.date_of_out).split(" ")[0] : "",
+        pasajeros: pasajerosData,
+        lugaresCarga: lcData,
+      });
+
+      toast.success("Excel descargado correctamente", { id: "export-lista" });
+    } catch (error) {
+      console.error("Error al exportar Excel:", error);
+      toast.error("Error al generar el archivo Excel", { id: "export-lista" });
+    }
+  };
+  const ascensosList = Object.values(ascensosGrouped);
 
   return (
     <Container>
@@ -441,17 +524,25 @@ export default function SalidasIDPage() {
           <ArrowLeft />
           <h1 className="font-bold md:text-xl">Volver al menú</h1>
         </Link>
-        <button
-          onClick={handleBack}
+        <Link
+          href={`/salidas`}
           className="flex items-center cursor-pointer justify-start gap-3"
         >
           <ArrowLeft color="#6005F7" />
           <h1 className="font-semibold text-secondary md:text-lg">Volver a Salidas</h1>
-        </button>
+        </Link>
       </section>
 
       {/* Iconos de acción */}
       <section className="flex items-center justify-end gap-2 mx-5 mb-2 md:mt-[-20px] mt-2">
+        <Link
+          href={`/salidas/lista/${id}/transporte`}
+          className="p-1.5 flex items-center gap-2 font-semibold"
+          title="Cambiar transporte"
+        >
+          <Transporte />
+          <p className="text-xs text-black md:block hidden">Cambiar transporte</p>
+        </Link>
         {/* Taquilla */}
         <Link
           href={`/salidas/lista/${id}/butacas`}
@@ -471,8 +562,9 @@ export default function SalidasIDPage() {
         </button>
         {/* Excel */}
         <button
-          className="p-1.5 flex items-center gap-2 font-semibold"
+          className="p-1.5 flex items-center gap-2 font-semibold text-black hover:text-secondary transition-colors cursor-pointer"
           title="Exportar Excel"
+          onClick={handleExportExcel}
         >
           <Excel />
           <p className="text-xs text-black md:block hidden">Exportar Excel</p>
@@ -533,13 +625,21 @@ export default function SalidasIDPage() {
               No hay pasajeros registrados en esta salida.
             </p>
           ) : (
-            mappedPasajeros.map((p, idx) => (
-              <PasajeroRow
-                key={idx}
-                pasajero={p}
-                onUpdated={loadData}
-              />
-            ))
+            (() => {
+              const salidaCargasIds: string[] = (salida?.cargas || []).map((lc: any) => lc.id).filter(Boolean);
+              const salidaCargasNames: string[] = (salida?.cargas || []).map((lc: any) => (lc.name || lc.nombre || "").toLowerCase()).filter(Boolean);
+
+              return mappedPasajeros.map((p, idx) => (
+                <PasajeroRow
+                  key={idx}
+                  salidaId={id}
+                  pasajero={p}
+                  salidaCargasIds={salidaCargasIds}
+                  salidaCargasNames={salidaCargasNames}
+                  onUpdated={loadData}
+                />
+              ));
+            })()
           )}
         </div>
       </section>
@@ -612,9 +712,9 @@ export default function SalidasIDPage() {
               {/* Logo */}
               <div className="flex justify-center pt-5 pb-3">
                 <img
-                  src="/logo-travel.png"
+                  src="/logo.png"
                   alt="Tranett"
-                  className="w-20 invert brightness-0 filter"
+                  className="w-20"
                 />
               </div>
 
@@ -632,13 +732,8 @@ export default function SalidasIDPage() {
                   </thead>
                   <tbody>
                     {(() => {
-                      // Siempre mostramos TODOS los lugaresCarga; si ya tienen horario guardado en salida.cargas lo pre-rellenamos
-                      const horariosMap: Record<string, string> = {};
-                      (salida?.cargas || []).forEach((c: any) => {
-                        if (c.id) horariosMap[c.id] = c.horario || "";
-                      });
-
-                      if (lugaresCarga.length === 0) {
+                      const salidaCargas = salida?.cargas || [];
+                      if (salidaCargas.length === 0) {
                         return (
                           <tr className="bg-gray-600">
                             <td colSpan={3} className="py-2 px-3">Sin lugares de carga configurados</td>
@@ -646,8 +741,9 @@ export default function SalidasIDPage() {
                         );
                       }
 
-                      return lugaresCarga.map((lc: any, i: number) => {
-                        const count = reservas.filter((r) => r.lugar_carga_id === lc.id).length;
+                      return salidaCargas.map((lc: any, i: number) => {
+                        const lcName = (lc.name || lc.nombre || "").toLowerCase();
+                        const count = mappedPasajeros.filter((p) => p.lugar_carga_id === lc.id || (lcName && (p.ascenso || "").toLowerCase() === lcName)).length;
                         return (
                           <tr key={i} className="bg-gray-600 border-t border-gray-700">
                             <td className="py-1.5 px-2">{count}</td>
@@ -744,9 +840,9 @@ export default function SalidasIDPage() {
               {/* Logo */}
               <div className="flex justify-center pt-5 pb-3">
                 <img
-                  src="/logo-travel.png"
+                  src="/logo.png"
                   alt="Tranett"
-                  className="w-20 invert brightness-0 filter"
+                  className="w-20"
                 />
               </div>
 

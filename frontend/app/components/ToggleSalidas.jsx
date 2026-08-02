@@ -7,6 +7,7 @@ import Salidas from "./icons/home/Salidas";
 import Paquetes from "./icons/home/Paquetes";
 import Parametros from "./icons/home/Parametros";
 import Usuarios from "./icons/home/Usuarios";
+import Administracion from "./icons/home/Administracion";
 
 export default function ToggleSalidas() {
   const [toggle, setToggle] = useState(false);
@@ -29,9 +30,8 @@ export default function ToggleSalidas() {
       </button>
       {toggle && (
         <ul
-          className={`flex absolute transition-all ${
-            toggle ? "opacity-100 transition-all" : "opacity-0 transition-all"
-          } duration-300 right-11 top-22 md:top-42 bg-primary z-40 rounded-lg shadow-md shadow-black/80 gap-4 p-2 text-white italic md:px-3 text-sm`}>
+          className={`flex absolute transition-all ${toggle ? "opacity-100 transition-all" : "opacity-0 transition-all"
+            } duration-300 right-11 top-22 md:top-42 bg-primary z-40 rounded-lg shadow-md shadow-black/80 gap-4 p-2 text-white italic md:px-3 text-sm`}>
           <Link className="flex gap-2 items-center" href="/salidas">
             <Salidas />
             <p className="hidden md:block">Salidas</p>
@@ -39,6 +39,10 @@ export default function ToggleSalidas() {
           <Link className="flex gap-2 items-center" href="/paquetes">
             <Paquetes />
             <p className="hidden md:block">Paquetes</p>
+          </Link>
+          <Link className="flex gap-2 items-center" href="/administracion">
+            <Administracion />
+            <p className="hidden md:block">Administracion</p>
           </Link>
           <Link className="flex gap-2 items-center" href="/parametros">
             <Parametros />

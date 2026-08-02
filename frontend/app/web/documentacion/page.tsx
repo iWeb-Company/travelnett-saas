@@ -10,44 +10,23 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import ModalLayout from "@/app/components/ModalLayout";
+import { apiClient } from "@/lib/api";
 
 type Documentacion = {
   id: string;
-  titulo: string;
-  descripcion: string;
+  iweb_client_id?: string;
+  title: string;
+  body: string;
 };
-
-const defaultDocs: Documentacion[] = [
-  {
-    id: "1",
-    titulo: "Documentación para menores",
-    descripcion: `Se les recuerda a los sres. pasajeros que todos, independientemente que crucen o no a países limítrofes, deberán llevar el documento actualizado y en buen estado de conservación ya que los mismos pueden ser requeridos por la autoridad competente en cualquier momento del viaje.
-menores de 18 años que viajan con:
-padre y madre: documento del menor o partida de nacimiento + documento de ambos mayores (todo original)
-padre o madre: documento del menor o partida de nacimiento + documento del mayor + autorizacion de ministerio de transporte firmada por el padre que no viaja (todo original)
-padre o madre viudo/a: documento del menor o partida de nacimiento + documento del mayor + certificado de defuncion (todo original)
-terceros (abuelos, tios,primos, conocidos): documento del menor o partida de nacimiento…`,
-  },
-  {
-    id: "2",
-    titulo: "Documentación para salir del país",
-    descripcion: `Se les recuerda a los sres pasajeros que todos, independientemente que crucen o no a países limítrofes, deberán llevar el documento actualizado y en buen estado de conservación ya que los mismos pueden ser requeridos por la autoridad competente en cualquier momento del viaje.
-
-si usted es: Argentino/a Extranjero/a con residencia permanente en argentina Y tiene destino a: Uruguay Brasil Chile Debe contar con esta documentación:
-Cédula de identidad o documento nacional de identidad + pasaporte válido de origen y visa (si corresponde según nacionalidad de origen) dni, cédula o pasaporte vigente.
-menores de 18 años que viajan con:
-padre y madre: documento del menor + libreta de matrimonio o partida de nacimiento (todo original)
-padre o madre: documento del menor + libreta de matrimonio o partida de nacimiento…`,
-  },
-];
 
 export default function DocumentacionPage() {
   const router = useRouter();
   const { user } = useAuth();
-  
+
   const [loading, setLoading] = useState(true);
   const [docs, setDocs] = useState<Documentacion[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
 
   // Modals state
@@ -55,72 +34,78 @@ export default function DocumentacionPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
 
-  // Local storage key scoped to current client ID
-  const getStorageKey = () => `travelnett_doc_${user?.iweb_client_id || "global"}`;
 
   useEffect(() => {
     if (user?.iweb_client_id) {
-      const key = getStorageKey();
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        try {
-          setDocs(JSON.parse(stored));
-        } catch {
-          setDocs(defaultDocs);
-        }
-      } else {
-        setDocs(defaultDocs);
-        localStorage.setItem(key, JSON.stringify(defaultDocs));
-      }
-      setLoading(false);
+      apiClient.getDocumentations(user.iweb_client_id).then((data) => {
+        setDocs(data);
+        setLoading(false);
+      });
     }
   }, [user?.iweb_client_id]);
 
-  const saveToStorage = (updatedDocs: Documentacion[]) => {
-    setDocs(updatedDocs);
-    localStorage.setItem(getStorageKey(), JSON.stringify(updatedDocs));
-  };
-
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    if (!user?.iweb_client_id) return;
     if (!newTitle.trim() || !newDesc.trim()) {
       toast.error("Por favor complete todos los campos.");
       return;
     }
-    const newDoc: Documentacion = {
-      id: Date.now().toString(),
-      titulo: newTitle,
-      descripcion: newDesc,
-    };
-    const updated = [...docs, newDoc];
-    saveToStorage(updated);
-    setShowAddModal(false);
-    setNewTitle("");
-    setNewDesc("");
-    toast.success("Documento agregado con éxito");
+
+    try {
+      await apiClient.createDocumentation(user.iweb_client_id, {
+        title: newTitle,
+        body: newDesc,
+      });
+      toast.success("Documento agregado con éxito");
+      setShowAddModal(false);
+      setNewTitle("");
+      setNewDesc("");
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al guardar documentación");
+    }
   };
 
-  const handleUpdate = (id: string) => {
-    if (!editDesc.trim()) {
-      toast.error("La descripción no puede estar vacía.");
+  const handleUpdate = async (id: string) => {
+    if (!user?.iweb_client_id) return;
+    if (!editTitle.trim() || !editDesc.trim()) {
+      toast.error("El título y la descripción no pueden estar vacíos.");
       return;
     }
-    const updated = docs.map((d) => (d.id === id ? { ...d, descripcion: editDesc } : d));
-    saveToStorage(updated);
-    setEditingId(null);
-    setEditDesc("");
-    toast.success("Modificación documentación éxito");
+
+    try {
+      await apiClient.updateDocumentation(user.iweb_client_id, {
+        id,
+        title: editTitle,
+        body: editDesc,
+      });
+      toast.success("Documentación modificada con éxito");
+      setEditingId(null);
+      setEditTitle("");
+      setEditDesc("");
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al actualizar documentación");
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    if (!user?.iweb_client_id) return;
     if (!confirm("¿Está seguro de que desea eliminar este documento?")) return;
-    const updated = docs.filter((d) => d.id !== id);
-    saveToStorage(updated);
-    toast.success("Documento eliminado correctamente");
+
+    try {
+      await apiClient.deleteDocumentation(user.iweb_client_id, id);
+      toast.success("Documento eliminado correctamente");
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al eliminar documento");
+    }
   };
 
   const startEditing = (doc: Documentacion) => {
     setEditingId(doc.id);
-    setEditDesc(doc.descripcion);
+    setEditTitle(doc.title);
+    setEditDesc(doc.body);
   };
 
   if (loading) {
@@ -140,7 +125,7 @@ export default function DocumentacionPage() {
       </Link>
       <button
         onClick={() => router.push("/web")}
-        className="flex items-center my-3 justify-start gap-3"
+        className="flex items-center my-3 justify-start gap-3 cursor-pointer"
       >
         <ArrowLeft color="#6005F7" />
         <h2 className="font-semibold text-secondary hover:underline">
@@ -152,7 +137,7 @@ export default function DocumentacionPage() {
         <div className="flex justify-center">
           <button
             onClick={() => setShowAddModal(true)}
-            className="border-2 flex items-center gap-2 border-primary rounded-lg font-semibold px-10 py-2 hover:bg-blue-50 transition-colors"
+            className="border-2 flex items-center gap-2 border-primary text-primary rounded-lg font-semibold px-10 py-2 hover:bg-blue-50 transition-colors cursor-pointer"
           >
             <svg
               width="29"
@@ -183,19 +168,29 @@ export default function DocumentacionPage() {
                 className="border border-gray-300 rounded-lg p-6 bg-white shadow-sm flex flex-col gap-4"
               >
                 <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                  <h3 className="text-black font-bold text-lg">{doc.titulo}</h3>
+                  {editingId === doc.id ? (
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="text-black font-bold text-lg border border-gray-300 rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary w-2/3 bg-white"
+                    />
+                  ) : (
+                    <h3 className="text-black font-bold text-lg">{doc.title}</h3>
+                  )}
+
                   <div className="flex gap-2">
                     {editingId === doc.id ? (
                       <>
                         <button
                           onClick={() => handleUpdate(doc.id)}
-                          className="bg-green-600 text-white font-semibold px-4 py-1.5 rounded-md hover:bg-green-700 text-xs"
+                          className="bg-green-600 text-white font-semibold px-4 py-1.5 rounded-md hover:bg-green-700 text-xs cursor-pointer"
                         >
                           Guardar
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
-                          className="bg-gray-200 text-gray-700 font-semibold px-4 py-1.5 rounded-md hover:bg-gray-300 text-xs"
+                          className="bg-gray-200 text-gray-700 font-semibold px-4 py-1.5 rounded-md hover:bg-gray-300 text-xs cursor-pointer"
                         >
                           Cancelar
                         </button>
@@ -204,13 +199,13 @@ export default function DocumentacionPage() {
                       <>
                         <button
                           onClick={() => startEditing(doc)}
-                          className="bg-primary text-white font-semibold px-4 py-1.5 rounded-md hover:bg-blue-700 text-xs"
+                          className="bg-primary text-white font-semibold px-4 py-1.5 rounded-md hover:bg-blue-700 text-xs cursor-pointer"
                         >
                           Editar
                         </button>
                         <button
                           onClick={() => handleDelete(doc.id)}
-                          className="bg-red-500 text-white font-semibold px-4 py-1.5 rounded-md hover:bg-red-600 text-xs"
+                          className="bg-red-500 text-white font-semibold px-4 py-1.5 rounded-md hover:bg-red-600 text-xs cursor-pointer"
                         >
                           Eliminar
                         </button>
@@ -223,11 +218,11 @@ export default function DocumentacionPage() {
                   <textarea
                     value={editDesc}
                     onChange={(e) => setEditDesc(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md p-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[200px]"
+                    className="w-full border border-gray-300 rounded-md p-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary min-h-[200px] bg-white"
                   />
                 ) : (
                   <p className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed">
-                    {doc.descripcion}
+                    {doc.body}
                   </p>
                 )}
               </div>
@@ -245,23 +240,21 @@ export default function DocumentacionPage() {
         >
           <div className="flex flex-col gap-4 text-black">
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Título / Sección *</label>
               <input
                 type="text"
                 required
                 className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                placeholder="Ej. Documentación para menores"
+                placeholder="Titulo"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Contenido / Descripción *</label>
               <textarea
                 required
                 rows={8}
                 className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                placeholder="Escriba los requisitos de documentación aquí..."
+                placeholder="Cuerpo"
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
               />
@@ -272,4 +265,3 @@ export default function DocumentacionPage() {
     </Container>
   );
 }
- 

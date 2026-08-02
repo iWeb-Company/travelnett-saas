@@ -63,7 +63,7 @@ export default function PlaceInput({
 
     return (
         <>
-            <div className="relative flex py-4 w-full items-center rounded-md border border-zinc-300 bg-zinc-100 px-3 pr-10 shadow-md">
+            <div className="relative flex py-4 w-full shadow-gray-500 font-semibold border border-gray-300 items-center rounded-md bg-white px-3 pr-10 shadow-md">
                 <span className={"text-zinc-500 truncate"}>
                     {displayValue}
                 </span>

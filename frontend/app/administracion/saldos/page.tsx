@@ -10,12 +10,17 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { Loader } from "@/app/components/Loader";
+import { Client } from "@/app/types";
 
-interface Cliente {
-  id: string;
-  name?: string;
-  nombre?: string;
-  username?: string;
+interface SaldoRow {
+  fecha: string;
+  reserva: string;
+  cliente: string;
+  client_id: string;
+  detalle: string;
+  neto: number;
+  cobros: number;
+  saldo: number;
 }
 
 export default function SaldosPage() {
@@ -23,40 +28,11 @@ export default function SaldosPage() {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [clientes, setClientes] = useState<Client[]>([]);
   const [selectedCliente, setSelectedCliente] = useState("");
   const [searched, setSearched] = useState(false);
-
-  // Mock outstanding balances movements
-  const [movimientos, setMovimientos] = useState([
-    {
-      fecha: "01/06/2026",
-      reserva: "MDQ #1542",
-      detalle: "DEMARCO VALENTÍN x2 MAT",
-      neto: 400000,
-      cobros: 150000,
-      saldo: 250000,
-      cliente: "Mio Turismo",
-    },
-    {
-      fecha: "02/06/2026",
-      reserva: "MDQ #1541",
-      detalle: "GÓMEZ CARLOS x1 IND",
-      neto: 250000,
-      cobros: 250000,
-      saldo: 0,
-      cliente: "Mio Turismo",
-    },
-    {
-      fecha: "05/06/2026",
-      reserva: "BRC #9902",
-      detalle: "FERNÁNDEZ JORGE x3 TPL",
-      neto: 600000,
-      cobros: 150000,
-      saldo: 450000,
-      cliente: "Jorge Fernández",
-    },
-  ]);
+  const [movimientos, setMovimientos] = useState<SaldoRow[]>([]);
 
   const loadClientes = async () => {
     if (!user?.iweb_client_id) return;
@@ -81,33 +57,78 @@ export default function SaldosPage() {
     return `${prefix}$${Math.abs(monto).toLocaleString("es-AR")}`;
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSearched(true);
+    if (!user?.iweb_client_id) return;
+    setSearching(true);
+    try {
+      const data = await apiClient.getSaldosClientes(
+        user.iweb_client_id,
+        selectedCliente || undefined
+      );
+      setMovimientos(data);
+      setSearched(true);
+    } catch {
+      toast.error("Error al consultar saldos");
+    } finally {
+      setSearching(false);
+    }
   };
 
   const handleClear = () => {
     setSelectedCliente("");
     setSearched(false);
+    setMovimientos([]);
   };
 
-  const handleExportExcel = () => {
-    toast.success("Exportando saldos a Excel...");
+  const handleExportExcel = async () => {
+    if (movimientos.length === 0) {
+      toast.error("No hay datos para exportar");
+      return;
+    }
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet("Saldos Clientes");
+
+      // Header row
+      const headerRow = ws.addRow(["Fecha", "Reserva", "Cliente", "Detalle", "Neto", "Cobros", "Saldo"]);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF000000" } };
+        cell.alignment = { horizontal: "center" };
+      });
+
+      // Data rows
+      movimientos.forEach((mov) => {
+        ws.addRow([mov.fecha, mov.reserva, mov.cliente, mov.detalle, mov.neto, mov.cobros, mov.saldo]);
+      });
+
+      // Totals row
+      const totalNeto = movimientos.reduce((a, m) => a + m.neto, 0);
+      const totalCobros = movimientos.reduce((a, m) => a + m.cobros, 0);
+      const totalSaldo = movimientos.reduce((a, m) => a + m.saldo, 0);
+      const totRow = ws.addRow(["", "", "", "TOTAL GENERAL:", totalNeto, totalCobros, totalSaldo]);
+      totRow.eachCell((cell) => { cell.font = { bold: true }; });
+
+      // Column widths
+      ws.columns = [
+        { width: 14 }, { width: 18 }, { width: 28 }, { width: 32 }, { width: 16 }, { width: 16 }, { width: 16 },
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Saldos_Clientes.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Archivo exportado correctamente");
+    } catch {
+      toast.error("Error al exportar a Excel");
+    }
   };
-
-  // Filter movements by selected client (if any)
-  const filteredMovimientos = movimientos.filter((mov) => {
-    if (!selectedCliente) return true;
-
-    // Match selectedCliente name or id
-    const clientObj = clientes.find(c => c.id === selectedCliente);
-    const clientName = clientObj?.name || clientObj?.nombre || clientObj?.username || "";
-    return mov.cliente.toLowerCase() === clientName.toLowerCase();
-  });
-
-  const totalNeto = filteredMovimientos.reduce((acc, m) => acc + m.neto, 0);
-  const totalCobros = filteredMovimientos.reduce((acc, m) => acc + m.cobros, 0);
-  const totalSaldo = filteredMovimientos.reduce((acc, m) => acc + m.saldo, 0);
 
   if (loading) {
     return (
@@ -150,16 +171,17 @@ export default function SaldosPage() {
             >
               <option value="">Todos los Clientes</option>
               {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name || c.nombre || c.username}
+                <option className="text-black" key={c.id} value={c.id}>
+                  {c.complete_name}
                 </option>
               ))}
             </select>
           </div>
           <button
-            className="bg-primary text-white rounded-lg px-4 py-2.5 font-bold shadow hover:bg-blue-700 transition-colors"
-            type="submit">
-            Buscar Saldos
+            className="bg-primary text-white rounded-lg px-4 py-2.5 font-bold shadow hover:bg-blue-700 transition-colors disabled:opacity-50"
+            type="submit"
+            disabled={searching}>
+            {searching ? "Buscando..." : "Buscar Saldos"}
           </button>
         </form>
 
@@ -183,7 +205,7 @@ export default function SaldosPage() {
             </div>
 
             {/* Tabla de movimientos */}
-            <div className="overflow-x-auto border border-black shadow-sm bg-white">
+            <div className="overflow-x-auto  shadow-sm bg-white">
               <table className="w-full text-xs md:text-sm text-left text-gray-600 border-collapse">
                 <thead className="text-white bg-black">
                   <tr className="divide-x divide-white">
@@ -197,38 +219,28 @@ export default function SaldosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium">
-                  {filteredMovimientos.length === 0 ? (
+                  {movimientos.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-gray-500">
                         No se encontraron saldos pendientes para este criterio.
                       </td>
                     </tr>
                   ) : (
-                    filteredMovimientos.map((mov, i) => (
+                    movimientos.map((mov, i) => (
                       <tr key={i} className="hover:bg-gray-50/50 border-b border-black">
                         <td className="py-3 px-4 border border-black">{mov.fecha}</td>
-                        <td className="py-3 px-4 border border-black text-primary font-bold">{mov.reserva}</td>
+                        <td className="py-3 px-4 border border-black text-black">{mov.reserva}</td>
                         <td className="py-3 px-4 border border-black font-bold text-gray-800">{mov.cliente}</td>
                         <td className="py-3 px-4 border border-black">{mov.detalle}</td>
                         <td className="py-3 px-4 border border-black text-right text-gray-800">{formatMonto(mov.neto)}</td>
                         <td className="py-3 px-4 border border-black text-right text-green-600">{formatMonto(mov.cobros)}</td>
-                        <td className={`py-3 px-4 border border-black text-right font-bold ${mov.saldo > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                        <td className={`py-3 px-4 border border-black text-right ${mov.saldo > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                           {formatMonto(mov.saldo)}
                         </td>
                       </tr>
                     ))
                   )}
                 </tbody>
-                {filteredMovimientos.length > 0 && (
-                  <tfoot className="border-t-2 border-gray-200 bg-gray-50/80 font-bold text-gray-900">
-                    <tr>
-                      <td colSpan={4} className="py-3 px-4 text-right text-sm">TOTAL GENERAL:</td>
-                      <td className="py-3 px-4 text-right text-sm">{formatMonto(totalNeto)}</td>
-                      <td className="py-3 px-4 text-right text-sm text-green-600">{formatMonto(totalCobros)}</td>
-                      <td className="py-3 px-4 text-right text-sm text-red-600">{formatMonto(totalSaldo)}</td>
-                    </tr>
-                  </tfoot>
-                )}
               </table>
             </div>
           </div>
@@ -237,4 +249,3 @@ export default function SaldosPage() {
     </Container>
   );
 }
-

@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 from typing import Iterable, Optional
-from sqlalchemy import func
+from sqlalchemy import String, func, or_
 from db.database import get_db
 from models.models import (
     iWebClient,
@@ -19,6 +19,7 @@ from models.models import (
     Passengers,
     BusTypes,
     Reservas,
+    ReservationPassengers,
 )
 from schemas.schemas import (
     CreateBusTypesRequest,
@@ -543,12 +544,36 @@ async def get_regimenes(iweb_client_id: str, db: Session = Depends(get_db)):
     return db.query(Regimenes).filter(Regimenes.iweb_client_id == iweb_client_id).all()
 
 
+@router.get("/get_all_parameters", tags=["Get Endpoints Parameters"])
+async def get_all_parameters(iweb_client_id: str, db: Session = Depends(get_db)):
+    destinos = db.query(Destinos).filter(Destinos.iweb_client_id == iweb_client_id).all()
+    hotels_raw = db.query(Hotels).filter(Hotels.iweb_client_id == iweb_client_id).all()
+    hotel_ids = [h.id for h in hotels_raw]
+    images = db.query(HotelsImages).filter(HotelsImages.hotel_id.in_(hotel_ids)).all() if hotel_ids else []
+    images_by_hotel = {}
+    for img in images:
+        images_by_hotel.setdefault(img.hotel_id, []).append(img)
+    hotels = [_hotel_payload(h, images_by_hotel.get(h.id, [])) for h in hotels_raw]
+    
+    excursions = db.query(Excursions).filter(Excursions.iweb_client_id == iweb_client_id).all()
+    periods = db.query(Periods).filter(Periods.iweb_client_id == iweb_client_id).all()
+    regimenes = db.query(Regimenes).filter(Regimenes.iweb_client_id == iweb_client_id).all()
+
+    return {
+        "destinos": destinos,
+        "hotels": hotels,
+        "excursions": excursions,
+        "periods": periods,
+        "regimenes": regimenes
+    }
+
+
 @router.get("/get_passengers", tags=["Get Endpoints Parameters"])
 async def get_passengers(
     iweb_client_id: str,
     name: Optional[str] = Query(None),
     last_name: Optional[str] = Query(None),
-    dni: Optional[int] = Query(None),
+    dni: Optional[str] = Query(None),
     reservation_number: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -565,28 +590,74 @@ async def get_passengers(
         ).all()
         if not reservas:
             return []
-        passenger_ids = [r.passenger_id for r in reservas]
-        query = query.filter(Passengers.id.in_(passenger_ids))
+        res_ids = [r.id for r in reservas]
+        rps = db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id.in_(res_ids)).all()
+        p_ids_res = {rp.pasajero_id for rp in rps if rp.pasajero_id}
+        query = query.filter(Passengers.id.in_(list(p_ids_res)))
         
     if name and name.strip():
-        query = query.filter(Passengers.name.ilike(f"%{name.strip()}%"))
+        n_term = name.strip()
+        query = query.filter(
+            or_(
+                Passengers.name.ilike(f"%{n_term}%"),
+                Passengers.last_name.ilike(f"%{n_term}%"),
+                func.concat(Passengers.name, ' ', Passengers.last_name).ilike(f"%{n_term}%"),
+                func.concat(Passengers.last_name, ' ', Passengers.name).ilike(f"%{n_term}%")
+            )
+        )
         
     if last_name and last_name.strip():
-        query = query.filter(Passengers.last_name.ilike(f"%{last_name.strip()}%"))
+        l_term = last_name.strip()
+        query = query.filter(
+            or_(
+                Passengers.last_name.ilike(f"%{l_term}%"),
+                Passengers.name.ilike(f"%{l_term}%"),
+                func.concat(Passengers.name, ' ', Passengers.last_name).ilike(f"%{l_term}%")
+            )
+        )
         
-    if dni is not None:
-        query = query.filter(Passengers.dni == dni)
+    if dni is not None and str(dni).strip():
+        clean_dni = str(dni).strip().replace(".", "").replace("-", "")
+        if clean_dni.isdigit():
+            query = query.filter(
+                or_(
+                    Passengers.dni == int(clean_dni),
+                    func.cast(Passengers.dni, String).ilike(f"%{clean_dni}%")
+                )
+            )
+        else:
+            query = query.filter(func.cast(Passengers.dni, String).ilike(f"%{clean_dni}%"))
         
     passengers = query.all()
+    if not passengers:
+        return []
+
+    p_ids = [p.id for p in passengers]
+    norm_client = iweb_client_id.strip().lower()
+
+    # Batch: ReservationPassengers (tabla intermedia)
+    rps = db.query(ReservationPassengers).filter(
+        ReservationPassengers.pasajero_id.in_(p_ids)
+    ).all()
+    res_ids_intermedia = list({rp.reserva_id for rp in rps if rp.reserva_id})
     
-    # Map/serialize them to include 'reserva' field
+    res_inter = []
+    if res_ids_intermedia:
+        res_inter = db.query(Reservas).filter(
+            Reservas.id.in_(res_ids_intermedia),
+            func.lower(Reservas.iweb_client_id) == norm_client
+        ).all()
+
+    rp_to_res = {r.id: r for r in res_inter}
+    res_by_pax: dict[str, str] = {}
+
+    for rp in rps:
+        r = rp_to_res.get(rp.reserva_id)
+        if r and r.codigo_reserva:
+            res_by_pax[rp.pasajero_id] = r.codigo_reserva
+
     result = []
     for p in passengers:
-        # Find latest reservation code for this passenger
-        res = db.query(Reservas).filter(
-            Reservas.passenger_id == p.id
-        ).order_by(Reservas.id.desc()).first()
-        
         result.append({
             "id": p.id,
             "iweb_client_id": p.iweb_client_id,
@@ -596,7 +667,7 @@ async def get_passengers(
             "date_of_birth": str(p.date_of_birth) if p.date_of_birth else None,
             "sex": p.sex,
             "phone": p.phone,
-            "reserva": res.codigo_reserva if res else "-"
+            "reserva": res_by_pax.get(p.id, "-")
         })
     return result
 

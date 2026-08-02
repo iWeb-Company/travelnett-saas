@@ -67,6 +67,13 @@ export default function PagosPage() {
   const [inputCuotas, setInputCuotas] = useState("1");
   const [inputCuentaBanco, setInputCuentaBanco] = useState("");
   const [inputObservaciones, setInputObservaciones] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Form states for Pase de Dinero
+  const [paseMonto, setPaseMonto] = useState("");
+  const [paseMoneda] = useState("$");
+  const [targetReservaId, setTargetReservaId] = useState("");
+  const [isSubmittingPase, setIsSubmittingPase] = useState(false);
 
   const tarjetas = [
     { id: 1, label: "Visa Crédito" },
@@ -78,9 +85,13 @@ export default function PagosPage() {
   // Dynamic Payments list
   const [pagos, setPagos] = useState<Pago[]>([]);
 
+  const loadedRef = useRef<string | null>(null);
+
   // Load initial data
   const loadInitialData = async () => {
     if (!user?.iweb_client_id) return;
+    if (loadedRef.current === user.iweb_client_id) return;
+    loadedRef.current = user.iweb_client_id;
     try {
       const [resList, clientsList, accountsList, packagesList] = await Promise.all([
         apiClient.getReservas(user.iweb_client_id),
@@ -114,7 +125,7 @@ export default function PagosPage() {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      console.log("Selected file:", file);
+      setSelectedFile(file);
     }
   };
 
@@ -254,26 +265,32 @@ export default function PagosPage() {
     if (paymentMethod === "efectivo") {
       tipoStr = `Efectivo (${inputMoneda})`;
     } else if (paymentMethod === "transferencia") {
-      tipoStr = `Transf. (${inputCuentaBanco})`;
+      const selectedAcc = realAccounts.find(a => a.id === inputCuentaBanco);
+      const accTitle = selectedAcc?.account_title || inputCuentaBanco;
+      tipoStr = `Transf. (${accTitle})`;
     } else {
       tipoStr = `Tarjeta (${inputTarjetaTipo} terminada en ${inputTarjetaNum.slice(-4)})`;
     }
 
-    const payload = {
-      reserva_id: selectedReserva.id,
-      payment_method: tipoStr,
-      date_pay: inputFecha,
-      amount: Math.round(amountNum),
-      currency: inputMoneda,
-      observations: inputObservaciones || "Pago imputado a la reserva",
-      card_number: paymentMethod === "tarjeta" ? inputTarjetaNum : null,
-      titular: inputTitular || selectedReserva.nombre_completo || "Cliente",
-      operation_number: paymentMethod === "tarjeta" ? inputOperacion : null,
-      quotes_number: paymentMethod === "tarjeta" ? inputCuotas : null,
-    };
+    const formData = new FormData();
+    formData.append("reserva_id", selectedReserva.id);
+    formData.append("payment_method", tipoStr);
+    formData.append("date_pay", inputFecha);
+    formData.append("amount", String(Math.round(amountNum)));
+    formData.append("currency", inputMoneda);
+    formData.append("observations", inputObservaciones || "Pago imputado a la reserva");
+    if (paymentMethod === "transferencia" && inputCuentaBanco) formData.append("account_id", inputCuentaBanco);
+    if (paymentMethod === "tarjeta" && inputTarjetaNum) formData.append("card_number", inputTarjetaNum);
+    formData.append("titular", inputTitular || selectedReserva.nombre_completo || "Cliente");
+    if (paymentMethod === "tarjeta" && inputOperacion) formData.append("operation_number", inputOperacion);
+    if (paymentMethod === "tarjeta" && inputCuotas) formData.append("quotes_number", inputCuotas);
+
+    if (selectedFile) {
+      formData.append("receipt_file", selectedFile);
+    }
 
     try {
-      await apiClient.createPago(user.iweb_client_id, payload);
+      await apiClient.createPago(user.iweb_client_id, formData);
       toast.success("Pago agregado y comprobante emitido");
       setShowConfirmModal(false);
 
@@ -284,6 +301,8 @@ export default function PagosPage() {
       setInputOperacion("");
       setInputCuotas("1");
       setInputObservaciones("");
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
 
       // Reload payments list
       const pagosList = await apiClient.getPagosReserva(user.iweb_client_id, selectedReserva.id);
@@ -291,6 +310,69 @@ export default function PagosPage() {
     } catch (err) {
       console.error(err);
       toast.error("Error al registrar el pago");
+    }
+  };
+
+  const handleExecutePaseDinero = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!selectedReserva || !user?.iweb_client_id) return;
+    if (!targetReservaId) {
+      toast.error("Por favor, seleccione la reserva de destino.");
+      return;
+    }
+    const amountNum = parseFloat(paseMonto);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Por favor, ingrese un monto válido mayor a 0.");
+      return;
+    }
+
+    const targetReserva = dbReservas.find(r => r.id === targetReservaId);
+    if (!targetReserva) {
+      toast.error("Reserva de destino no encontrada.");
+      return;
+    }
+
+    try {
+      setIsSubmittingPase(true);
+      const today = new Date().toISOString().split("T")[0];
+
+      const payloadSalida = {
+        reserva_id: selectedReserva.id,
+        payment_method: `Pase de dinero (Salida a ${targetReserva.codigo_reserva || targetReserva.id})`,
+        date_pay: today,
+        amount: -Math.abs(Math.round(amountNum)),
+        currency: paseMoneda,
+        observations: `Pase de dinero derivado a la reserva ${targetReserva.codigo_reserva || targetReserva.id}`,
+        titular: selectedReserva.nombre_completo || "Cliente Origen",
+      };
+
+      const payloadEntrada = {
+        reserva_id: targetReserva.id,
+        payment_method: `Pase de dinero (Entrada desde ${selectedReserva.codigo_reserva || selectedReserva.id})`,
+        date_pay: today,
+        amount: Math.abs(Math.round(amountNum)),
+        currency: paseMoneda,
+        observations: `Pase de dinero recibido desde la reserva ${selectedReserva.codigo_reserva || selectedReserva.id}`,
+        titular: targetReserva.nombre_completo || "Cliente Destino",
+      };
+
+      await Promise.all([
+        apiClient.createPago(user.iweb_client_id, payloadSalida),
+        apiClient.createPago(user.iweb_client_id, payloadEntrada),
+      ]);
+
+      toast.success("Pase de dinero realizado con éxito");
+      setModalPaseDinero(false);
+      setPaseMonto("");
+      setTargetReservaId("");
+
+      const updatedPagos = await apiClient.getPagosReserva(user.iweb_client_id, selectedReserva.id);
+      setPagos(updatedPagos);
+    } catch (err) {
+      console.error("Error al realizar el pase de dinero:", err);
+      toast.error("Error al realizar el pase de dinero");
+    } finally {
+      setIsSubmittingPase(false);
     }
   };
 
@@ -326,8 +408,113 @@ export default function PagosPage() {
     setModalOpenRecibo(true);
   };
 
-  const handleExportExcel = () => {
-    toast.success("Exportando historial de pagos a Excel...");
+  const handleExportExcel = async () => {
+    if (!selectedReserva) return;
+    if (pagos.length === 0) {
+      toast.error("No hay pagos registrados para exportar en esta reserva.");
+      return;
+    }
+
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet("Historial de Pagos");
+
+      // Title & Reservation Info Block
+      ws.addRow(["HISTORIAL DE PAGOS DE LA RESERVA"]);
+      ws.mergeCells("A1:G1");
+      const titleCell = ws.getCell("A1");
+      titleCell.font = { size: 14, bold: true, color: { argb: "FFFFFFFF" } };
+      titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0546F7" } };
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      ws.addRow([]);
+      ws.addRow(["Reserva:", selectedReserva.codigo_reserva || selectedReserva.id]);
+      ws.addRow(["Titular / Cliente:", selectedReserva.nombre_completo || selectedReserva.client_nombre || "Cliente"]);
+      ws.addRow(["Total Reserva:", totalDeLaReserva]);
+      ws.addRow(["Total Pagos:", totalPagos]);
+      ws.addRow(["Saldo Restante:", saldoRestante]);
+      ws.addRow([]);
+
+      // Style info block label cells
+      [3, 4, 5, 6, 7].forEach((rowNum) => {
+        const cell = ws.getCell(`A${rowNum}`);
+        cell.font = { bold: true };
+      });
+
+      // Table Headers
+      const headerRow = ws.addRow([
+        "Fecha",
+        "Método de Pago",
+        "Titular",
+        "Monto",
+        "Moneda",
+        "N° Operación",
+        "Observaciones"
+      ]);
+
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
+
+      // Data Rows
+      pagos.forEach((pago) => {
+        const row = ws.addRow([
+          formatDateDisplay(pago.date_pay),
+          pago.payment_method || "-",
+          pago.titular || "-",
+          pago.amount,
+          getMoneda(pago),
+          pago.operation_number || "-",
+          pago.observations || "-"
+        ]);
+
+        row.getCell(4).numFmt = "#,##0";
+      });
+
+      // Total Row
+      const totalRow = ws.addRow([
+        "TOTAL ACUMULADO",
+        "",
+        "",
+        totalPagos,
+        "$",
+        "",
+        ""
+      ]);
+      totalRow.eachCell((cell) => {
+        cell.font = { bold: true };
+      });
+      totalRow.getCell(4).numFmt = "#,##0";
+
+      // Column widths
+      ws.columns = [
+        { width: 14 },
+        { width: 32 },
+        { width: 26 },
+        { width: 16 },
+        { width: 10 },
+        { width: 22 },
+        { width: 35 }
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const resCode = (selectedReserva.codigo_reserva || "Reserva").replace(/[\s#/]+/g, "_");
+      a.download = `Pagos_${resCode}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast.success("Historial de pagos exportado a Excel correctamente");
+    } catch (error) {
+      console.error("Error al exportar pagos a Excel:", error);
+      toast.error("Error al generar el archivo Excel");
+    }
   };
 
   return (
@@ -346,7 +533,7 @@ export default function PagosPage() {
         </h2>
       </button>
 
-      <div className="max-w-xl mx-auto w-full">
+      <div className="max-w-xl my-10 mx-auto w-full">
         {/* Limpiar búsqueda */}
         {searched && (
           <div className="flex justify-end mb-2">
@@ -400,7 +587,7 @@ export default function PagosPage() {
               <div className="flex flex-col gap-3">
                 {filteredReservas.map((res) => (
                   <div key={res.id} className="w-full font-semibold flex border gap-5 divide-x divide-black border-black shadow-md shadow-black/40 rounded-sm px-3 text-black/80 bg-white items-center">
-                    <p className="py-2.5 pr-5 pl-2 text-primary">{res.codigo_reserva || "S/D"}</p>
+                    <p className="py-2.5 pr-5 w-25 pl-2 text-primary">{res.codigo_reserva || "S/D"}</p>
                     <div className="flex-1 flex justify-between items-center py-2.5 pl-4 text-start">
                       <p className="font-bold text-gray-800">{res.nombre_completo || "Pasajero Desconocido"}</p>
                       <button
@@ -420,6 +607,7 @@ export default function PagosPage() {
                       </button>
                     </div>
                   </div>
+
                 ))}
               </div>
             )}
@@ -434,6 +622,7 @@ export default function PagosPage() {
           titleColor="text-primary"
           maxWidth="max-w-5xl"
           setModalOpen={() => setModalPaseDinero(false)}
+          onSubmit={handleExecutePaseDinero}
           title="Datos de la reserva"
           svg={
             <svg
@@ -474,44 +663,67 @@ export default function PagosPage() {
             </div>
           </div>
           <hr className="border-gray-300 my-4" />
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <h6 className="font-semibold text-primary">Pase de dinero</h6>
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 22 22"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M12.3747 13.75H5.49967C3.77084 13.75 2.90734 13.75 2.37017 13.2128C1.83301 12.6757 1.83301 11.8122 1.83301 10.0833V6.41667C1.83301 4.68783 1.83301 3.82433 2.37017 3.28717C2.90734 2.75 3.77084 2.75 5.49967 2.75H16.4997C18.2285 2.75 19.092 2.75 19.6292 3.28717C20.1663 3.82433 20.1663 4.68783 20.1663 6.41667V11C20.1663 11.8543 20.1663 12.2815 20.027 12.6179C19.9349 12.8405 19.7998 13.0427 19.6294 13.2131C19.4591 13.3834 19.2568 13.5185 19.0343 13.6107C18.6978 13.75 18.2707 13.75 17.4163 13.75"
-                stroke="#0546F7"
-                strokeWidth="1.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M11.9167 15.5832C11.9167 14.8538 12.2064 14.1544 12.7221 13.6386C13.2378 13.1229 13.9373 12.8332 14.6667 12.8332V10.9998C14.6667 10.2705 14.9564 9.57102 15.4721 9.05529C15.9878 8.53957 16.6873 8.24984 17.4167 8.24984V13.2915C17.4167 15.4319 17.4167 16.5017 16.984 17.312C16.6422 17.9515 16.1184 18.4753 15.4788 18.8172C14.6685 19.2498 13.5988 19.2498 11.4583 19.2498H11C9.29133 19.2498 8.437 19.2498 7.76417 18.9703C7.31917 18.7862 6.91478 18.5163 6.57411 18.1759C6.23343 17.8356 5.96314 17.4314 5.77867 16.9866C5.5 16.3128 5.5 15.4585 5.5 13.7498M12.8333 8.24984C12.8333 8.73607 12.6402 9.20238 12.2964 9.5462C11.9525 9.89002 11.4862 10.0832 11 10.0832C10.5138 10.0832 10.0475 9.89002 9.70364 9.5462C9.35982 9.20238 9.16667 8.73607 9.16667 8.24984C9.16667 7.76361 9.35982 7.29729 9.70364 6.95347C10.0475 6.60966 10.5138 6.4165 11 6.4165C11.4862 6.4165 11.9525 6.60966 12.2964 6.95347C12.6402 7.29729 12.8333 7.76361 12.8333 8.24984Z"
-                stroke="#0546F7"
-                strokeWidth="1.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+          <div>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <h6 className="font-semibold text-primary">Pase de dinero</h6>
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 22 22"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M12.3747 13.75H5.49967C3.77084 13.75 2.90734 13.75 2.37017 13.2128C1.83301 12.6757 1.83301 11.8122 1.83301 10.0833V6.41667C1.83301 4.68783 1.83301 3.82433 2.37017 3.28717C2.90734 2.75 3.77084 2.75 5.49967 2.75H16.4997C18.2285 2.75 19.092 2.75 19.6292 3.28717C20.1663 3.82433 20.1663 4.68783 20.1663 6.41667V11C20.1663 11.8543 20.1663 12.2815 20.027 12.6179C19.9349 12.8405 19.7998 13.0427 19.6294 13.2131C19.4591 13.3834 19.2568 13.5185 19.0343 13.6107C18.6978 13.75 18.2707 13.75 17.4163 13.75"
+                  stroke="#0546F7"
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M11.9167 15.5832C11.9167 14.8538 12.2064 14.1544 12.7221 13.6386C13.2378 13.1229 13.9373 12.8332 14.6667 12.8332V10.9998C14.6667 10.2705 14.9564 9.57102 15.4721 9.05529C15.9878 8.53957 16.6873 8.24984 17.4167 8.24984V13.2915C17.4167 15.4319 17.4167 16.5017 16.984 17.312C16.6422 17.9515 16.1184 18.4753 15.4788 18.8172C14.6685 19.2498 13.5988 19.2498 11.4583 19.2498H11C9.29133 19.2498 8.437 19.2498 7.76417 18.9703C7.31917 18.7862 6.91478 18.5163 6.57411 18.1759C6.23343 17.8356 5.96314 17.4314 5.77867 16.9866C5.5 16.3128 5.5 15.4585 5.5 13.7498M12.8333 8.24984C12.8333 8.73607 12.6402 9.20238 12.2964 9.5462C11.9525 9.89002 11.4862 10.0832 11 10.0832C10.5138 10.0832 10.0475 9.89002 9.70364 9.5462C9.35982 9.20238 9.16667 8.73607 9.16667 8.24984C9.16667 7.76361 9.35982 7.29729 9.70364 6.95347C10.0475 6.60966 10.5138 6.4165 11 6.4165C11.4862 6.4165 11.9525 6.60966 12.2964 6.95347C12.6402 7.29729 12.8333 7.76361 12.8333 8.24984Z"
+                  stroke="#0546F7"
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <section className="mx-10 md:mx-40 flex justify-between gap-6">
+              <div className="flex flex-col gap-2 flex-1">
+                <p className="font-semibold text-lg text-black">Disponible para pasar</p>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="Monto"
+                    value={paseMonto}
+                    onChange={(e) => setPaseMonto(e.target.value)}
+                    className="shadow-xl border border-gray-200 text-black py-2 rounded-md w-full text-xl p-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 flex-1">
+                <p className="font-semibold text-lg text-secondary text-end">{formatMonto(totalPagos)}</p>
+                <select
+                  required
+                  value={targetReservaId}
+                  onChange={(e) => setTargetReservaId(e.target.value)}
+                  className="bg-primary text-gray-100 font-semibold py-2 rounded-md w-full text-lg p-2 focus:outline-none cursor-pointer"
+                >
+                  <option value="" disabled className="text-gray-400">Reserva</option>
+                  {dbReservas
+                    .filter((r) => !selectedReserva || r.id !== selectedReserva.id)
+                    .map((r) => (
+                      <option key={r.id} value={r.id} className="bg-white text-black text-sm">
+                        {r.codigo_reserva || r.id} — {r.nombre_completo || r.client_nombre || "Pasajero"}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </section>
           </div>
-          <section className="mx-40 flex justify-between">
-            <div className="flex flex-col gap-2">
-              <p className="font-semibold text-lg text-black">Disponible para pasar</p>
-              <select className="shadow-xl border border-gray-200 text-gray-400 py-2 rounded-md w-50 text-xl p-2" name="disponible" id="disponible">
-                <option value="" disabled selected>Monto</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <p className="font-semibold text-lg text-secondary text-end">$100.000</p>
-              <select className="bg-primary text-gray-400 py-2 rounded-md w-50 text-xl p-2" name="disponible" id="disponible">
-                <option className="" value="" disabled selected>Reserva</option>
-              </select>
-            </div>
-          </section>
         </ModalLayout>
       )}
 
@@ -740,7 +952,7 @@ export default function PagosPage() {
                 >
                   <option value="">Seleccionar Cuenta Bancaria de Destino *</option>
                   {realAccounts.map(c => (
-                    <option key={c.id} value={c.account_title || ""}>{c.account_title}</option>
+                    <option key={c.id} value={c.id}>{c.account_title}</option>
                   ))}
                 </select>
                 <div className="flex flex-col gap-1">
@@ -783,7 +995,27 @@ export default function PagosPage() {
               className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm mt-3 focus:outline-none focus:ring-1 focus:ring-primary resize-none text-black"
             />
             <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="text-primary font-semibold">+ Agregar comprobante</button>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-primary font-semibold text-xs hover:underline cursor-pointer flex items-center gap-1"
+              >
+                {selectedFile ? `📎 Adjunto: ${selectedFile.name}` : "+ Agregar comprobante"}
+              </button>
+              {selectedFile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="text-red-500 text-xs font-bold hover:underline cursor-pointer"
+                >
+                  ✕ Quitar
+                </button>
+              )}
+            </div>
           </form>
 
           <hr className="border-gray-300 my-4" />
@@ -823,23 +1055,38 @@ export default function PagosPage() {
                   <td className="py-2">{pago.payment_method}</td>
                   <td className="py-2 text-black">{formatMonto(pago.amount, getMoneda(pago))}</td>
                   <td className="py-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenRecibo(pago)}
-                      className="text-primary hover:text-blue-800 text-xs font-bold hover:underline"
-                    >
-                      <svg width="15" height="15" viewBox="0 0 19 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M3.42117 23.66H15.1405C17.4251 23.66 18.5617 22.5012 18.5617 20.2059V10.1858C18.5617 8.76197 18.4072 8.14422 17.5244 7.23925L11.4326 1.04857C10.5945 0.187397 9.90989 0 8.66309 0H3.42117C1.14792 0 0 1.16958 0 3.46542V20.2059C0 22.5121 1.14792 23.66 3.42117 23.66ZM3.50921 21.8835C2.37259 21.8835 1.7765 21.2761 1.7765 20.1729V3.49838C1.7765 2.40602 2.37259 1.7765 3.52051 1.7765H8.42014V8.18848C8.42014 9.57889 9.1264 10.263 10.4947 10.263H16.7852V20.1729C16.7852 21.2761 16.1999 21.8835 15.0525 21.8835H3.50921ZM10.6934 8.59623C10.263 8.59623 10.086 8.42013 10.086 7.97848V2.11881L16.4424 8.5967L10.6934 8.59623Z" fill="#0546F7" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleDeletePago(pago.id)}
-                      className="ml-2 text-red-500 hover:text-red-700 text-xs font-bold hover:underline"
-                    >
-                      <svg width="12" height="15" viewBox="0 0 21 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M1.5 23.655V2.655H0V1.155H6V0H15V1.155H21V2.655H19.5V23.655H1.5ZM3 22.155H18V2.655H3V22.155ZM7.212 19.155H8.712V5.655H7.212V19.155ZM12.288 19.155H13.788V5.655H12.288V19.155Z" fill="#0546F7" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      {pago.receipt_number && (pago.receipt_number.startsWith("http") || pago.receipt_number.startsWith("/")) && (
+                        <a
+                          href={pago.receipt_number}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Ver archivo adjunto"
+                          className="text-blue-600 hover:text-blue-800 text-xs font-bold"
+                        >
+                          📎
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRecibo(pago)}
+                        title="Ver recibo electrónico"
+                        className="text-primary hover:text-blue-800 text-xs font-bold hover:underline"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 19 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M3.42117 23.66H15.1405C17.4251 23.66 18.5617 22.5012 18.5617 20.2059V10.1858C18.5617 8.76197 18.4072 8.14422 17.5244 7.23925L11.4326 1.04857C10.5945 0.187397 9.90989 0 8.66309 0H3.42117C1.14792 0 0 1.16958 0 3.46542V20.2059C0 22.5121 1.14792 23.66 3.42117 23.66ZM3.50921 21.8835C2.37259 21.8835 1.7765 21.2761 1.7765 20.1729V3.49838C1.7765 2.40602 2.37259 1.7765 3.52051 1.7765H8.42014V8.18848C8.42014 9.57889 9.1264 10.263 10.4947 10.263H16.7852V20.1729C16.7852 21.2761 16.1999 21.8835 15.0525 21.8835H3.50921ZM10.6934 8.59623C10.263 8.59623 10.086 8.42013 10.086 7.97848V2.11881L16.4424 8.5967L10.6934 8.59623Z" fill="#0546F7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDeletePago(pago.id)}
+                        title="Eliminar pago"
+                        className="text-red-500 hover:text-red-700 text-xs font-bold hover:underline"
+                      >
+                        <svg width="12" height="15" viewBox="0 0 21 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M1.5 23.655V2.655H0V1.155H6V0H15V1.155H21V2.655H19.5V23.655H1.5ZM3 22.155H18V2.655H3V22.155ZM7.212 19.155H8.712V5.655H7.212V19.155ZM12.288 19.155H13.788V5.655H12.288V19.155Z" fill="#0546F7" />
+                        </svg>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -960,6 +1207,22 @@ export default function PagosPage() {
                       {selectedPago.observations} ({selectedPago.payment_method})
                     </span>
                   </div>
+
+                  {selectedPago.receipt_number && (selectedPago.receipt_number.startsWith("http") || selectedPago.receipt_number.startsWith("/")) && (
+                    <div className="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                      <span className="text-xs font-bold text-blue-900 flex items-center gap-1">
+                        📎 Comprobante adjunto:
+                      </span>
+                      <a
+                        href={selectedPago.receipt_number}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-bold bg-primary text-white px-3 py-1 rounded shadow hover:bg-blue-700 transition-colors"
+                      >
+                        Ver / Descargar Adjunto ↗
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {/* Total */}

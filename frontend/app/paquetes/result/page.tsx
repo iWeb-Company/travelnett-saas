@@ -6,7 +6,7 @@ import ArrowUpDown from "@/app/components/icons/ArrowUpDown";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import PaquetesCard from "../PaquetesCard";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
@@ -24,6 +24,7 @@ function ResultContent() {
   const [salidas, setSalidas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
+  const loadedRef = useRef<string | null>(null);
 
   const destinoFilter = searchParams.get("destino") || "";
   const periodFilter = searchParams.get("periodo") || "";
@@ -31,22 +32,21 @@ function ResultContent() {
   useEffect(() => {
     const loadAll = async () => {
       if (!user?.iweb_client_id) return;
+      if (loadedRef.current === user.iweb_client_id) return;
+      loadedRef.current = user.iweb_client_id;
+
       try {
-        const [pkgsData, destData, periodData, hotelData, regimenData, excursionData, salidasData] = await Promise.all([
+        const [params, pkgsData, salidasData] = await Promise.all([
+          apiClient.getAllParameters(user.iweb_client_id).catch(() => ({ destinos: [], hotels: [], excursions: [], periods: [], regimenes: [] })),
           apiClient.getPackages(user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_periods", user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_hotels", user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_regimenes", user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_excursiones", user.iweb_client_id).catch(() => []),
           apiClient.getSalidas(user.iweb_client_id).catch(() => []),
         ]);
         setPaquetes(pkgsData);
-        setDestinos(destData);
-        setPeriodos(periodData);
-        setHoteles(hotelData);
-        setRegimenes(regimenData);
-        setExcursiones(excursionData);
+        setDestinos(params.destinos || []);
+        setPeriodos(params.periods || []);
+        setHoteles(params.hotels || []);
+        setRegimenes(params.regimenes || []);
+        setExcursiones(params.excursions || []);
         setSalidas(salidasData);
       } catch (err) {
         console.error(err);
@@ -58,44 +58,69 @@ function ResultContent() {
   }, [user?.iweb_client_id]);
 
   const rangoFilter = searchParams.get("rango") || "";
+  // activeFilter: "true" = only actives, "false" = show all (no restriction)
   const activeFilter = searchParams.get("active") || "";
 
   const filtered = paquetes.filter((p) => {
-    if (destinoFilter && p.destino !== destinoFilter) {
-      return false;
+    // ── 1. Filtro Destino ────────────────────────────────────────────────
+    // pkg.destino may be stored as a name string OR an id — handle both
+    if (destinoFilter) {
+      const destObj = destinos.find(
+        (d: any) => d.id === p.destino || (d.name || d.nombre) === p.destino
+      );
+      const destName = destObj ? (destObj.name || destObj.nombre) : p.destino;
+      if (!destName || destName !== destinoFilter) return false;
     }
-    if (periodFilter && p.periodo !== periodFilter) {
-      return false;
-    }
-    if (activeFilter !== "" && String(p.active ?? true) !== activeFilter) {
-      return false;
-    }
-    if (rangoFilter && p.dates && p.dates.length > 0) {
-      const salObj = salidas.find((s: any) => s.id === p.dates[0]);
-      if (salObj && salObj.date_of_out) {
-        const depDate = new Date(salObj.date_of_out + "T00:00:00");
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
 
-        if (rangoFilter === "proximos") {
-          const targetDate = new Date();
-          targetDate.setDate(today.getDate() + 30);
-          targetDate.setHours(23, 59, 59, 999);
-          if (depDate < today || depDate > targetDate) {
-            return false;
-          }
-        } else if (rangoFilter === "temporada_alta") {
-          const month = depDate.getMonth();
-          if (month !== 6 && month !== 7) {
-            return false;
-          }
-        }
-      } else {
-        return false;
-      }
-    } else if (rangoFilter) {
-      return false;
+    // ── 2. Filtro Periodo ────────────────────────────────────────────────
+    // pkg.periodo may be stored as an id OR a name — normalize to id
+    if (periodFilter) {
+      const periodObj = periodos.find(
+        (pr: any) =>
+          pr.id === p.periodo ||
+          (pr.name || pr.nombre || pr.description) === p.periodo
+      );
+      const periodId = periodObj ? periodObj.id : p.periodo;
+      if (!periodId || periodId !== periodFilter) return false;
     }
+
+    // ── 3. Filtro Active ────────────────────────────────────────────────
+    // Only restrict when toggle is ON (activeFilter === "true")
+    // When activeFilter === "false" show everything (no restriction)
+    if (activeFilter === "true") {
+      const isActive = p.active ?? true; // null treated as active
+      if (!isActive) return false;
+    }
+
+    // ── 4. Filtro Rango de fechas ────────────────────────────────────────
+    if (rangoFilter) {
+      const dates: string[] = Array.isArray(p.dates) ? p.dates : [];
+      if (dates.length === 0) return false; // no dates assigned → exclude
+
+      // Find the earliest departure date among all assigned salidas
+      const departureDates = dates
+        .map((dId: string) => salidas.find((s: any) => s.id === dId))
+        .filter((s: any) => s && s.date_of_out)
+        .map((s: any) => new Date(s.date_of_out + "T00:00:00"));
+
+      if (departureDates.length === 0) return false;
+
+      const earliest = departureDates.reduce((min, d) => (d < min ? d : min));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (rangoFilter === "proximos") {
+        const limit = new Date();
+        limit.setDate(today.getDate() + 30);
+        limit.setHours(23, 59, 59, 999);
+        if (earliest < today || earliest > limit) return false;
+      } else if (rangoFilter === "temporada_alta") {
+        // July (6) or August (7)
+        const month = earliest.getMonth();
+        if (month !== 6 && month !== 7) return false;
+      }
+    }
+
     return true;
   });
 
@@ -192,11 +217,14 @@ function ResultContent() {
             <p className="text-center text-gray-500 py-10">No se encontraron paquetes que coincidan con los criterios.</p>
           ) : (
             sorted.map((pkg) => {
-              const destObj = destinos.find((d) => d.id === pkg.destino);
-              const periodObj = periodos.find((pr) => pr.id === pkg.periodo);
-              const hotelObj = hoteles.find((h) => h.id === pkg.hotel);
-              const regimenObj = regimenes.find((r) => r.id === pkg.regimen);
-              const excursionObj = excursiones.find((e) => e.id === pkg.excursion);
+              // pkg.destino may be stored as a name OR an id — search both ways
+              const destObj = destinos.find((d: any) => d.id === pkg.destino || (d.name || d.nombre) === pkg.destino);
+              // pkg.periodo may be stored as an id OR a name — search both ways
+              const periodObj = periodos.find((pr: any) => pr.id === pkg.periodo || (pr.name || pr.nombre || pr.description) === pkg.periodo);
+              // hotel, regimen, excursion are always stored as IDs
+              const hotelObj = hoteles.find((h: any) => h.id === pkg.hotel);
+              const regimenObj = regimenes.find((r: any) => r.id === pkg.hotel_regimen_id);
+              const excursionObj = excursiones.find((e: any) => e.id === pkg.excursiones);
 
               let resolvedDate = "";
               let resolvedDates: string[] = [];
@@ -205,6 +233,8 @@ function ResultContent() {
                   const matchedSal = salidas.find((s: any) => s.id === dId);
                   if (matchedSal && matchedSal.date_of_out) {
                     resolvedDates.push(matchedSal.date_of_out);
+                  } else if (dId && !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(dId)) {
+                    resolvedDates.push(dId);
                   }
                 });
                 if (resolvedDates.length > 0) {
@@ -219,7 +249,7 @@ function ResultContent() {
                 fechaSalida: resolvedDate,
                 fechasSalida: resolvedDates,
                 periodoNombre: periodObj?.name || periodObj?.nombre || periodObj?.description || "Desconocido",
-                moneda: "ARS",
+                moneda: pkg.moneda === "dolares" ? "USD" : (pkg.moneda === "pesos" ? "ARS" : (pkg.moneda || "ARS")),
                 precio: pkg.price || 0,
                 gastosAdmin: pkg.gastos || 0,
                 hotelNombre: hotelObj?.name || "Desconocido",

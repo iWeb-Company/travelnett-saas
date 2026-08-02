@@ -10,6 +10,9 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
+import { Salida } from "@/app/types";
+import { exportTaquillaToExcel, exportTaquillaToPdf } from "@/app/utils/exportTaquilla";
+import Link from "next/link";
 
 // Datos de asientos semicama (null = vacío/pasillo, "logo" = logo empresa, number = asiento)
 const semicamaLayout: (number | null | "logo")[][] = [
@@ -42,6 +45,9 @@ interface Pasajero {
   id: string; // reservation_id
   nombre: string;
   localidad: string;
+  pasajero_id?: string;
+  pasajero_type?: string;
+  uniqueId?: string;
 }
 
 function SeatSlot({
@@ -55,6 +61,11 @@ function SeatSlot({
   layoutType: "S" | "C";
   onDrop: (layoutType: "S" | "C", asiento: number, reservationId: string) => void;
 }) {
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!asignado) return;
+    e.dataTransfer.setData("reservationId", asignado.uniqueId || asignado.id);
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
@@ -69,23 +80,26 @@ function SeatSlot({
 
   return (
     <div
+      draggable={!!asignado}
+      onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className="flex items-center gap-0.5 w-[80px] md:w-[120px]">
+      className={`flex items-center gap-0.5 w-[80px] md:w-[120px] p-0.5 rounded transition-colors ${asignado ? "cursor-grab active:cursor-grabbing hover:bg-blue-100/60" : ""
+        }`}>
       <div className="shrink-0 flex items-center justify-center scale-75 -mx-1 md:scale-100 md:mx-0">
         <ButacaDrop />
       </div>
       <div className="flex flex-col gap-px flex-1 min-w-0">
-        <div className="bg-white border border-gray-200 rounded-sm h-3 md:h-4 px-0.5 flex items-center">
+        <div className={`bg-white border rounded-sm h-3 md:h-4 px-0.5 flex items-center ${asignado ? "border-blue-400 bg-blue-50/70" : "border-gray-200"}`}>
           {asignado && (
-            <span className="text-[6px] md:text-[9px] text-black font-semibold truncate">
+            <span className="text-[6px] md:text-[9px] text-black font-semibold truncate" title={asignado.nombre}>
               {asignado.nombre}
             </span>
           )}
         </div>
-        <div className="bg-white border border-gray-200 rounded-sm h-3 md:h-4 px-0.5 flex items-center">
+        <div className={`bg-white border rounded-sm h-3 md:h-4 px-0.5 flex items-center ${asignado ? "border-blue-400 bg-blue-50/70" : "border-gray-200"}`}>
           {asignado && (
-            <span className="text-[6px] md:text-[9px] text-black truncate">
+            <span className="text-[6px] md:text-[9px] text-black truncate" title={asignado.localidad}>
               {asignado.localidad}
             </span>
           )}
@@ -174,7 +188,7 @@ function SeatGrid({
 
 function PasajeroCard({ pasajero }: { pasajero: Pasajero }) {
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData("reservationId", pasajero.id);
+    e.dataTransfer.setData("reservationId", pasajero.uniqueId || pasajero.id);
   };
 
   return (
@@ -193,8 +207,9 @@ export default function ButacasPage() {
   const params = useParams();
   const id = params.id as string;
   const { user } = useAuth();
-  
-  const [salida, setSalida] = useState<any>(null);
+
+  const [salida, setSalida] = useState<Salida | null>(null);
+  const [destinoName, setDestinoName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [asignaciones, setAsignaciones] = useState<Record<string, Pasajero>>({});
@@ -218,22 +233,45 @@ export default function ButacasPage() {
         // Cargar todas las reservas de esta salida
         const reservas = await apiClient.getReservas(user.iweb_client_id, id);
         setInitialReservations(reservas);
-
+        const getDestinos = await apiClient.getParameters('get_destinos', user.iweb_client_id);
+        const getDestinoName = getDestinos.find((d: any) => d.id === s.destino);
+        setDestinoName(getDestinoName?.name);
         const newAsignaciones: Record<string, Pasajero> = {};
         const newDisponibles: Pasajero[] = [];
 
         reservas.forEach((r: any) => {
-          const pData: Pasajero = {
-            id: r.id, // reservation_id
-            nombre: r.nombre_completo || "Desconocido",
-            localidad: r.lugar_carga_nombre || "-",
-          };
+          const paxs = r.reservation_passengers && r.reservation_passengers.length > 0
+            ? r.reservation_passengers
+            : [{
+              pasajero_id: r.passenger_id || r.id,
+              pasajero_type: r.edad_categoria || "ADL",
+              nombre_completo: r.nombre_completo || "Desconocido",
+              butaca_number: r.butaca ? Number(r.butaca.split("-")[1]) : null,
+              butaca_type: r.tipo_butaca || (r.butaca ? (r.butaca.startsWith("S-") ? "semicama" : "cama") : null)
+            }];
 
-          if (r.butaca && (r.butaca.startsWith("S-") || r.butaca.startsWith("C-"))) {
-            newAsignaciones[r.butaca] = pData;
-          } else {
-            newDisponibles.push(pData);
-          }
+          paxs.forEach((pax: any) => {
+            const passengerId = pax.pasajero_id || pax.passenger_id || r.passenger_id || pax.id || r.id;
+            const uId = `${r.id}_${passengerId}`;
+            const pData: Pasajero = {
+              id: r.id,
+              nombre: pax.nombre_completo || "Desconocido",
+              localidad: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
+              pasajero_id: passengerId,
+              pasajero_type: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
+              uniqueId: uId
+            };
+
+            const butacaKey = pax.butaca_number !== null && pax.butaca_number !== undefined && pax.butaca_type
+              ? `${pax.butaca_type === "semicama" ? "S" : "C"}-${pax.butaca_number}`
+              : (r.butaca && paxs.length === 1 ? r.butaca : null);
+
+            if (butacaKey && (butacaKey.startsWith("S-") || butacaKey.startsWith("C-"))) {
+              newAsignaciones[butacaKey] = pData;
+            } else {
+              newDisponibles.push(pData);
+            }
+          });
         });
 
         setAsignaciones(newAsignaciones);
@@ -248,39 +286,86 @@ export default function ButacasPage() {
     fetchData();
   }, [user?.iweb_client_id, id]);
 
-  const handleDrop = (layoutType: "S" | "C", asiento: number, reservationId: string) => {
+  const handleDrop = (layoutType: "S" | "C", asiento: number, uniqueId: string) => {
     const newKey = `${layoutType}-${asiento}`;
-    if (asignaciones[newKey]) return; // asiento ya ocupado
 
-    // Buscar pasajero en disponibles
-    let pasajero = pasajerosDisponibles.find((p) => p.id === reservationId);
+    // 1. Find passenger being dragged (A) in unassigned list or in current seat assignments
+    let pasajeroA = pasajerosDisponibles.find((p) => p.uniqueId === uniqueId);
+    let oldKeyA: string | null = null;
 
-    // Si no está en disponibles, buscar en asignaciones actuales (movimiento de butaca a butaca)
-    let oldKey: string | null = null;
-    if (!pasajero) {
+    if (!pasajeroA) {
       for (const [key, p] of Object.entries(asignaciones)) {
-        if (p.id === reservationId) {
-          pasajero = p;
-          oldKey = key;
+        if (p.uniqueId === uniqueId) {
+          pasajeroA = p;
+          oldKeyA = key;
           break;
         }
       }
     }
 
-    if (!pasajero) return;
+    if (!pasajeroA) return;
+
+    // 2. Check if target seat has a passenger (B)
+    const pasajeroB = asignaciones[newKey];
+
+    // If target seat is occupied by the exact same passenger, do nothing
+    if (pasajeroB && pasajeroB.uniqueId === uniqueId) return;
 
     setAsignaciones((prev) => {
       const copy = { ...prev };
-      if (oldKey) {
-        delete copy[oldKey];
+
+      // Remove passenger A from old seat if assigned
+      if (oldKeyA) {
+        delete copy[oldKeyA];
       }
-      copy[newKey] = pasajero!;
+
+      // If target seat was occupied by passenger B:
+      if (pasajeroB) {
+        if (oldKeyA) {
+          // Swap: put passenger B into passenger A's old seat
+          copy[oldKeyA] = pasajeroB;
+        } else {
+          // Put passenger B back into unassigned passengers list
+          setPasajerosDisponibles((prevDisp) => {
+            if (prevDisp.some((p) => p.uniqueId === pasajeroB.uniqueId)) return prevDisp;
+            return [...prevDisp, pasajeroB];
+          });
+        }
+      }
+
+      // Assign passenger A to target seat
+      copy[newKey] = pasajeroA!;
       return copy;
     });
 
-    if (!oldKey) {
-      // Si vino de la lista de disponibles, removerlo de ahí
-      setPasajerosDisponibles((prev) => prev.filter((p) => p.id !== reservationId));
+    if (!oldKeyA) {
+      // Remove passenger A from unassigned list since they came from there
+      setPasajerosDisponibles((prev) => prev.filter((p) => p.uniqueId !== uniqueId));
+    }
+  };
+
+  const handleDropToUnassigned = (uniqueId: string) => {
+    let oldKey: string | null = null;
+    let pasajero: Pasajero | null = null;
+
+    for (const [key, p] of Object.entries(asignaciones)) {
+      if (p.uniqueId === uniqueId) {
+        pasajero = p;
+        oldKey = key;
+        break;
+      }
+    }
+
+    if (pasajero && oldKey) {
+      setAsignaciones((prev) => {
+        const copy = { ...prev };
+        delete copy[oldKey!];
+        return copy;
+      });
+      setPasajerosDisponibles((prev) => {
+        if (prev.some((p) => p.uniqueId === uniqueId)) return prev;
+        return [...prev, pasajero!];
+      });
     }
   };
 
@@ -290,31 +375,44 @@ export default function ButacasPage() {
     const toastId = toast.loading("Guardando distribución de butacas...");
 
     try {
-      // 1. Identificar asignaciones activas
-      // 2. Para cada reserva original, actualizar su butaca y tipo_butaca correspondientes
       const promises = initialReservations.map((r) => {
-        // Buscar si esta reserva tiene un asiento asignado en el estado actual
-        let assignedKey: string | null = null;
-        for (const [key, p] of Object.entries(asignaciones)) {
-          if (p.id === r.id) {
-            assignedKey = key;
-            break;
-          }
-        }
+        const paxs = r.reservation_passengers && r.reservation_passengers.length > 0
+          ? r.reservation_passengers
+          : [{
+            pasajero_id: r.passenger_id || r.id,
+            pasajero_type: r.edad_categoria || "ADL",
+          }];
 
-        if (assignedKey) {
-          const type = assignedKey.startsWith("S-") ? "semicama" : "cama";
-          return apiClient.updateReserva(user.iweb_client_id!, r.id, {
-            butaca: assignedKey,
-            tipo_butaca: type,
-          });
-        } else {
-          // Si no está asignado, limpiar butaca y tipo_butaca
-          return apiClient.updateReserva(user.iweb_client_id!, r.id, {
-            butaca: null,
-            tipo_butaca: null,
-          });
-        }
+        const passengersPayload = paxs.map((pax: any) => {
+          const passengerId = pax.pasajero_id || pax.passenger_id || r.passenger_id || pax.id || r.id;
+          const uId = `${r.id}_${passengerId}`;
+
+          let assignedKey: string | null = null;
+          for (const [key, p] of Object.entries(asignaciones)) {
+            if (p.uniqueId === uId) {
+              assignedKey = key;
+              break;
+            }
+          }
+
+          let bNum = null;
+          let bType = null;
+          if (assignedKey) {
+            bNum = Number(assignedKey.split("-")[1]);
+            bType = assignedKey.startsWith("S-") ? "semicama" : "cama";
+          }
+
+          return {
+            pasajero_id: passengerId,
+            pasajero_type: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
+            butaca_number: bNum,
+            butaca_type: bType
+          };
+        });
+
+        return apiClient.updateReserva(user.iweb_client_id!, r.id, {
+          passengers: passengersPayload
+        });
       });
 
       await Promise.all(promises);
@@ -336,48 +434,97 @@ export default function ButacasPage() {
     );
   }
 
+  const handleExportExcel = async () => {
+    try {
+      toast.loading("Generando Excel de taquilla...", { id: "export-taquilla" });
+      await exportTaquillaToExcel({
+        transportCompany: salida?.transport_company,
+        destinoName: destinoName,
+        salidaDate: salida?.date_of_out,
+        asignaciones,
+      });
+      toast.success("Excel descargado correctamente", { id: "export-taquilla" });
+    } catch (error) {
+      console.error("Error al exportar Excel:", error);
+      toast.error("Error al generar el archivo Excel", { id: "export-taquilla" });
+    }
+  };
+
+  const handleExportPdf = () => {
+    try {
+      toast.loading("Generando PDF de taquilla...", { id: "export-taquilla" });
+      exportTaquillaToPdf({
+        transportCompany: salida?.transport_company,
+        destinoName: destinoName,
+        salidaDate: salida?.date_of_out,
+        asignaciones,
+      });
+      toast.success("PDF descargado correctamente", { id: "export-taquilla" });
+    } catch (error) {
+      console.error("Error al exportar PDF:", error);
+      toast.error("Error al generar el archivo PDF", { id: "export-taquilla" });
+    }
+  };
+
+
   return (
     <Container>
-      <section className="flex flex-col mx-3 gap-3">
-        <button
-          onClick={handleBack}
-          className="flex items-center cursor-pointer justify-start gap-3">
-          <ArrowLeft color="#6005F7" />
-          <h1 className="font-medium my-3 text-sm text-secondary">
-            Volver a la lista
-          </h1>
-        </button>
+      <section className="flex flex-col mx-3 my-10 gap-3">
+        <div className="flex flex-col gap-2">
+          <Link
+            href="/dashboard"
+            className="flex items-center cursor-pointer justify-start gap-3">
+            <ArrowLeft color="#6005F7" />
+            <h2 className="font-semibold text-lg text-primary">
+              Volver al menu
+            </h2>
+          </Link>
+          <button
+            onClick={handleBack}
+            className="flex items-center cursor-pointer justify-start gap-3">
+            <ArrowLeft color="#6005F7" />
+            <h1 className="font-semibold text-lg text-secondary">
+              Volver a la Lista
+            </h1>
+          </button>
+        </div>
       </section>
       <section className="mx-3 flex flex-col gap-3 md:max-w-md md:mx-auto">
         <h2 className="my-5 text-black font-semibold md:hidden">Taquilla</h2>
         <div className="text-gray-700 font-medium bg-[#f9f9fc] w-full border border-gray-300 py-3 px-4 rounded-lg shadow-sm">
           <p className="text-xs text-gray-400 font-bold uppercase">Empresa / Micro</p>
           <p className="text-sm font-semibold">{salida?.transport_company || "Cargando..."}</p>
-          <p className="text-xs text-gray-500 mt-1">Destino: {salida?.destino}</p>
+          <p className="text-xs text-gray-500 mt-1">Destino: {destinoName ?? 'Cargando...'}</p>
         </div>
-        <button 
-          onClick={handleConfirm} 
+        <button
+          onClick={handleConfirm}
           disabled={isSaving}
           className="w-full my-5 bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl disabled:opacity-50"
         >
           {isSaving ? "Guardando..." : "Confirmar"}
         </button>
       </section>
-      <section className="text-black mx-3 md:max-w-md md:mx-auto">
+      <section className="text-black mx-3 md:max-w-md md:mx-auto select-none">
         <ul className="flex items-start justify-center flex-col gap-3 font-medium md:flex-row">
-          <li className="flex gap-2">
+          <li
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors px-4 py-2 rounded-lg"
+          >
             <Excel />
-            Exportar
+            <span>Exportar Excel</span>
           </li>
-          <li className="flex gap-2">
+          <li
+            onClick={handleExportPdf}
+            className="flex items-center gap-2 cursor-pointer hover:text-secondary transition-colors px-4 py-2 rounded-lg"
+          >
             <PDF />
-            Descargar PDF
+            <span>Descargar PDF</span>
           </li>
         </ul>
       </section>
 
       {/* Contenedor butacas + pasajeros: columna en mobile, fila en desktop */}
-      <div className="flex flex-col md:flex-row md:justify-center md:gap-30 md:mt-6">
+      <div className="flex flex-col md:flex-row md:justify-center md:gap-30 md:my-10">
         {/* Columna izquierda: Butacas */}
         <div className="flex flex-col">
           {/* Butacas semicama */}
@@ -411,14 +558,22 @@ export default function ButacasPage() {
         <div className="hidden md:block w-px bg-gray-300 self-stretch" />
 
         {/* Columna derecha: Pasajeros */}
-        <section className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3 mb-6 md:w-80">
+        <section
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const uniqueId = e.dataTransfer.getData("reservationId");
+            if (uniqueId) handleDropToUnassigned(uniqueId);
+          }}
+          className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3 mb-6 md:w-80 border-2 border-dashed border-transparent hover:border-blue-300/60 rounded-xl transition-colors"
+        >
           <h2 className="my-5 font-semibold">Pasajeros Sin Asignar ({pasajerosDisponibles.length})</h2>
           <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto p-1">
             {pasajerosDisponibles.map((p) => (
-              <PasajeroCard key={p.id} pasajero={p} />
+              <PasajeroCard key={p.uniqueId || p.id} pasajero={p} />
             ))}
             {pasajerosDisponibles.length === 0 && (
-              <p className="col-span-2 text-center text-xs text-gray-400 py-4">Todos los pasajeros tienen asiento asignado</p>
+              <p className="col-span-2 text-center text-xs text-gray-400 py-4">Todos los pasajeros tienen asiento asignado (Arrastra aquí para desasignar)</p>
             )}
           </div>
         </section>

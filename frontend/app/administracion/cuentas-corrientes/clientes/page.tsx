@@ -10,12 +10,28 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { Loader } from "@/app/components/Loader";
+import DateInput from "@/app/components/DateComponent";
 
 interface Cliente {
   id: string;
   name?: string;
   nombre?: string;
+  name_system?: string;
+  complete_name?: string;
   username?: string;
+}
+
+interface MovimientoCliente {
+  id?: string;
+  reserva_id?: string;
+  fecha: string;
+  reserva: string;
+  cliente: string;
+  client_id: string;
+  detalle: string;
+  neto: number;
+  cobros: number;
+  saldo: number;
 }
 
 export default function CuentasCorrientesClientesPage() {
@@ -23,46 +39,17 @@ export default function CuentasCorrientesClientesPage() {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selectedCliente, setSelectedCliente] = useState("");
   const [searched, setSearched] = useState(false);
+  const [movimientos, setMovimientos] = useState<MovimientoCliente[]>([]);
 
   // Date filters
   const [fechaCreaDesde, setFechaCreaDesde] = useState("");
   const [fechaCreaHasta, setFechaCreaHasta] = useState("");
   const [fechaInDesde, setFechaInDesde] = useState("");
   const [fechaInHasta, setFechaInHasta] = useState("");
-
-  // Mock ledger movements
-  const movimientos = [
-    {
-      fecha: "01/06/2026",
-      reserva: "MDQ #1542",
-      descripcion: "DEMARCO VALENTÍN x2 MAT",
-      consumo: 400000,
-      pago: 150000,
-      saldo: 250000,
-      cliente: "Mio Turismo",
-    },
-    {
-      fecha: "02/06/2026",
-      reserva: "MDQ #1541",
-      descripcion: "GÓMEZ CARLOS x1 IND",
-      consumo: 250000,
-      pago: 250000,
-      saldo: 0,
-      cliente: "Mio Turismo",
-    },
-    {
-      fecha: "05/06/2026",
-      reserva: "BRC #9902",
-      descripcion: "FERNÁNDEZ JORGE x3 TPL",
-      consumo: 600000,
-      pago: 150000,
-      saldo: 450000,
-      cliente: "Jorge Fernández",
-    },
-  ];
 
   const loadClientes = async () => {
     if (!user?.iweb_client_id) return;
@@ -87,9 +74,27 @@ export default function CuentasCorrientesClientesPage() {
     return `${prefix}$${Math.abs(monto).toLocaleString("es-AR")}`;
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSearched(true);
+    if (!user?.iweb_client_id) return;
+
+    setSearching(true);
+    try {
+      const data = await apiClient.getSaldosClientes(user.iweb_client_id, {
+        clientId: selectedCliente || undefined,
+        fechaCreaDesde: fechaCreaDesde || undefined,
+        fechaCreaHasta: fechaCreaHasta || undefined,
+        fechaInDesde: fechaInDesde || undefined,
+        fechaInHasta: fechaInHasta || undefined,
+      });
+
+      setMovimientos(data);
+      setSearched(true);
+    } catch {
+      toast.error("Error al buscar cuentas corrientes de clientes");
+    } finally {
+      setSearching(false);
+    }
   };
 
   const handleClear = () => {
@@ -99,22 +104,65 @@ export default function CuentasCorrientesClientesPage() {
     setFechaInDesde("");
     setFechaInHasta("");
     setSearched(false);
+    setMovimientos([]);
   };
 
-  const handleExportExcel = () => {
-    toast.success("Exportando cuenta corriente a Excel...");
+  const handleExportExcel = async () => {
+    if (movimientos.length === 0) {
+      toast.error("No hay datos para exportar");
+      return;
+    }
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet("Cuenta Corriente Clientes");
+
+      const headerRow = ws.addRow(["Fecha", "Reserva", "Cliente", "Descripción", "Consumo", "Pago", "Saldo"]);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF000000" } };
+        cell.alignment = { horizontal: "center" };
+      });
+
+      movimientos.forEach((mov) => {
+        ws.addRow([
+          mov.fecha || "",
+          mov.reserva || "",
+          mov.cliente || "",
+          mov.detalle || "",
+          mov.neto || 0,
+          mov.cobros || 0,
+          mov.saldo || 0,
+        ]);
+      });
+
+      const totRow = ws.addRow(["", "", "", "TOTAL CONSUMOS:", totalConsumos]);
+      totRow.eachCell((cell) => { cell.font = { bold: true }; });
+      const totRow2 = ws.addRow(["", "", "", "TOTAL PAGOS:", totalPagos]);
+      totRow2.eachCell((cell) => { cell.font = { bold: true }; });
+      const totRow3 = ws.addRow(["", "", "", "SALDO TOTAL:", saldoFinal]);
+      totRow3.eachCell((cell) => { cell.font = { bold: true }; });
+
+      ws.columns = [
+        { width: 14 }, { width: 16 }, { width: 25 }, { width: 36 }, { width: 16 }, { width: 16 }, { width: 16 },
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Cuenta_Corriente_Clientes.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Archivo exportado correctamente");
+    } catch {
+      toast.error("Error al exportar a Excel");
+    }
   };
 
-  // Filter movements by client
-  const filteredMovimientos = movimientos.filter((mov) => {
-    if (!selectedCliente) return true;
-    const clientObj = clientes.find(c => c.id === selectedCliente);
-    const clientName = clientObj?.name || clientObj?.nombre || clientObj?.username || "";
-    return mov.cliente.toLowerCase() === clientName.toLowerCase();
-  });
-
-  const totalConsumos = filteredMovimientos.reduce((acc, m) => acc + m.consumo, 0);
-  const totalPagos = filteredMovimientos.reduce((acc, m) => acc + m.pago, 0);
+  const totalConsumos = movimientos.reduce((acc, m) => acc + (m.neto || 0), 0);
+  const totalPagos = movimientos.reduce((acc, m) => acc + (m.cobros || 0), 0);
   const saldoFinal = totalConsumos - totalPagos;
 
   if (loading) {
@@ -158,18 +206,16 @@ export default function CuentasCorrientesClientesPage() {
             <div className="flex flex-col gap-2">
               <p className="font-bold text-xs text-gray-700 uppercase tracking-wider">Fecha de creación</p>
               <div className="flex items-center gap-3">
-                <input
+                <DateInput
+                  placeholder="Desde"
                   value={fechaCreaDesde}
-                  onChange={(e) => setFechaCreaDesde(e.target.value)}
-                  className="w-full border border-gray-300 bg-white text-gray-800 p-2 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                  type="date"
+                  onChange={setFechaCreaDesde}
                 />
                 <span className="text-xs text-gray-400 font-semibold">a</span>
-                <input
+                <DateInput
+                  placeholder="Hasta"
                   value={fechaCreaHasta}
-                  onChange={(e) => setFechaCreaHasta(e.target.value)}
-                  className="w-full border border-gray-300 bg-white text-gray-800 p-2 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                  type="date"
+                  onChange={setFechaCreaHasta}
                 />
               </div>
             </div>
@@ -178,18 +224,16 @@ export default function CuentasCorrientesClientesPage() {
             <div className="flex flex-col gap-2">
               <p className="font-bold text-xs text-gray-700 uppercase tracking-wider">Fecha de Entrada (IN)</p>
               <div className="flex items-center gap-3">
-                <input
+                <DateInput
+                  placeholder="Desde"
                   value={fechaInDesde}
-                  onChange={(e) => setFechaInDesde(e.target.value)}
-                  className="w-full border border-gray-300 bg-white text-gray-800 p-2 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                  type="date"
+                  onChange={setFechaInDesde}
                 />
                 <span className="text-xs text-gray-400 font-semibold">a</span>
-                <input
+                <DateInput
+                  placeholder="Hasta"
                   value={fechaInHasta}
-                  onChange={(e) => setFechaInHasta(e.target.value)}
-                  className="w-full border border-gray-300 bg-white text-gray-800 p-2 text-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                  type="date"
+                  onChange={setFechaInHasta}
                 />
               </div>
             </div>
@@ -205,16 +249,17 @@ export default function CuentasCorrientesClientesPage() {
               <option value="">Todos los Clientes</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name || c.nombre || c.username}
+                  {c.complete_name || c.name_system || c.name || c.nombre || c.username}
                 </option>
               ))}
             </select>
           </div>
 
           <button
-            className="bg-primary text-white rounded-lg px-4 py-2.5 font-bold shadow hover:bg-blue-700 transition-colors"
+            disabled={searching}
+            className="bg-primary text-white rounded-lg px-4 py-2.5 font-bold shadow hover:bg-blue-700 transition-colors disabled:opacity-50"
             type="submit">
-            Buscar
+            {searching ? "Buscando..." : "Buscar"}
           </button>
         </form>
 
@@ -249,18 +294,29 @@ export default function CuentasCorrientesClientesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium">
-                  {filteredMovimientos.length === 0 ? (
+                  {movimientos.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                      <td colSpan={4} className="py-8 text-center text-gray-500">
                         No hay movimientos registrados para los filtros seleccionados.
                       </td>
                     </tr>
                   ) : (
-                    filteredMovimientos.map((mov, i) => (
+                    movimientos.map((mov, i) => (
                       <tr key={i} className="hover:bg-gray-50/50 divide-y divide-black">
-                        <td className="py-3 px-4 border-r border-black">{mov.fecha}</td>
-                        <td className="py-3 px-4 border-r border-black text-primary font-bold">{mov.reserva}</td>
-                        <td className="py-3 px-4 border-r border-black">{mov.descripcion}</td>
+                        <td className="py-3 px-4 border-r border-black">{mov.fecha || "-"}</td>
+                        <td className="py-3 px-4 border-r border-black font-bold">
+                          {mov.reserva_id || mov.id ? (
+                            <Link
+                              href={`/web/reservas/modificar-reserva/${mov.reserva_id || mov.id}`}
+                              className="text-primary hover:underline"
+                            >
+                              {mov.reserva}
+                            </Link>
+                          ) : (
+                            <span className="text-primary">{mov.reserva}</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 border-r border-black">{mov.detalle}</td>
                         <td className={`py-3 px-4 text-right border-b border-black font-bold ${mov.saldo > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                           {formatMonto(mov.saldo)}
                         </td>
@@ -270,7 +326,10 @@ export default function CuentasCorrientesClientesPage() {
                 </tbody>
               </table>
             </div>
-            <button onClick={() => handleExportExcel()} className="font-semibold mx-auto text-black flex items-center justify-center gap-2 text-sm md:text-base pb-2 mb-3">Exportar<Excel /></button>
+            <button onClick={handleExportExcel} className="font-semibold mx-auto text-black flex items-center justify-center gap-2 text-sm md:text-base pb-2 mb-3 hover:underline">
+              Exportar <Excel />
+            </button>
+
             {/* Resumen de la Cuenta Corriente */}
             <div className="ml-auto w-full">
               <h4 className="font-bold text-primary text-center text-sm md:text-base border-b border-gray-200 pb-2 mb-3">
@@ -298,4 +357,3 @@ export default function CuentasCorrientesClientesPage() {
     </Container>
   );
 }
-

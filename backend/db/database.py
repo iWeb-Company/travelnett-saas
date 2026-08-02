@@ -16,6 +16,8 @@ DATABASE_URL = (
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
+    pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "20")),
     pool_recycle=int(os.getenv("DB_POOL_RECYCLE_SECONDS", "280")),
     connect_args={
         "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),

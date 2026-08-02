@@ -17,6 +17,21 @@ export interface Paquete {
   web?: boolean;
 }
 
+const formatDateSafe = (dateStr?: string) => {
+  if (!dateStr) return "-";
+  // Filter out raw UUID strings (e.g. 99c8f2c7-6dc2-4983-8ebd-7cc402ba0a43)
+  if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(dateStr)) {
+    return "-";
+  }
+  // Strip time if present ("2026-10-10 08:00:00" or "2026-10-10T08:00:00")
+  const dateOnly = dateStr.split(" ")[0].split("T")[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+    const [y, m, d] = dateOnly.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  return dateStr;
+};
+
 export default function PaquetesCard({
   paquete,
   onDelete,
@@ -216,11 +231,11 @@ export default function PaquetesCard({
           <p className="truncate" title={paquete.fechaSalida}>
             {paquete.fechasSalida && paquete.fechasSalida.length > 1 ? (
               <>
-                {new Date(paquete.fechasSalida[0] + "T00:00:00").toLocaleDateString("es-AR")} y{" "}
+                {formatDateSafe(paquete.fechasSalida[0])} y{" "}
                 {paquete.fechasSalida.length - 1} {paquete.fechasSalida.length - 1 === 1 ? "fecha más" : "fechas más"}...
               </>
             ) : (
-              <>{paquete.fechaSalida ? new Date(paquete.fechaSalida + "T00:00:00").toLocaleDateString("es-AR") : "-"}</>
+              <>{formatDateSafe(paquete.fechaSalida)}</>
             )}
           </p>
           <p className="truncate" title={paquete.periodoNombre}>{paquete.periodoNombre}</p>
@@ -271,7 +286,7 @@ export default function PaquetesCard({
             Eliminar
           </button>
         </div>
-        <div className="flex flex-col gap-2 mt-2">
+        <div className="flex md:flex-row flex-col gap-2 mt-2">
           <label className="inline-flex gap-2 items-center justify-start cursor-pointer">
             <input
               type="checkbox"
@@ -290,7 +305,7 @@ export default function PaquetesCard({
               className="sr-only peer"
             />
             <div className="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-white/50 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-500"></div>
-            <span className="text-white font-medium text-xs">Mostrar en Web</span>
+            <span className="text-white font-medium text-xs">Web</span>
           </label>
         </div>
       </div>

@@ -13,6 +13,8 @@ export default function ReservasPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [clientes, setClientes] = useState<any[]>([]);
+  const [periodos, setPeriodos] = useState<any[]>([]);
+  const [paquetes, setPaquetes] = useState<any[]>([]);
 
   const [data, setData] = useState({
     numero: "",
@@ -20,13 +22,20 @@ export default function ReservasPage() {
     rango: "",
     periodo: "",
     paquete: "",
+    activo: true,
   });
 
-  const loadClientes = async () => {
+  const loadFilterData = async () => {
     if (!user?.iweb_client_id) return;
     try {
-      const data = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
-      setClientes(data);
+      const [cliData, perData, packData] = await Promise.all([
+        apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []),
+        apiClient.getParameters("get_periods", user.iweb_client_id).catch(() => []),
+        apiClient.getPackages(user.iweb_client_id).catch(() => []),
+      ]);
+      setClientes(cliData || []);
+      setPeriodos(perData || []);
+      setPaquetes(packData || []);
     } catch (error) {
       console.error(error);
     }
@@ -34,21 +43,24 @@ export default function ReservasPage() {
 
   useEffect(() => {
     if (user?.iweb_client_id) {
-      loadClientes();
+      loadFilterData();
     }
   }, [user?.iweb_client_id]);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     router.push(
-      `/web/reservas/result?numero=${data.numero}&cliente=${data.cliente}&rango=${data.rango}&periodo=${data.periodo}&paquete=${data.paquete}`,
+      `/web/reservas/result?numero=${data.numero}&cliente=${data.cliente}&rango=${data.rango}&periodo=${data.periodo}&paquete=${data.paquete}&activo=${data.activo}`,
     );
   };
+
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setData({
       ...data,
       [e.target.name]: e.target.value,
     });
   };
+
   return (
     <Container>
       <ToggleSalidas />
@@ -70,6 +82,7 @@ export default function ReservasPage() {
             className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
             name="numero"
             id="numero"
+            value={data.numero}
             onChange={(e) => setData({ ...data, numero: e.target.value })}
             placeholder="Número"
           />
@@ -92,39 +105,58 @@ export default function ReservasPage() {
             className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
             name="rango"
             id="rango"
+            value={data.rango}
             onChange={handleChange}>
-            <option hidden className="text-gray-200 bg-[#f1f1f1]" value="">
-              Rango de fechas (Desde - Hasta)
+            <option className="text-gray-200 bg-[#f1f1f1]" value="">
+              Rango de fechas (Fecha de alta)
             </option>
-            <option className="bg-[#f1f1f1]" value="22/06/2025 - 22/06/2025">
-              22/06/2025 - 22/06/2025
+            <option className="bg-[#f1f1f1]" value="hoy">
+              Hoy
+            </option>
+            <option className="bg-[#f1f1f1]" value="ultimos_7">
+              Últimos 7 días
+            </option>
+            <option className="bg-[#f1f1f1]" value="ultimos_30">
+              Últimos 30 días
+            </option>
+            <option className="bg-[#f1f1f1]" value="este_mes">
+              Este mes
             </option>
           </select>
           <select
             className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
             name="periodo"
             id="periodo"
+            value={data.periodo}
             onChange={handleChange}>
-            <option hidden className="text-gray-200 bg-[#f1f1f1]" value="">
+            <option className="text-gray-200 bg-[#f1f1f1]" value="">
               Periodo
             </option>
-            <option className="bg-[#f1f1f1]" value="22/06/2025 - 22/06/2025">
-              22/06/2025 - 22/06/2025
-            </option>
+            {periodos.map((p) => (
+              <option key={p.id} className="bg-[#f1f1f1]" value={p.name}>
+                {p.name}
+              </option>
+            ))}
           </select>
           <select
             className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
             name="paquete"
             id="paquete"
+            value={data.paquete}
             onChange={handleChange}>
-            <option hidden className="text-gray-200 bg-[#f1f1f1]" value="">
+            <option className="text-gray-200 bg-[#f1f1f1]" value="">
               Paquete
             </option>
-            <option className="bg-[#f1f1f1]" value="Termas de Rio Hondo">
-              Termas de Rio Hondo
-            </option>
+            {paquetes.map((pkg) => (
+              <option key={pkg.id} className="bg-[#f1f1f1]" value={pkg.id}>
+                {pkg.name}
+              </option>
+            ))}
           </select>
-          <ToggleActiveFilters />
+          <ToggleActiveFilters
+            checked={data.activo}
+            onChange={(val) => setData({ ...data, activo: val })}
+          />
           <button className="w-full bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl">
             Buscar
           </button>

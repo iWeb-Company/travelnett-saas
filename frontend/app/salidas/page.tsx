@@ -140,7 +140,7 @@ export default function SalidasPage() {
             >
               <option value="">Cualquier Destino</option>
               {destinos.map((d: any) => (
-                <option key={d.id} className="bg-[#f1f1f1]" value={d.name || d.nombre}>
+                <option key={d.id} className="bg-[#f1f1f1]" value={d.id}>
                   {d.name || d.nombre}
                 </option>
               ))}

@@ -1,9 +1,15 @@
 "use client";
 import Delete from "@/app/components/icons/salidas/Delete";
 import Update from "@/app/components/icons/salidas/Update";
+import { Reserva } from "@/app/types";
+import { apiClient } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import toast from "react-hot-toast";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-export default function ReservasCard({ reserva }: { reserva: any }) {
+export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva; onRefresh?: () => void }) {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
@@ -14,20 +20,62 @@ export default function ReservasCard({ reserva }: { reserva: any }) {
     }
   }, []);
 
+  const getNombreCompletoReserva = () => {
+    const pasajeros = reserva.reservation_passengers?.length;
+    if (pasajeros)
+      return pasajeros > 2 ? reserva.nombre_completo + " X" + pasajeros : reserva.nombre_completo;
+  };
+
+  const handleDuplicate = async () => {
+    if (!user?.iweb_client_id || !reserva.id) return;
+    if (confirm(`¿Deseas duplicar la reserva ${reserva.codigo_reserva || reserva.numero}?`)) {
+      try {
+        await apiClient.duplicateReserva(user.iweb_client_id, reserva.id);
+        toast.success("Reserva duplicada con éxito");
+        if (onRefresh) {
+          onRefresh();
+        } else {
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Error al duplicar la reserva");
+      }
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!user?.iweb_client_id || !reserva.id) return;
+    if (confirm(`¿Estás seguro de eliminar la reserva ${reserva.codigo_reserva || reserva.numero}?`)) {
+      try {
+        await apiClient.deleteReserva(user.iweb_client_id, reserva.id);
+        toast.success("Reserva eliminada con éxito");
+        if (onRefresh) {
+          onRefresh();
+        } else {
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Error al eliminar la reserva");
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col">
       {/* ===== DESKTOP LAYOUT (md+) ===== */}
       <section className="hidden md:flex gap-3 text-white justify-between items-center">
-        <div className="bg-primary justify-between items-center rounded-md px-5 py-2 flex flex-1">
+        <div className={`${reserva.active === false ? "bg-red-700" : "bg-primary"} justify-between items-center rounded-md px-5 py-2 flex flex-1`}>
           <div className="flex gap-5 items-center">
-            <p className="font-semibold">{reserva.numero}</p>
+            <p className="font-semibold">{reserva.codigo_reserva}</p>
             <div className="flex flex-col flex-1 justify-between items-start">
               <div className="flex gap-10 justify-between items-center">
                 <p>Destino: {reserva.destino}</p>
-                <p>Cliente: {reserva.client_nombre || reserva.cliente}</p>
+                <p>Cliente: {reserva?.client_nombre}</p>
               </div>
               <p className="font-semibold">
-                Titulo de la reserva: {reserva.titulo}
+                Titular de la reserva: {getNombreCompletoReserva()}
               </p>
             </div>
           </div>
@@ -65,8 +113,8 @@ export default function ReservasCard({ reserva }: { reserva: any }) {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <button className="flex items-center gap-1">
+            <div className="flex items-center gap-1 cursor-pointer" onClick={handleDuplicate}>
+              <button className="flex items-center gap-1 cursor-pointer">
                 <svg
                   width="25"
                   height="25"
@@ -85,14 +133,14 @@ export default function ReservasCard({ reserva }: { reserva: any }) {
               </button>
               <p>Duplicar</p>
             </div>
-            <div className="flex items-center gap-1">
-              <button className="flex items-center gap-1">
+            <Link href={`/web/reservas/modificar-reserva/${reserva.id}`} className="flex items-center gap-1">
+              <div className="flex items-center gap-1">
                 <Update id={1} />
-              </button>
+              </div>
               <p>Modificar</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <button className="flex items-center gap-1">
+            </Link>
+            <div className="flex items-center gap-1 cursor-pointer" onClick={handleDelete}>
+              <button className="flex items-center gap-1 cursor-pointer">
                 <Delete id={1} />
               </button>
               <p>Eliminar</p>
@@ -107,16 +155,15 @@ export default function ReservasCard({ reserva }: { reserva: any }) {
           {/* Blue compact bar */}
           <div
             onClick={() => setIsOpen(!isOpen)}
-            className={`bg-primary text-white justify-between items-center px-3 py-2 flex flex-1 cursor-pointer select-none transition-all duration-300 text-sm ${
-              isOpen ? "rounded-t-md" : "rounded-md"
-            }`}>
+            className={`bg-primary text-white justify-between items-center px-3 py-2 flex flex-1 cursor-pointer select-none transition-all duration-300 text-sm ${isOpen ? "rounded-t-md" : "rounded-md"
+              }`}>
             <p className="font-semibold">{reserva.numero}</p>
             <p>{reserva.destino}</p>
             <p className="font-semibold">{reserva.fecha}</p>
           </div>
           {/* Action icons inline */}
           <div className="flex items-center gap-1 text-black">
-            <button>
+            <button onClick={handleDuplicate} title="Duplicar">
               <svg
                 width="18"
                 height="18"
@@ -133,10 +180,10 @@ export default function ReservasCard({ reserva }: { reserva: any }) {
                 />
               </svg>
             </button>
-            <button>
+            <Link href={`/web/reservas/modificar-reserva/${reserva.id}`} title="Modificar">
               <Update id={1} />
-            </button>
-            <button>
+            </Link>
+            <button onClick={handleDelete} title="Eliminar">
               <Delete id={1} />
             </button>
           </div>
@@ -152,11 +199,11 @@ export default function ReservasCard({ reserva }: { reserva: any }) {
           <div className="bg-secondary shadow-lg shadow-black/30 text-white rounded-b-lg py-3 px-4 flex gap-4 items-start">
             <div className="flex flex-col gap-0.5">
               <p className="text-xs text-white/70">Cliente</p>
-              <p className="font-bold text-sm">{reserva.client_nombre || reserva.cliente}</p>
+              <p className="font-bold text-sm">{reserva.client_nombre?.slice(0, 8) + "..."}</p>
             </div>
             <div className="flex flex-col gap-0.5 flex-1">
               <p className="text-xs text-white/70">Título de reserva</p>
-              <p className="font-bold text-sm">{reserva.titulo}</p>
+              <p className="font-bold text-sm">{reserva.nombre_completo}</p>
             </div>
             <div className="flex items-center gap-2 pt-2">
               {/* Print */}

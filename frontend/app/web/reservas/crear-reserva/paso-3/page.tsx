@@ -10,13 +10,24 @@ import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
+import DateInput from "@/app/components/DateComponent";
+import AddVioleta from "@/app/components/icons/AddVioleta";
 
-interface Passenger {
+interface RoomPassenger {
   dni: string;
   nombre: string;
   apellido: string;
   fechaNacimiento: string;
   puntoAscenso: string;
+  tipoPax: string;
+  isInfoa?: boolean;
+}
+
+interface RoomConfig {
+  hotel: string;
+  tipoCama: string;
+  distribucion: string;
+  tipoHabitacion: string;
 }
 
 function Paso3Content() {
@@ -26,28 +37,72 @@ function Paso3Content() {
 
   const [loading, setLoading] = useState(true);
   const [lugaresCarga, setLugaresCarga] = useState<any[]>([]);
+  const [destinos, setDestinos] = useState<any[]>([]);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [hotels, setHotels] = useState<any[]>([]);
+  const [salidaInfo, setSalidaInfo] = useState<any>(null);
+  const [paqueteInfo, setPaqueteInfo] = useState<any>(null);
 
-  // Query Parameters from step 2
+  // Query Parameters from previous steps
   const destinoId = searchParams.get("destino") || "";
   const clienteId = searchParams.get("cliente") || "";
   const tipoReserva = searchParams.get("tipo") || "";
   const itemId = searchParams.get("item") || "";
   const itemType = searchParams.get("itemType") || "";
-  const hotelId = searchParams.get("hotel") || "";
-  const cama = searchParams.get("cama") || "";
-  const habitacion = searchParams.get("habitacion") || "";
+  const salidaIdParam = searchParams.get("salida") || "";
+  const paqueteIdParam = searchParams.get("paquete") || "";
+  const roomsParam = searchParams.get("rooms") || "";
+  const hotelIdParam = searchParams.get("hotel") || "";
+  const camaParam = searchParams.get("cama") || "";
+  const habitacionParam = searchParams.get("habitacion") || "";
 
-  // Passengers state
-  const [passengers, setPassengers] = useState<Passenger[]>([]);
+  // Parse rooms array from step 2
+  const [roomsConfig, setRoomsConfig] = useState<RoomConfig[]>([]);
 
-  const loadLugaresCarga = async () => {
+  // State for traditional reservation: array of rooms, each containing passengers
+  const [roomPassengers, setRoomPassengers] = useState<RoomPassenger[][]>([]);
+
+  // States for general reservation details
+  const [tituloReserva, setTituloReserva] = useState("");
+  const [fechaVencimiento, setFechaVencimiento] = useState("");
+
+  // States for Bloqueo / Grupo reservation
+  const [bloqueoData, setBloqueoData] = useState({
+    cantSemicama: 0,
+    cantCama: 0,
+    cantLiberados: 0,
+    precioPaquete: 0,
+    gastosReserva: 0,
+  });
+
+  const loadData = async () => {
     if (!user?.iweb_client_id) return;
     try {
-      const data = await apiClient.getParameters("get_lugares_carga", user.iweb_client_id).catch(() => []);
-      setLugaresCarga(data);
+      const [lcData, destData, cliData, hotData] = await Promise.all([
+        apiClient.getParameters("get_lugares_carga", user.iweb_client_id).catch(() => []),
+        apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
+        apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []),
+        apiClient.getParameters("get_hotels", user.iweb_client_id).catch(() => [])
+      ]);
+      setLugaresCarga(lcData || []);
+      setDestinos(destData || []);
+      setClientes(cliData || []);
+      setHotels(hotData || []);
+
+      const actualSalidaId = salidaIdParam || (itemType === "salida" ? itemId : "");
+      const actualPaqueteId = paqueteIdParam || (itemType === "paquete" ? itemId : "");
+
+      if (actualSalidaId) {
+        const sal = await apiClient.getSalida(user.iweb_client_id, actualSalidaId).catch(() => null);
+        setSalidaInfo(sal);
+      }
+      if (actualPaqueteId) {
+        const pack = await apiClient.getPackage(user.iweb_client_id, actualPaqueteId).catch(() => null);
+        setPaqueteInfo(pack);
+      }
     } catch (error) {
       console.error(error);
-      toast.error("Error al cargar puntos de ascenso");
+      toast.error("Error al cargar información necesaria");
     } finally {
       setLoading(false);
     }
@@ -55,103 +110,377 @@ function Paso3Content() {
 
   useEffect(() => {
     if (user?.iweb_client_id) {
-      loadLugaresCarga();
+      loadData();
     }
   }, [user?.iweb_client_id]);
 
-  // Determine initial passenger count based on room type
+  // Parse rooms and initialize roomPassengers
   useEffect(() => {
-    let count = 1;
-    if (habitacion === "doble") count = 2;
-    else if (habitacion === "triple") count = 3;
-    else if (habitacion === "cuadruple") count = 4;
+    let parsedRooms: RoomConfig[] = [];
+    if (roomsParam) {
+      try {
+        parsedRooms = JSON.parse(decodeURIComponent(roomsParam));
+      } catch (e) {
+        console.error("Error parsing rooms param", e);
+      }
+    }
 
-    const initialPassengers = Array.from({ length: count }, () => ({
-      dni: "",
-      nombre: "",
-      apellido: "",
-      fechaNacimiento: "",
-      puntoAscenso: "",
-    }));
-    setPassengers(initialPassengers);
-  }, [habitacion]);
+    if (parsedRooms.length === 0) {
+      parsedRooms = [{
+        hotel: hotelIdParam,
+        tipoCama: camaParam || "doble",
+        distribucion: "matrimonial",
+        tipoHabitacion: habitacionParam || "estandar"
+      }];
+    }
+    setRoomsConfig(parsedRooms);
 
-  const handlePassengerChange = (index: number, field: keyof Passenger, value: string) => {
-    const updated = [...passengers];
-    updated[index][field] = value;
-    setPassengers(updated);
+    // Initialize passengers array for each room according to bed capacity
+    const initialByRoom: RoomPassenger[][] = parsedRooms.map((rm) => {
+      let count = 1;
+      const tc = (rm.tipoCama || "").toLowerCase();
+      if (tc.includes("doble")) count = 2;
+      else if (tc.includes("triple")) count = 3;
+      else if (tc.includes("cuadruple")) count = 4;
+      else if (tc.includes("depto_x5") || tc.includes("5")) count = 5;
+
+      return Array.from({ length: count }, () => ({
+        dni: "",
+        nombre: "",
+        apellido: "",
+        fechaNacimiento: "",
+        puntoAscenso: "",
+        tipoPax: "ADL",
+        isInfoa: false
+      }));
+    });
+
+    setRoomPassengers(initialByRoom);
+  }, [roomsParam, hotelIdParam, camaParam, habitacionParam]);
+
+  const handleDniBlur = async (roomIdx: number, paxIdx: number, dniValue: string) => {
+    if (!dniValue || dniValue.trim().length < 6 || !user?.iweb_client_id) return;
+    const cleanDni = dniValue.trim();
+    try {
+      const found = await apiClient.getPassengerByDNI(user.iweb_client_id, cleanDni);
+      if (found && found.length > 0) {
+        const pax = found[0];
+        const formattedBirth = pax.date_of_birth ? String(pax.date_of_birth).split("T")[0] : "";
+        setRoomPassengers((current) => {
+          const copy = [...current];
+          copy[roomIdx] = [...copy[roomIdx]];
+          copy[roomIdx][paxIdx] = {
+            ...copy[roomIdx][paxIdx],
+            dni: cleanDni,
+            nombre: pax.name || pax.nombre || copy[roomIdx][paxIdx].nombre,
+            apellido: pax.last_name || pax.apellido || copy[roomIdx][paxIdx].apellido,
+            fechaNacimiento: formattedBirth || copy[roomIdx][paxIdx].fechaNacimiento,
+          };
+          return copy;
+        });
+        toast.success(`Pasajero ${pax.name || ""} ${pax.last_name || ""} encontrado`);
+      }
+    } catch (err) {
+      // Silent catch
+      toast.error("Error al buscar el pasajero");
+    }
   };
 
-  const handleAddPassenger = () => {
-    setPassengers([
-      ...passengers,
-      { dni: "", nombre: "", apellido: "", fechaNacimiento: "", puntoAscenso: "" },
-    ]);
+  const handlePassengerChange = (
+    roomIdx: number,
+    paxIdx: number,
+    field: keyof RoomPassenger,
+    value: string
+  ) => {
+    const updated = [...roomPassengers];
+    updated[roomIdx] = [...updated[roomIdx]];
+    updated[roomIdx][paxIdx] = {
+      ...updated[roomIdx][paxIdx],
+      [field]: value
+    };
+    setRoomPassengers(updated);
+
+    if (field === "dni" && value.trim().length >= 7) {
+      handleDniBlur(roomIdx, paxIdx, value);
+    }
   };
 
-  const handleRemovePassenger = (index: number) => {
-    if (passengers.length <= 1) {
-      toast.error("La reserva debe tener al menos un pasajero.");
+  // Add INFOA passenger specifically to a room
+  const handleAddInfoa = (roomIdx: number) => {
+    const updated = [...roomPassengers];
+    updated[roomIdx] = [
+      ...updated[roomIdx],
+      {
+        dni: "",
+        nombre: "",
+        apellido: "",
+        fechaNacimiento: "",
+        puntoAscenso: "",
+        tipoPax: "INF",
+        isInfoa: true
+      }
+    ];
+    setRoomPassengers(updated);
+  };
+
+  const handleRemovePassenger = (roomIdx: number, paxIdx: number) => {
+    const updated = [...roomPassengers];
+    if (updated[roomIdx].length <= 1 && !updated[roomIdx][paxIdx].isInfoa) {
+      toast.error("Cada habitación debe mantener al menos un pasajero.");
       return;
     }
-    setPassengers(passengers.filter((_, i) => i !== index));
+    updated[roomIdx] = updated[roomIdx].filter((_, i) => i !== paxIdx);
+    setRoomPassengers(updated);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate passengers
-    for (let i = 0; i < passengers.length; i++) {
-      const p = passengers[i];
-      if (!p.dni || !p.nombre || !p.apellido || !p.fechaNacimiento) {
-        toast.error(`Por favor complete todos los datos obligatorios para el Pasajero ${i + 1}`);
+    if (!user?.iweb_client_id) return;
+
+    const actualSalidaId = salidaIdParam || (itemType === "salida" ? itemId : null);
+    const actualPaqueteId = paqueteIdParam || (itemType === "paquete" ? itemId : null);
+
+    // Validation for Bloqueo mode
+    if (tipoReserva === "bloqueo") {
+      if ((bloqueoData.cantSemicama || 0) === 0 && (bloqueoData.cantCama || 0) === 0) {
+        toast.error("Por favor ingresa la cantidad de pasajeros (Semicama o Cama) para la reserva de bloqueo.");
         return;
+      }
+      if (salidaInfo) {
+        const availableSemicama = salidaInfo.semicama ?? 999;
+        const availableCama = salidaInfo.cama ?? 999;
+
+        if (bloqueoData.cantSemicama > availableSemicama) {
+          toast.error(`No hay suficientes asientos Semicama. Disponibles: ${availableSemicama}`);
+          return;
+        }
+        if (bloqueoData.cantCama > availableCama) {
+          toast.error(`No hay suficientes asientos Cama. Disponibles: ${availableCama}`);
+          return;
+        }
+      }
+    } else {
+      // Validation for Tradicional mode
+      for (let rIdx = 0; rIdx < roomPassengers.length; rIdx++) {
+        for (let pIdx = 0; pIdx < roomPassengers[rIdx].length; pIdx++) {
+          const p = roomPassengers[rIdx][pIdx];
+          if (p.isInfoa) {
+            if (!p.nombre || !p.apellido || !p.fechaNacimiento) {
+              toast.error(`Por favor completa Nombre, Apellido y Fecha de Nacimiento del INFOA en Habitación ${rIdx + 1}`);
+              return;
+            }
+          } else {
+            if (!p.dni || !p.nombre || !p.apellido || !p.fechaNacimiento) {
+              toast.error(`Por favor completa todos los datos del Pasajero ${pIdx + 1} en Habitación ${rIdx + 1}`);
+              return;
+            }
+          }
+        }
       }
     }
 
-    if (!user?.iweb_client_id) return;
     setLoading(true);
     try {
-      const codigoReserva = `RES-${Math.floor(100000 + Math.random() * 900000)}`;
+      const passengersPayload: any[] = [];
+      const allPassengersList: any[] = [];
 
-      for (const p of passengers) {
-        // Find or create passenger
-        const existing = await apiClient.getPassengerByDNI(user.iweb_client_id, p.dni).catch(() => []);
-        let passengerId = "";
-        if (existing && existing.length > 0) {
-          passengerId = existing[0].id;
-        } else {
+      if (tipoReserva === "bloqueo") {
+        // Generar pasajeros sin datos (placeholders) para la cantidad de Semicama
+        for (let i = 1; i <= (bloqueoData.cantSemicama || 0); i++) {
           const newPass = await apiClient.createParameter("create_passengers", {
-            name: p.nombre,
-            last_name: p.apellido,
-            dni: Number(p.dni),
-            date_of_birth: p.fechaNacimiento || null,
-            sex: "Masculino",
+            name: "",
+            last_name: "",
+            dni: null,
+            date_of_birth: null,
+            sex: null,
             phone: null
           }, user.iweb_client_id);
-          passengerId = newPass.id;
+
+          passengersPayload.push({
+            pasajero_id: newPass.id,
+            pasajero_type: "ADL",
+            butaca_number: null,
+            butaca_type: "semicama",
+            lugar_carga_id: null
+          });
+
+          allPassengersList.push({
+            nombre: "Pasajero Semicama",
+            apellido: `${i}`,
+            dni: "-",
+            fechaNacimiento: "",
+            puntoAscenso: ""
+          });
         }
 
-        // Create reservation
-        // If tipoReserva is "bloqueo", salida_id is not set. Otherwise use itemId
-        const isBloqueo = tipoReserva === "bloqueo";
-        const salidaId = isBloqueo ? null : (itemType === "salida" ? itemId : null);
+        // Generar pasajeros sin datos (placeholders) para la cantidad de Cama
+        for (let i = 1; i <= (bloqueoData.cantCama || 0); i++) {
+          const newPass = await apiClient.createParameter("create_passengers", {
+            name: "",
+            last_name: "",
+            dni: null,
+            date_of_birth: null,
+            sex: null,
+            phone: null
+          }, user.iweb_client_id);
 
-        await apiClient.createReserva(user.iweb_client_id, {
-          passenger_id: passengerId,
-          salida_id: salidaId,
-          codigo_reserva: codigoReserva,
-          client_id: clienteId || null,
-          edad_categoria: "ADL",
-          lugar_carga_id: p.puntoAscenso || null,
-          hotel_id: hotelId || null,
-          room_type: habitacion || null,
-        });
+          passengersPayload.push({
+            pasajero_id: newPass.id,
+            pasajero_type: "ADL",
+            butaca_number: null,
+            butaca_type: "cama",
+            lugar_carga_id: null
+          });
+
+          allPassengersList.push({
+            nombre: "Pasajero Cama",
+            apellido: `${i}`,
+            dni: "-",
+            fechaNacimiento: "",
+            puntoAscenso: ""
+          });
+        }
+      } else {
+        // Modo Tradicional
+        for (let rIdx = 0; rIdx < roomPassengers.length; rIdx++) {
+          for (const p of roomPassengers[rIdx]) {
+            let passengerId = "";
+
+            if (p.dni) {
+              const existing = await apiClient.getPassengerByDNI(user.iweb_client_id, p.dni).catch(() => []);
+              if (existing && existing.length > 0) {
+                passengerId = existing[0].id;
+              }
+            }
+
+            if (!passengerId) {
+              const newPass = await apiClient.createParameter("create_passengers", {
+                name: p.nombre,
+                last_name: p.apellido,
+                dni: p.dni ? Number(p.dni) : null,
+                date_of_birth: p.fechaNacimiento || null,
+                sex: null,
+                phone: null
+              }, user.iweb_client_id);
+              passengerId = newPass.id;
+            }
+
+            passengersPayload.push({
+              pasajero_id: passengerId,
+              pasajero_type: p.tipoPax || (p.isInfoa ? "INF" : "ADL"),
+              butaca_number: null,
+              butaca_type: null,
+              lugar_carga_id: p.puntoAscenso || null
+            });
+
+            allPassengersList.push({
+              nombre: p.nombre,
+              apellido: p.apellido,
+              dni: p.dni || "-",
+              fechaNacimiento: p.fechaNacimiento || "",
+              puntoAscenso: p.puntoAscenso || ""
+            });
+          }
+        }
       }
 
-      toast.success("¡Reserva confirmada con éxito!");
+      // Room type representation JSON string array e.g. ["doble_matrimonial_estandar","simple_individual_estandar"]
+      const roomTypesJoined = JSON.stringify(
+        roomsConfig.map((rm) => `${rm.tipoCama}_${rm.distribucion}_${rm.tipoHabitacion}`)
+      );
+
+      const primaryHotelId = roomsConfig[0]?.hotel || hotelIdParam || null;
+      const primaryLugarCargaId = passengersPayload[0]?.lugar_carga_id || null;
+
+      const createdReserva = await apiClient.createReserva(user.iweb_client_id, {
+        salida_id: actualSalidaId,
+        package_id: actualPaqueteId,
+        client_id: clienteId || null,
+        lugar_carga_id: primaryLugarCargaId,
+        hotel_id: primaryHotelId,
+        room_type: roomTypesJoined,
+        observations: tituloReserva || null,
+        venciment: fechaVencimiento || null,
+        passengers: passengersPayload
+      });
+
+      // Calculate and save Liquidacion with total_amount, total_commission, and gastos
+      try {
+        let precioPaquete = 0;
+        let gastosReserva = 0;
+
+        if (paqueteInfo) {
+          precioPaquete = Number(paqueteInfo.price) || 0;
+          gastosReserva = Number(paqueteInfo.gastos) || 0;
+        } else {
+          precioPaquete = Number(bloqueoData.precioPaquete) || 0;
+          gastosReserva = Number(bloqueoData.gastosReserva) || 0;
+        }
+
+        // Count paying passengers (non-INF)
+        let totalPax = 0;
+        if (tipoReserva === "bloqueo") {
+          totalPax = (Number(bloqueoData.cantSemicama) || 0) + (Number(bloqueoData.cantCama) || 0);
+        }
+        if (totalPax === 0) {
+          totalPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length;
+        }
+        if (totalPax === 0 && passengersPayload.length > 0) {
+          totalPax = passengersPayload.length;
+        }
+        if (totalPax === 0) totalPax = 1;
+
+        const montoComisionable = precioPaquete * totalPax;
+        const totalBruto = montoComisionable + gastosReserva;
+
+        // Fetch client commission if client_id is present
+        let clientCommPct = 0;
+        const matchedClient = clientes.find((c: any) => c.id === clienteId) ||
+          (Array.isArray(clientes) ? clientes.find((c: any) => c.id === clienteId) : null);
+        if (matchedClient && matchedClient.commission !== null && matchedClient.commission !== undefined) {
+          clientCommPct = Number(matchedClient.commission) || 0;
+        } else if (clienteId && user?.iweb_client_id) {
+          const freshClients = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
+          const fc = Array.isArray(freshClients) ? freshClients.find((c: any) => c.id === clienteId) : null;
+          if (fc && fc.commission !== null && fc.commission !== undefined) {
+            clientCommPct = Number(fc.commission) || 0;
+          }
+        }
+
+        const commAmount = (montoComisionable * clientCommPct) / 100;
+
+        const liqPayload: any = {
+          iweb_client_id: user.iweb_client_id,
+          booking_id: createdReserva.id,
+          total_amout: totalBruto,
+          total_commission: montoComisionable,
+          commission: commAmount,
+          gastos: gastosReserva > 0 ? [{
+            name: "Gastos de Reserva",
+            amount: gastosReserva,
+            iweb_client_id: user.iweb_client_id
+          }] : []
+        };
+
+        if (createdReserva?.id) {
+          await apiClient.createLiquidacion(liqPayload).catch(() => {
+            return apiClient.getLiquidacionByBooking(createdReserva.id).then((existingLiq) => {
+              if (existingLiq?.id) {
+                return apiClient.updateLiquidacion(existingLiq.id, liqPayload);
+              }
+            });
+          });
+        }
+        console.log("Reserva creada", createdReserva);
+        console.log("Liquidacion creada", liqPayload);
+      } catch (liqErr) {
+        console.error("Error creating liquidacion for reservation:", liqErr);
+      }
+
+      toast.success("¡Reserva creada con éxito!");
       router.push(
-        `/web/reservas/result?success=true&destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&hotel=${hotelId}&cama=${cama}&habitacion=${habitacion}&pasajeros=${encodeURIComponent(JSON.stringify(passengers))}`
+        `/web/reservas`
       );
     } catch (error) {
       console.error(error);
@@ -163,36 +492,37 @@ function Paso3Content() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex flex-col items-center justify-center h-screen">
         <Loader />
+        <p className="mt-4 font-semibold md:text-xl">Registrando reserva, pasajeros, liquidacion...</p>
       </div>
     );
   }
 
+  // Dynamic header data
+  const destinoObj = destinos.find((d) => d.id === destinoId);
+  const clienteObj = clientes.find((c) => c.id === clienteId);
+  const destinoNombre = destinoObj?.name || destinoObj?.nombre || "General";
+  const clienteNombre = clienteObj?.complete_name || clienteObj?.name_system || (clienteId === "as" ? "En Espera" : "Cliente sin asignar");
+  const fechaSalidaText = salidaInfo?.date_of_out || paqueteInfo?.name || "Fecha a confirmar";
+  const siglaText = destinoObj?.sigla || "DEST";
+
   return (
     <Container>
       <ToggleSalidas />
-      <Link
-        href={"/dashboard"}
-        className="flex items-center justify-start gap-3">
+      <Link href="/dashboard" className="flex items-center justify-start gap-3">
         <ArrowLeft />
         <h1 className="font-bold md:text-xl">Volver al menú</h1>
       </Link>
-      <Link
-        className="flex items-center my-3 justify-start gap-2"
-        href={"/web/reservas"}>
+      <Link className="flex items-center my-3 justify-start gap-2" href="/web/reservas">
         <ArrowLeft color="#6005F7" />
-        <p className="text-secondary font-semibold md:text-lg">
-          Volver a Reservas
-        </p>
+        <p className="text-secondary font-semibold md:text-lg">Volver a Reservas</p>
       </Link>
       <Link
         className="flex items-center my-3 justify-start gap-2"
         href={`/web/reservas/crear-reserva/paso-2?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}`}>
         <ArrowLeft />
-        <p className="text-primary font-semibold md:text-lg">
-          Volver a Habitación
-        </p>
+        <p className="text-primary font-semibold md:text-lg">Volver a Habitación</p>
       </Link>
 
       <h2 className="font-semibold text-black text-center mx-auto md:text-lg mt-5">
@@ -213,110 +543,205 @@ function Paso3Content() {
           </div>
         </div>
 
-        {/* Current summary */}
-        <div className="flex flex-col gap-2 text-black items-start w-full font-semibold bg-gray-50 border border-gray-200 p-4 rounded-xl">
-          <p className="text-sm"><span className="text-primary font-bold">{destinoId ? "Mar del Plata" : "General"} - Mio Turismo</span></p>
-          <p className="text-sm"><span className="text-primary font-bold">25/06/2026 - MDQ</span></p>
-          <p className="text-sm">Tipo: <span className="text-primary font-bold">{tipoReserva === "bloqueo" ? "Bloqueo Grupal" : "Reserva Tradicional"}</span></p>
-          <p className="text-sm">Hotel Garden - DBL MAT</p>
+        {/* Dynamic Header Summary */}
+        <div className="flex flex-col gap-2 text-black items-start w-full font-medium p-4 rounded-xl ">
+          <p className="text-base font-medium">{destinoNombre} - {clienteNombre}</p>
+          {tipoReserva === "tradicional" && <p className="text-sm font-medium">{fechaSalidaText} ({siglaText})</p>}
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col w-full gap-5 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <input type="text" placeholder="Titulo de la reserva" className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-          {passengers.map((passenger, index) => (
-            <div key={index} className="flex flex-col gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50/50 relative">
-              <div className="flex justify-between items-center">
-                <p className="font-bold text-gray-800">Pasajero {index + 1}</p>
-                {passengers.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePassenger(index)}
-                    className="text-red-500 hover:text-red-700 text-xs font-semibold"
-                  >
-                    Eliminar
-                  </button>
-                )}
-              </div>
+        <form onSubmit={handleSubmit} className="flex flex-col w-full gap-6 px-2">
+          {/* Datos Generales (Título de Reserva & Fecha de Vencimiento) */}
 
-              {/* DNI */}
+
+          {tipoReserva === "bloqueo" ? (
+            <div className="flex flex-col gap-4 p-5 rounded-xl ">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-gray-700">DNI *</label>
+                <label className="text-xs font-bold text-gray-700">
+                  Cantidad de pasajeros Semicama {salidaInfo?.semicama !== undefined && `(Disp: ${salidaInfo.semicama})`}
+                </label>
                 <input
-                  type="text"
-                  required
-                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Ingrese DNI"
-                  value={passenger.dni}
-                  onChange={(e) => handlePassengerChange(index, "dni", e.target.value)}
+                  type="number"
+                  min="0"
+                  max={salidaInfo?.semicama ?? 999}
+                  placeholder="Cantidad de pasajeros semicama"
+                  value={bloqueoData.cantSemicama}
+                  onChange={(e) => setBloqueoData({ ...bloqueoData, cantSemicama: Number(e.target.value) })}
+                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                 />
               </div>
 
-              {/* Nombre */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-gray-700">Nombre *</label>
+                <label className="text-xs font-bold text-gray-700">
+                  Cantidad de pasajeros Cama {salidaInfo?.cama !== undefined && `(Disp: ${salidaInfo.cama})`}
+                </label>
                 <input
-                  type="text"
-                  required
-                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Ingrese Nombre"
-                  value={passenger.nombre}
-                  onChange={(e) => handlePassengerChange(index, "nombre", e.target.value)}
+                  type="number"
+                  min="0"
+                  max={salidaInfo?.cama ?? 999}
+                  placeholder="Cantidad de pasajeros cama"
+                  value={bloqueoData.cantCama}
+                  onChange={(e) => setBloqueoData({ ...bloqueoData, cantCama: Number(e.target.value) })}
+                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                 />
               </div>
 
-              {/* Apellido */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-gray-700">Apellido *</label>
+                <label className="text-xs font-bold text-gray-700">Cantidad de liberados (opcional)</label>
                 <input
-                  type="text"
-                  required
-                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Ingrese Apellido"
-                  value={passenger.apellido}
-                  onChange={(e) => handlePassengerChange(index, "apellido", e.target.value)}
+                  type="number"
+                  min="0"
+                  placeholder="Cantidad de liberados"
+                  value={bloqueoData.cantLiberados}
+                  onChange={(e) => setBloqueoData({ ...bloqueoData, cantLiberados: Number(e.target.value) })}
+                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                 />
               </div>
 
-              {/* Fecha de Nacimiento */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-gray-700">Fecha de Nacimiento *</label>
-                <input
-                  type="date"
-                  required
-                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={passenger.fechaNacimiento}
-                  onChange={(e) => handlePassengerChange(index, "fechaNacimiento", e.target.value)}
-                />
-              </div>
-
-              {/* Punto de ascenso */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-gray-700">Punto de ascenso / Embarque</label>
-                <select
-                  className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={passenger.puntoAscenso}
-                  onChange={(e) => handlePassengerChange(index, "puntoAscenso", e.target.value)}
-                >
-                  <option value="">Seleccione lugar de carga</option>
-                  {lugaresCarga.map((l: any) => (
-                    <option key={l.id} value={l.id}>{l.name || l.nombre || l.lugar}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Package price and reservation fees are hidden if a package was selected */}
+              {!paqueteInfo && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-gray-700">Precio paquete</label>
+                    <input
+                      type="number"
+                      placeholder="Precio paquete"
+                      value={bloqueoData.precioPaquete}
+                      onChange={(e) => setBloqueoData({ ...bloqueoData, precioPaquete: Number(e.target.value) })}
+                      className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-gray-700">Gastos de reserva (opcional)</label>
+                    <input
+                      type="number"
+                      placeholder="Gastos de reserva"
+                      value={bloqueoData.gastosReserva}
+                      onChange={(e) => setBloqueoData({ ...bloqueoData, gastosReserva: Number(e.target.value) })}
+                      className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </>
+              )}
             </div>
-          ))}
+          ) : (
+            <>
+              <div className="flex flex-col gap-4  p-5 rounded-xl ">
+                <div className="flex flex-col gap-1">
+                  Fecha de vencimiento (opcional)
+                </div>
 
-          {/* Add passenger button */}
-          <button
-            type="button"
-            onClick={handleAddPassenger}
-            className="w-full py-2 px-4 border border-dashed border-primary text-primary hover:bg-blue-50 font-bold rounded-lg text-sm transition-all"
-          >
-            + Agregar Pasajero Adicional
-          </button>
+                <div className="flex flex-col gap-1">
+                  <input
+                    type="date"
+                    value={fechaVencimiento}
+                    onChange={(e) => setFechaVencimiento(e.target.value)}
+                    className="w-full border border-gray-300 bg-white rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              {roomsConfig.map((rm, rIdx) => {
+                const hotelObj = hotels.find((h) => h.id === rm.hotel);
+                const hotelName = hotelObj?.name || hotelObj?.nombre || "Hotel";
+                const camaLabel = (rm.tipoCama || "doble").toUpperCase().slice(0, 3);
+                const distLabel = rm.distribucion === "matrimonial" ? "MAT" : "TWIN";
+                const habLabel = (rm.tipoHabitacion || "estandar").toUpperCase().slice(0, 3);
+                const roomTitle = `${hotelName} - ${camaLabel} ${distLabel} - ${habLabel}`;
 
-          {/* Continuar / Confirmar */}
+                return (
+                  <div key={rIdx} className="flex flex-col gap-4  p-5 rounded-xl ">
+                    <h3 className="font-medium text-base pb-2">{roomTitle}</h3>
+                    {roomPassengers[rIdx]?.map((passenger, pIdx) => (
+                      <div key={pIdx} className="flex flex-col gap-3 py-4  rounded-lg  relative">
+                        <div className="flex justify-between items-center">
+                          <p className="font-medium text-sm">
+                            {passenger.isInfoa ? `Pasajero INFOA (Bebé)` : `Pasajero ${pIdx + 1}`}
+                          </p>
+                        </div>
+
+
+
+                        {/* DNI */}
+                        <div className="flex flex-col gap-1">
+                          <input
+                            placeholder="DNI"
+                            className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                            value={passenger.dni}
+                            onChange={(e) => handlePassengerChange(rIdx, pIdx, "dni", e.target.value)}
+                            onBlur={(e) => handleDniBlur(rIdx, pIdx, e.target.value)}
+                            type="text"
+                          />
+                        </div>
+
+                        {/* Nombre */}
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="text"
+                            required
+                            className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                            placeholder="Ingrese Nombre"
+                            value={passenger.nombre}
+                            onChange={(e) => handlePassengerChange(rIdx, pIdx, "nombre", e.target.value)}
+                          />
+                        </div>
+
+                        {/* Apellido */}
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="text"
+                            required
+                            className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                            placeholder="Ingrese Apellido"
+                            value={passenger.apellido}
+                            onChange={(e) => handlePassengerChange(rIdx, pIdx, "apellido", e.target.value)}
+                          />
+                        </div>
+
+                        {/* Fecha de Nacimiento */}
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="date"
+                            required
+                            className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                            value={passenger.fechaNacimiento}
+                            onChange={(e) => handlePassengerChange(rIdx, pIdx, "fechaNacimiento", e.target.value)}
+                          />
+                        </div>
+
+                        {/* Punto de Ascenso (Solo para no-INFOA) */}
+                        {!passenger.isInfoa && (
+                          <div className="flex flex-col gap-1">
+                            <select
+                              className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                              value={passenger.puntoAscenso}
+                              onChange={(e) => handlePassengerChange(rIdx, pIdx, "puntoAscenso", e.target.value)}
+                            >
+                              <option value="">Punto de ascenso</option>
+                              {lugaresCarga.map((l: any) => (
+                                <option key={l.id} value={l.id}>{l.name || l.nombre || l.lugar}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Botón Agregar INFOA por Habitación */}
+                    <button
+                      type="button"
+                      onClick={() => handleAddInfoa(rIdx)}
+                      className="py-2 px-4 flex items-center gap-2 font-semibold justify-end rounded-lg text-sm text-primary  transition-all cursor-pointer  border-primary"
+                    >
+                      <span>Agregar INFOA</span>
+                      <AddVioleta color="#0546f7" />
+                    </button>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Confirmar */}
           <button
             type="submit"
             className="w-full bg-primary text-white text-center font-semibold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-all cursor-pointer mt-3"

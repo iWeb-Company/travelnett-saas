@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 import os
-from typing import Any
+from typing import Any, Optional, Union, List
+from datetime import datetime, date
 from db.database import get_db
 from models.models import cuentasCorrientsClients, cuentasCorrientesProviders, ccProvidersConsumptionPayments
 from schemas.schemas import (
@@ -182,20 +183,46 @@ def get_cuenta_corriente_provider_by_id(id: str, iweb_client_id: str, db: Sessio
 
 @router.post("/create_cc_providers_consumption_payments", response_model=ccProvidersConsumptionPaymentsResponse, tags=["CC Providers Consumption Payments"])
 async def create_cc_provider_consumption_payment(payload: ccProvidersConsumptionPaymentsCreateRequest, db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    from models.models import iWebClient
     try:
         new_id = str(uuid.uuid4())
+        
+        parsed_date = None
+        if payload.date:
+            if isinstance(payload.date, str):
+                try:
+                    parsed_date = datetime.strptime(payload.date[:10], "%Y-%m-%d").date()
+                except Exception:
+                    parsed_date = None
+            elif isinstance(payload.date, date):
+                parsed_date = payload.date
+
+        def clean_id(val: Optional[str]) -> Optional[str]:
+            if not val or not str(val).strip():
+                return None
+            return str(val).strip()
+
+        clean_iweb_id = clean_id(payload.iweb_client_id)
+        if clean_iweb_id:
+            db_client = db.query(iWebClient).filter(
+                func.lower(iWebClient.id) == func.lower(clean_iweb_id)
+            ).first()
+            if db_client:
+                clean_iweb_id = db_client.id
+
         item = ccProvidersConsumptionPayments(
             id=new_id,
-            cc_provider_id=payload.cc_provider_id,
-            provider_type=payload.provider_type,
-            hotel_id=payload.hotel_id,
-            transport_id=payload.transport_id,
-            date=payload.date,
+            cc_provider_id=clean_id(payload.cc_provider_id),
+            provider_type=clean_id(payload.provider_type),
+            hotel_id=clean_id(payload.hotel_id),
+            transport_id=clean_id(payload.transport_id),
+            date=parsed_date,
             detail=payload.detail,
-            type=payload.type,
-            transf_account=payload.transf_account,
+            type=clean_id(payload.type),
+            transf_account=clean_id(payload.transf_account),
             amount=payload.amount,
-            iweb_client_id=payload.iweb_client_id
+            iweb_client_id=clean_iweb_id
         )
         db.add(item)
         db.commit()
@@ -203,13 +230,18 @@ async def create_cc_provider_consumption_payment(payload: ccProvidersConsumption
         return item
     except Exception as e:
         db.rollback()
+        print(f"Error in create_cc_provider_consumption_payment: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/get_cc_providers_consumption_payments", response_model=list[ccProvidersConsumptionPaymentsResponse], tags=["CC Providers Consumption Payments"])
 def get_cc_providers_consumption_payments(iweb_client_id: str, db: Session = Depends(get_db)):
+    from sqlalchemy import func
     try:
-        return db.query(ccProvidersConsumptionPayments).filter(ccProvidersConsumptionPayments.iweb_client_id == iweb_client_id).all()
+        clean_id = iweb_client_id.strip() if iweb_client_id else ""
+        return db.query(ccProvidersConsumptionPayments).filter(
+            func.lower(ccProvidersConsumptionPayments.iweb_client_id) == func.lower(clean_id)
+        ).all()
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))

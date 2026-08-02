@@ -4,12 +4,22 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { apiClient } from '@/lib/api';
 import { useRouter, usePathname } from 'next/navigation';
 
+export interface UserPermissions {
+  salidas: boolean;
+  paquetes: boolean;
+  administracion: boolean;
+  parametros: boolean;
+  web: boolean;
+  permisos_users: boolean;
+}
+
 interface User {
   id: string;
   iweb_client_id: string;
   name: string;
   last_name: string;
   username: string;
+  rol?: string;
 }
 
 interface IwebClient {
@@ -30,9 +40,19 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   token: string | null;
+  permissions: UserPermissions;
   login: (slug: string, username: string, password: string) => Promise<void>;
   logout: () => void;
 }
+
+const defaultFullPermissions: UserPermissions = {
+  salidas: true,
+  paquetes: true,
+  administracion: true,
+  parametros: true,
+  web: true,
+  permisos_users: true,
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -41,15 +61,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [iwebClient, setIwebClient] = useState<IwebClient | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [permissions, setPermissions] = useState<UserPermissions>(defaultFullPermissions);
   const router = useRouter();
   const pathname = usePathname();
+
+  const loadPermissionsForUser = async (u: User) => {
+    const userRole = (u.rol || "admin").toLowerCase().trim();
+    if (u.username === "iweb_admin" || userRole === "admin") {
+      setPermissions(defaultFullPermissions);
+      return;
+    }
+
+    try {
+      const permsList = await apiClient.getPermissions(u.iweb_client_id).catch(() => []);
+      const matched = permsList.find(
+        (p: any) => (p.name || "").toLowerCase().trim() === userRole || (p.id || "") === u.rol
+      );
+
+      if (matched) {
+        setPermissions({
+          salidas: Boolean(matched.salidas),
+          paquetes: Boolean(matched.paquetes),
+          administracion: Boolean(matched.administracion),
+          parametros: Boolean(matched.parametros),
+          web: Boolean(matched.web),
+          permisos_users: Boolean(matched.permisos_users),
+        });
+      } else {
+        setPermissions({
+          salidas: false,
+          paquetes: false,
+          administracion: false,
+          parametros: false,
+          web: false,
+          permisos_users: false,
+        });
+      }
+    } catch {
+      setPermissions({
+        salidas: false,
+        paquetes: false,
+        administracion: false,
+        parametros: false,
+        web: false,
+        permisos_users: false,
+      });
+    }
+  };
 
   useEffect(() => {
     if (!isLoading) {
       if (!user && pathname !== '/login') {
-        router.push('/login');
+        router.replace('/login');
       } else if (user && pathname === '/login') {
-        router.push('/dashboard');
+        router.replace('/dashboard');
       }
     }
   }, [isLoading, user, pathname, router]);
@@ -63,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Relies on HTTP-Only cookie automatically sent by the browser
         const userData = await apiClient.getMe();
         setUser(userData);
+        await loadPermissionsForUser(userData);
 
         if (storedClient) {
           try {
@@ -75,6 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setIwebClient(null);
         localStorage.removeItem('iweb_client');
+        if (typeof window !== 'undefined') {
+          document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          if (pathname !== '/login') {
+            window.location.href = '/login';
+          }
+        }
       } finally {
         setIsLoading(false);
       }
@@ -93,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const userData = await apiClient.getMe();
       setUser(userData);
+      await loadPermissionsForUser(userData);
     } catch (error) {
       setUser(null);
       setIwebClient(null);
@@ -120,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isLoading,
         isAuthenticated: !!user,
+        permissions,
         login,
         logout,
       }}

@@ -4,7 +4,7 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { es } from "date-fns/locale";
@@ -16,11 +16,14 @@ import {
 } from "date-fns";
 import toast from "react-hot-toast";
 import ModalLayout from "@/app/components/ModalLayout";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
+import { Loader } from "@/app/components/Loader";
 
 registerLocale("es", es);
 
 interface Movimiento {
-  id: number;
+  id: string | number;
   cuenta: string;
   fecha: string;
   recibo: string | number;
@@ -29,8 +32,17 @@ interface Movimiento {
   detalle: string;
 }
 
+interface CuentaOption {
+  id: string;
+  label: string;
+}
+
 export default function TesoroPage() {
   const r = useRouter();
+  const { user } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [cuenta, setCuenta] = useState("");
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -53,42 +65,35 @@ export default function TesoroPage() {
   const [paseMonto, setPaseMonto] = useState("");
   const [paseDetalle, setPaseDetalle] = useState("");
 
-  const cuentas = [
-    { id: 1, label: "Banco Galicia - CAJA DE AHORRO" },
-    { id: 2, label: "Banco Nación - CUENTA CORRIENTE" },
-    { id: 3, label: "Caja Chica - EFECTIVO PESOS" },
-    { id: 4, label: "Caja Chica - EFECTIVO DÓLARES" },
-  ];
+  const [cuentas, setCuentas] = useState<CuentaOption[]>([]);
+  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
+  const [totals, setTotals] = useState({
+    totalIngresos: 0,
+    totalEgresos: 0,
+    saldoTotal: 0,
+  });
 
-  const [movimientos, setMovimientos] = useState<Movimiento[]>([
-    {
-      id: 1,
-      cuenta: "Banco Galicia - CAJA DE AHORRO",
-      fecha: "10/06/2026",
-      recibo: "RC-00125",
-      monto: 1000000,
-      tipo: "reserva",
-      detalle: "Seña Reserva MDQ #1542",
-    },
-    {
-      id: 2,
-      cuenta: "Banco Galicia - CAJA DE AHORRO",
-      fecha: "09/06/2026",
-      recibo: "OP-00084",
-      monto: -3000000,
-      tipo: "pago",
-      detalle: "PAGO SEÑA HOTEL GARDEN",
-    },
-    {
-      id: 3,
-      cuenta: "Banco Nación - CUENTA CORRIENTE",
-      fecha: "06/06/2026",
-      recibo: "RC-00121",
-      monto: 1500000,
-      tipo: "reserva",
-      detalle: "Cobro Reserva BRC #9902",
-    },
-  ]);
+  const loadAccounts = async () => {
+    if (!user?.iweb_client_id) return;
+    try {
+      const data = await apiClient.getAccounts(user.iweb_client_id).catch(() => []);
+      const mapped = data.map((acc: any) => ({
+        id: acc.id,
+        label: acc.account_title || "Cuenta",
+      }));
+      setCuentas(mapped);
+    } catch {
+      toast.error("Error al cargar cuentas");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.iweb_client_id) {
+      loadAccounts();
+    }
+  }, [user?.iweb_client_id]);
 
   const handleDateChange = (dates: [Date | null, Date | null]) => {
     const [start, end] = dates;
@@ -143,25 +148,39 @@ export default function TesoroPage() {
     },
   ];
 
-  // Calculate totals dynamically from current state
-  const totalIngresos = movimientos
-    .filter((m) => m.monto > 0)
-    .reduce((acc, m) => acc + m.monto, 0);
-
-  const totalEgresos = movimientos
-    .filter((m) => m.monto < 0)
-    .reduce((acc, m) => acc + m.monto, 0);
-
-  const saldoTotal = totalIngresos + totalEgresos;
-
   const formatMonto = (monto: number) => {
     const prefix = monto < 0 ? "-" : "";
     return `${prefix}$${Math.abs(monto).toLocaleString("es-AR")}`;
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSearched(true);
+    if (!user?.iweb_client_id) return;
+
+    setSearching(true);
+    try {
+      const sDateStr = startDate ? startDate.toISOString().split("T")[0] : undefined;
+      const eDateStr = endDate ? endDate.toISOString().split("T")[0] : undefined;
+
+      const res = await apiClient.getTesoroMovimientos(user.iweb_client_id, {
+        accountId: cuenta || undefined,
+        startDate: sDateStr,
+        endDate: eDateStr,
+      });
+
+      setMovimientos(res.movimientos || []);
+      setTotals({
+        totalIngresos: res.total_ingresos || 0,
+        totalEgresos: res.total_egresos || 0,
+        saldoTotal: res.saldo_total || 0,
+      });
+      setSearched(true);
+    } catch (err) {
+      console.error("Error al consultar movimientos del Tesoro:", err);
+      toast.error("Error al consultar movimientos del Tesoro");
+    } finally {
+      setSearching(false);
+    }
   };
 
   const handleClear = () => {
@@ -169,41 +188,61 @@ export default function TesoroPage() {
     setStartDate(null);
     setEndDate(null);
     setSearched(false);
+    setMovimientos([]);
+    setTotals({ totalIngresos: 0, totalEgresos: 0, saldoTotal: 0 });
   };
 
-  // Submit hander for Ingresar Movimiento
-  const handleSubmitMovimiento = () => {
+  // Submit handler for Ingresar Movimiento
+  const handleSubmitMovimiento = async () => {
+    if (!user?.iweb_client_id) return;
     if (!movCuenta || !movMonto || !movFecha || !movDetalle.trim()) {
       toast.error("Por favor complete todos los campos obligatorios");
       return;
     }
 
-    const valorMonto = parseFloat(movMonto);
-    const montoFinal = movTipo === "egreso" ? -Math.abs(valorMonto) : Math.abs(valorMonto);
+    try {
+      await apiClient.createTesoroMovimiento({
+        iweb_client_id: user.iweb_client_id,
+        account_id: movCuenta,
+        movement_type: movTipo,
+        amount: parseFloat(movMonto),
+        date: movFecha,
+        detail: movDetalle.toUpperCase(),
+      });
 
-    const nuevoMov: Movimiento = {
-      id: Date.now(),
-      cuenta: movCuenta,
-      fecha: new Date(movFecha + "T12:00:00").toLocaleDateString("es-AR"),
-      recibo: `MAN-${Math.floor(100 + Math.random() * 900)}`,
-      monto: montoFinal,
-      tipo: movTipo,
-      detalle: movDetalle.toUpperCase(),
-    };
+      toast.success("Movimiento registrado con éxito");
+      setIsOpenMovimiento(false);
 
-    setMovimientos((prev) => [nuevoMov, ...prev]);
-    setIsOpenMovimiento(false);
-    toast.success("Movimiento registrado con éxito");
+      // Clear form
+      setMovCuenta("");
+      setMovMonto("");
+      setMovFecha("");
+      setMovDetalle("");
 
-    // Clear form
-    setMovCuenta("");
-    setMovMonto("");
-    setMovFecha("");
-    setMovDetalle("");
+      // Reload search
+      if (searched && user?.iweb_client_id) {
+        const sDateStr = startDate ? startDate.toISOString().split("T")[0] : undefined;
+        const eDateStr = endDate ? endDate.toISOString().split("T")[0] : undefined;
+        const res = await apiClient.getTesoroMovimientos(user.iweb_client_id, {
+          accountId: cuenta || undefined,
+          startDate: sDateStr,
+          endDate: eDateStr,
+        });
+        setMovimientos(res.movimientos || []);
+        setTotals({
+          totalIngresos: res.total_ingresos || 0,
+          totalEgresos: res.total_egresos || 0,
+          saldoTotal: res.saldo_total || 0,
+        });
+      }
+    } catch {
+      toast.error("Error al registrar el movimiento");
+    }
   };
 
   // Submit handler for Pase de Dinero
-  const handleSubmitPase = () => {
+  const handleSubmitPase = async () => {
+    if (!user?.iweb_client_id) return;
     if (!paseOrigen || !paseDestino || !paseMonto || !paseDetalle.trim()) {
       toast.error("Por favor complete todos los campos");
       return;
@@ -213,40 +252,52 @@ export default function TesoroPage() {
       return;
     }
 
-    const montoVal = Math.abs(parseFloat(paseMonto));
-    const fechaActualStr = new Date().toLocaleDateString("es-AR");
+    try {
+      await apiClient.createTesoroPase({
+        iweb_client_id: user.iweb_client_id,
+        account_origen_id: paseOrigen,
+        account_destino_id: paseDestino,
+        amount: parseFloat(paseMonto),
+        detail: paseDetalle.toUpperCase(),
+      });
 
-    // Creates two movements: one egreso in origin, one ingreso in destination
-    const egresoMov: Movimiento = {
-      id: Date.now(),
-      cuenta: paseOrigen,
-      fecha: fechaActualStr,
-      recibo: `TRF-${Math.floor(100 + Math.random() * 900)}`,
-      monto: -montoVal,
-      tipo: "egreso_pase",
-      detalle: `PASE DE DINERO A: ${paseDestino.toUpperCase()}`,
-    };
+      toast.success("Pase de dinero realizado con éxito");
+      setIsOpenPase(false);
 
-    const ingresoMov: Movimiento = {
-      id: Date.now() + 1,
-      cuenta: paseDestino,
-      fecha: fechaActualStr,
-      recibo: egresoMov.recibo,
-      monto: montoVal,
-      tipo: "ingreso_pase",
-      detalle: `PASE DE DINERO DESDE: ${paseOrigen.toUpperCase()}`,
-    };
+      // Clear form
+      setPaseOrigen("");
+      setPaseDestino("");
+      setPaseMonto("");
+      setPaseDetalle("");
 
-    setMovimientos((prev) => [ingresoMov, egresoMov, ...prev]);
-    setIsOpenPase(false);
-    toast.success("Pase de dinero realizado con éxito");
-
-    // Clear form
-    setPaseOrigen("");
-    setPaseDestino("");
-    setPaseMonto("");
-    setPaseDetalle("");
+      // Reload search
+      if (searched && user?.iweb_client_id) {
+        const sDateStr = startDate ? startDate.toISOString().split("T")[0] : undefined;
+        const eDateStr = endDate ? endDate.toISOString().split("T")[0] : undefined;
+        const res = await apiClient.getTesoroMovimientos(user.iweb_client_id, {
+          accountId: cuenta || undefined,
+          startDate: sDateStr,
+          endDate: eDateStr,
+        });
+        setMovimientos(res.movimientos || []);
+        setTotals({
+          totalIngresos: res.total_ingresos || 0,
+          totalEgresos: res.total_egresos || 0,
+          saldoTotal: res.saldo_total || 0,
+        });
+      }
+    } catch {
+      toast.error("Error al realizar el pase de dinero");
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader />
+      </div>
+    );
+  }
 
   return (
     <Container>
@@ -280,10 +331,10 @@ export default function TesoroPage() {
           <select
             value={cuenta}
             onChange={(e) => setCuenta(e.target.value)}
-            className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2.5 px-3 text-black/80 font-medium  focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+            className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2.5 px-3 text-black/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary bg-white">
             <option value="">Seleccione una cuenta para filtrar</option>
             {cuentas.map((c) => (
-              <option key={c.id} value={c.label}>
+              <option key={c.id} value={c.id}>
                 {c.label}
               </option>
             ))}
@@ -318,9 +369,10 @@ export default function TesoroPage() {
             </div>
           </DatePicker>
           <button
+            disabled={searching}
             type="submit"
-            className="w-full bg-primary md:text-lg text-white shadow-lg shadow-black/60 font-medium py-2.5 rounded-md hover:bg-blue-700 transition-colors">
-            Buscar Movimientos
+            className="w-full bg-primary md:text-lg text-white shadow-lg shadow-black/60 font-medium py-2.5 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50">
+            {searching ? "Buscando..." : "Buscar Movimientos"}
           </button>
         </form>
 
@@ -334,7 +386,7 @@ export default function TesoroPage() {
                   Total Ingresos
                 </span>
                 <span className="font-bold text-green-500 text-sm md:text-base">
-                  {formatMonto(totalIngresos)}
+                  {formatMonto(totals.totalIngresos)}
                 </span>
               </div>
               <div className="flex justify-between items-center mb-1">
@@ -342,7 +394,7 @@ export default function TesoroPage() {
                   Total Egresos
                 </span>
                 <span className="font-bold text-red-500 text-sm md:text-base">
-                  {formatMonto(totalEgresos)}
+                  {formatMonto(totals.totalEgresos)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -350,15 +402,18 @@ export default function TesoroPage() {
                   Saldo Total
                 </span>
                 <span className="font-bold text-sm md:text-base text-black">
-                  {formatMonto(saldoTotal)}
+                  {formatMonto(totals.saldoTotal)}
                 </span>
               </div>
             </div>
 
             {/* Movimientos */}
-            {movimientos
-              .filter((mov) => !cuenta || mov.cuenta === cuenta)
-              .map((mov) => (
+            {movimientos.length === 0 ? (
+              <div className="p-6 text-center text-gray-500 bg-white border border-gray-200 rounded-md">
+                No hay movimientos registrados para los filtros seleccionados.
+              </div>
+            ) : (
+              movimientos.map((mov) => (
                 <div
                   key={mov.id}
                   className="border border-black rounded-md p-4 bg-white hover:shadow-md transition-shadow">
@@ -384,7 +439,8 @@ export default function TesoroPage() {
                     </span>
                   </div>
                 </div>
-              ))}
+              ))
+            )}
           </div>
         )}
       </div>
@@ -407,7 +463,7 @@ export default function TesoroPage() {
               >
                 <option value="">Seleccione cuenta</option>
                 {cuentas.map((c) => (
-                  <option key={c.id} value={c.label}>{c.label}</option>
+                  <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>
             </div>
@@ -498,7 +554,7 @@ export default function TesoroPage() {
               >
                 <option value="">Seleccione origen</option>
                 {cuentas.map((c) => (
-                  <option key={c.id} value={c.label}>{c.label}</option>
+                  <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>
             </div>
@@ -513,7 +569,7 @@ export default function TesoroPage() {
               >
                 <option value="">Seleccione destino</option>
                 {cuentas.map((c) => (
-                  <option key={c.id} value={c.label}>{c.label}</option>
+                  <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>
             </div>
@@ -549,4 +605,3 @@ export default function TesoroPage() {
     </Container>
   );
 }
-

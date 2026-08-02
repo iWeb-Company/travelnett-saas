@@ -5,7 +5,7 @@ import ToggleSalidas from "../components/ToggleSalidas";
 import ArrowLeft from "../components/icons/ArrowLeft";
 import ToggleActiveFilters from "../components/ToggleActiveFilters";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "../components/Loader";
@@ -16,6 +16,7 @@ export default function PaquetesPage() {
   const [destinos, setDestinos] = useState<any[]>([]);
   const [periodos, setPeriodos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const loadedRef = useRef<string | null>(null);
 
   const [data, setData] = useState({
     destino: "",
@@ -27,6 +28,9 @@ export default function PaquetesPage() {
   useEffect(() => {
     const loadFilters = async () => {
       if (!user?.iweb_client_id) return;
+      if (loadedRef.current === user.iweb_client_id) return;
+      loadedRef.current = user.iweb_client_id;
+
       try {
         const [destData, periodData] = await Promise.all([
           apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),

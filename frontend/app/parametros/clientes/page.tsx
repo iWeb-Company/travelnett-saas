@@ -96,12 +96,12 @@ export default function ClientesPage() {
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
-      
+
       const payload = {
         ...clientesData,
         client_type_id: clientesData.client_type,
       };
-      
+
       await apiClient.createParameter("create_clients", payload, clientId);
       toast.success("Cliente creado correctamente");
       setModalOpenAdd(false);
@@ -129,12 +129,12 @@ export default function ClientesPage() {
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
-      
+
       const payload = {
         ...clientesData,
         client_type_id: clientesData.client_type,
       };
-      
+
       await apiClient.updateParameter("update_clients", clientesData.id!, payload, clientId);
       toast.success("Cliente actualizado correctamente");
       setModalOpenPut(false);
@@ -498,11 +498,10 @@ export default function ClientesPage() {
                 onClick={() => setClientTypeData({ ...clientTypeData, adminForSellers: !clientTypeData.adminForSellers })}
                 className="flex items-center justify-between w-full border bg-white cursor-pointer rounded-sm p-2 pr-4 shadow-sm">
                 <span className="text-black/90 font-medium">Administrador para vendedores</span>
-                <span className={`inline-block w-4 h-4 rounded-full border-2 ${
-                  clientTypeData.adminForSellers
+                <span className={`inline-block w-4 h-4 rounded-full border-2 ${clientTypeData.adminForSellers
                     ? "bg-black border-black"
                     : "bg-white border-blue-500"
-                }`} />
+                  }`} />
               </div>
               <p className="text-white/80 text-sm font-medium self-start">Si es Admin 👇</p>
               <select

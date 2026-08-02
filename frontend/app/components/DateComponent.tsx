@@ -39,8 +39,8 @@ export default function DateInput({
             onClick={openPicker}
             className="
         relative flex py-3 w-full cursor-pointer items-center
-        rounded-md border border-zinc-300 bg-zinc-100 px-3 pr-10
-        shadow-md transition
+        rounded-md border font-medium border-zinc-300 bg-zinc-100 px-3 pr-10
+         transition
         hover:bg-zinc-200
         focus-within:border-zinc-400
       "

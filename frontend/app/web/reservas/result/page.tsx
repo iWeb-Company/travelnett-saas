@@ -6,12 +6,14 @@ import ArrowUpDown from "@/app/components/icons/ArrowUpDown";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
-import { Suspense, useState, useEffect } from "react";
+import ToggleActiveFilters from "@/app/components/ToggleActiveFilters";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import ReservasCard from "../ReservasCard";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
+import { Reserva } from "@/app/types";
 
 interface Passenger {
   dni: string;
@@ -32,57 +34,70 @@ function ResultContent() {
   const hotel = searchParams.get("hotel") || "";
   const cama = searchParams.get("cama") || "";
   const habitacion = searchParams.get("habitacion") || "";
-  
+
   const filterNumero = searchParams.get("numero") || "";
   const filterCliente = searchParams.get("cliente") || "";
+  const filterRango = searchParams.get("rango") || "";
+  const filterPeriodo = searchParams.get("periodo") || "";
+  const filterPaquete = searchParams.get("paquete") || "";
+  const filterActivoParam = searchParams.get("activo");
+
+  const [onlyActive, setOnlyActive] = useState<boolean>(filterActivoParam === null ? true : filterActivoParam === "true");
 
   const [pasajeros, setPasajeros] = useState<Passenger[]>([]);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const [reservas, setReservas] = useState<any[]>([]);
+  const [rawReservas, setRawReservas] = useState<any[]>([]);
+  const [salidasList, setSalidasList] = useState<any[]>([]);
+  const [selectedSalidaFilter, setSelectedSalidaFilter] = useState<string>("");
   const [loadingList, setLoadingList] = useState(true);
 
   const fetchReservas = async () => {
     if (!user?.iweb_client_id) return;
     try {
-      const resList = await apiClient.getReservas(user.iweb_client_id);
-      
-      // Group reservations by codigo_reserva
-      const groupedMap: Record<string, any> = {};
-      resList.forEach((r) => {
-        const code = r.codigo_reserva || `RES-${r.id.substring(0, 6).toUpperCase()}`;
-        if (!groupedMap[code]) {
-          groupedMap[code] = {
-            id: r.id,
-            numero: code,
-            destino: r.lugar_carga_nombre || "General",
-            cliente: r.client_nombre || "Particular",
-            client_id: r.client_id || "",
-            fecha: r.fecha_nacimiento || "10/06/2026",
-            titulo: `${r.nombre_completo} ${resList.filter(x => x.codigo_reserva === r.codigo_reserva).length > 1 ? `x${resList.filter(x => x.codigo_reserva === r.codigo_reserva).length}` : ""}`,
-            pasajeros: [],
-            active: r.active
-          };
-        }
-        groupedMap[code].pasajeros.push({
-          nombre: r.nombre_completo,
-          dni: r.dni ? String(r.dni) : "-",
-          telefono: r.telefono || "-",
-          email: "-",
-        });
+      const [resList, salList] = await Promise.all([
+        apiClient.getReservas(user.iweb_client_id).catch(() => []),
+        apiClient.getSalidas(user.iweb_client_id).catch(() => [])
+      ]);
+
+      setSalidasList(salList || []);
+
+      // Map reservations
+      let list = (resList || []).map((r: any) => {
+        const pasajerosMap = r.reservation_passengers && r.reservation_passengers.length > 0
+          ? r.reservation_passengers.map((rp: any) => ({
+            nombre: rp.nombre_completo || "Desconocido",
+            dni: rp.dni ? String(rp.dni) : "-",
+            telefono: rp.telefono || "-",
+            email: "-",
+          }))
+          : [{
+            nombre: r.nombre_completo || "Desconocido",
+            dni: r.dni ? String(r.dni) : "-",
+            telefono: r.telefono || "-",
+            email: "-",
+          }];
+
+        return {
+          id: r.id,
+          iweb_client_id: r.iweb_client_id,
+          salida_id: r.salida_id || null,
+          package_id: r.package_id || null,
+          codigo_reserva: r.codigo_reserva,
+          numero: r.codigo_reserva || `RES-${r.id.substring(0, 6).toUpperCase()}`,
+          destino: r.destino || r.lugar_carga_nombre || "General",
+          cliente: r.client_nombre || "Particular",
+          client_nombre: r.client_nombre || "",
+          client_id: r.client_id || "",
+          fechaRaw: r.fecha || "",
+          fecha: r.fecha ? new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR") : "10/06/2026",
+          nombre_completo: r.nombre_completo || "Desconocido",
+          reservation_passengers: r.reservation_passengers || [],
+          pasajeros: pasajerosMap,
+          active: r.active
+        };
       });
-      
-      let list = Object.values(groupedMap);
-      
-      // Filter list
-      if (filterNumero) {
-        list = list.filter(r => r.numero.toLowerCase().includes(filterNumero.toLowerCase()));
-      }
-      if (filterCliente) {
-        list = list.filter(r => r.client_id === filterCliente);
-      }
-      
-      setReservas(list);
+
+      setRawReservas(list);
     } catch (error) {
       console.error(error);
       toast.error("Error al cargar listado de reservas");
@@ -99,7 +114,6 @@ function ResultContent() {
 
   useEffect(() => {
     if (success) {
-      setShowSuccessModal(true);
       const pasajerosParam = searchParams.get("pasajeros");
       if (pasajerosParam) {
         try {
@@ -112,6 +126,69 @@ function ResultContent() {
     }
   }, [success, searchParams]);
 
+  // Unique salidas dropdown options
+  const uniqueSalidas = useMemo(() => {
+    const map = new Map<string, { id: string; label: string }>();
+    rawReservas.forEach((r) => {
+      if (r.salida_id && !map.has(r.salida_id)) {
+        const sal = salidasList.find((s) => s.id === r.salida_id);
+        let label = r.destino || "Salida";
+        if (sal?.date_of_out) {
+          label += ` - ${sal.date_of_out}`;
+        } else if (r.fechaRaw) {
+          label += ` - ${r.fechaRaw}`;
+        }
+        map.set(r.salida_id, { id: r.salida_id, label });
+      }
+    });
+    return Array.from(map.values());
+  }, [rawReservas, salidasList]);
+
+  // Filtered reservations
+  const filteredReservas = useMemo(() => {
+    return rawReservas.filter((r) => {
+      const isActive = r.active !== false && r.active !== 0 && r.active !== null;
+      if (onlyActive !== isActive) {
+        return false;
+      }
+      if (filterNumero && !r.numero.toLowerCase().includes(filterNumero.toLowerCase())) {
+        return false;
+      }
+      if (filterCliente && r.client_id !== filterCliente) {
+        return false;
+      }
+      if (filterPaquete && r.package_id !== filterPaquete) {
+        return false;
+      }
+      if (selectedSalidaFilter && r.salida_id !== selectedSalidaFilter) {
+        return false;
+      }
+      if (filterRango && r.fechaRaw) {
+        const d = new Date(r.fechaRaw + "T00:00:00");
+        if (!isNaN(d.getTime())) {
+          const now = new Date();
+          if (filterRango === "hoy" && d.toDateString() !== now.toDateString()) {
+            return false;
+          }
+          if (filterRango === "ultimos_7") {
+            const limit = new Date();
+            limit.setDate(now.getDate() - 7);
+            if (d < limit) return false;
+          }
+          if (filterRango === "ultimos_30") {
+            const limit = new Date();
+            limit.setDate(now.getDate() - 30);
+            if (d < limit) return false;
+          }
+          if (filterRango === "este_mes" && (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear())) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [rawReservas, filterNumero, filterCliente, filterPaquete, selectedSalidaFilter, filterRango, onlyActive]);
+
   if (loadingList) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -119,8 +196,6 @@ function ResultContent() {
       </div>
     );
   }
-
-
 
   return (
     <Container>
@@ -144,89 +219,34 @@ function ResultContent() {
       </section>
 
       <section className="flex flex-col max-w-5xl mx-auto gap-5">
-        <button className="flex items-center my-2 font-semibold justify-end gap-1">
-          <p className="text-black">Ordenar por fecha</p>
-          <ArrowUpDown />
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-4">
+          <ToggleActiveFilters
+            checked={onlyActive}
+            onChange={(val) => setOnlyActive(val)}
+          />
+          <select
+            value={selectedSalidaFilter}
+            onChange={(e) => setSelectedSalidaFilter(e.target.value)}
+            className="flex items-center my-2 font-semibold justify-end gap-1 border border-gray-400 rounded-lg px-2 py-1 bg-white cursor-pointer">
+            <option value="" className="text-black">Filtrar por salida (Todas)</option>
+            {uniqueSalidas.map((s) => (
+              <option key={s.id} value={s.id}>{s.label}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex flex-col w-full gap-10">
-          {reservas.map((reserva) => (
-            <ReservasCard key={reserva.id} reserva={reserva} />
+          {filteredReservas.map((reserva) => (
+            <ReservasCard key={reserva.id} reserva={reserva} onRefresh={fetchReservas} />
           ))}
+          {filteredReservas.length === 0 && (
+            <p className="text-center text-gray-500 font-semibold py-10">
+              No se encontraron reservas con los filtros aplicados.
+            </p>
+          )}
         </div>
       </section>
 
-      {/* Booking confirmation modal (Reserva confirmada con éxito) */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center animate-in fade-in zoom-in duration-300">
-            {/* Success Icon */}
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 text-green-600">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
 
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">¡Reserva Confirmada!</h3>
-            <p className="text-gray-600 text-sm mb-6">
-              La reserva se ha registrado de manera exitosa en el sistema.
-            </p>
-
-            {/* Booking summary card */}
-            <div className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-left mb-6 flex flex-col gap-2">
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Destino</span>
-                <span className="font-bold text-gray-700">{destino || "Mar del Plata"}</span>
-              </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Hotel</span>
-                <span className="font-bold text-gray-700">{hotel || "Hotel Garden"}</span>
-              </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Habitación</span>
-                <span className="font-bold text-gray-700">{habitacion.toUpperCase()} ({cama.toUpperCase()})</span>
-              </div>
-              <div className="border-t border-gray-200 my-1"></div>
-              <p className="text-xs font-bold text-gray-700 mb-1">Pasajeros:</p>
-              {pasajeros.map((p, i) => (
-                <div key={i} className="flex justify-between text-xs text-gray-600 pl-2">
-                  <span>• {p.nombre} {p.apellido}</span>
-                  <span className="text-gray-400">DNI: {p.dni}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex flex-col gap-2 w-full">
-              <button
-                onClick={() => {
-                  toast.success("Descargando Voucher Aéreo...");
-                }}
-                className="w-full bg-primary text-white font-bold py-2.5 rounded-lg shadow hover:bg-blue-700 transition-colors text-sm"
-              >
-                ✈️ Descargar Voucher Aéreo
-              </button>
-              <button
-                onClick={() => {
-                  toast.success("Descargando Voucher Bus...");
-                }}
-                className="w-full bg-secondary text-white font-bold py-2.5 rounded-lg shadow hover:bg-purple-800 transition-colors text-sm"
-              >
-                🚌 Descargar Voucher Terrestre
-              </button>
-              <button
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  // clear parameters without page refresh
-                  router.replace("/web/reservas/result");
-                }}
-                className="w-full border border-gray-300 text-gray-700 font-medium py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm"
-              >
-                Ver listado de Reservas
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Container>
   );
 }
@@ -237,4 +257,4 @@ export default function ResultPage() {
       <ResultContent />
     </Suspense>
   );
-}
+}

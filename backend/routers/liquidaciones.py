@@ -2,8 +2,9 @@ import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from db.database import get_db
-from models.models import Liquidaciones, GastosNoCommission, Reservas
+from models.models import Liquidaciones, GastosNoCommission, Reservas, Packages, Clients, ReservationPassengers
 from schemas.schemas import (
     LiquidacionCreateRequest,
     LiquidacionResponse,
@@ -13,39 +14,124 @@ from schemas.schemas import (
 
 router = APIRouter(prefix="/liquidaciones", tags=["Liquidaciones"])
 
+
+def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
+    clean_b_id = booking_id.strip().lower()
+    res_obj = db.query(Reservas).filter(
+        (func.lower(Reservas.id) == clean_b_id) | (func.lower(Reservas.codigo_reserva) == clean_b_id)
+    ).first()
+    if not res_obj:
+        return None
+
+    # Pasajeros de la reserva
+    rps = db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id == res_obj.id).all()
+
+    # Paquete si existe
+    pkg = None
+    if res_obj.package_id:
+        pkg = db.query(Packages).filter(Packages.id == res_obj.package_id).first()
+
+    pkg_price = float(pkg.price or 0) if pkg else 0.0
+    pkg_gastos = float(pkg.gastos or 0) if pkg else 0.0
+    pkg_adicional = float(pkg.adicional or 0) if pkg else 0.0
+    is_comisionable = bool(pkg.comisionable) if pkg else False
+
+    # 1. Total Pasajeros: ADL 100%, CHD 80%, INF 0%
+    pax_total = 0.0
+    if rps:
+        for rp in rps:
+            ptype = (rp.pasajero_type or "ADL").upper()
+            if ptype == "ADL":
+                pax_total += pkg_price * 1.0
+            elif ptype == "CHD":
+                pax_total += pkg_price * 0.8  # 20% de descuento
+            elif ptype == "INF":
+                pax_total += 0.0  # Infante no paga
+    else:
+        # Fallback a 1 adulto si no hay pasajeros registrados
+        pax_total = pkg_price
+
+# 2. Base Comisionable: Únicamente pax_total + (pkg_adicional si es_comisionable)
+    # Los gastos administrativos del paquete (pkg_gastos) NO son comisionables.
+    monto_comisionable = pax_total
+    if is_comisionable:
+        monto_comisionable += pkg_adicional
+
+    # 3. Comisión del Cliente
+    client_comm_pct = 0.0
+    if res_obj.client_id:
+        client = db.query(Clients).filter(Clients.id == res_obj.client_id).first()
+        if client and client.commission:
+            client_comm_pct = float(client.commission)
+
+    comm_amount = (monto_comisionable * client_comm_pct) / 100.0
+
+    # 4. Total Bruto (pax_total + pkg_gastos + pkg_adicional)
+    total_bruto = pax_total + pkg_gastos + pkg_adicional
+
+    return {
+        "res_obj": res_obj,
+        "pax_total": pax_total,
+        "pkg_gastos": pkg_gastos,
+        "pkg_adicional": pkg_adicional,
+        "is_comisionable": is_comisionable,
+        "monto_comisionable": monto_comisionable,
+        "client_comm_pct": client_comm_pct,
+        "comm_amount": comm_amount,
+        "total_bruto": total_bruto
+    }
+
+
 @router.post("/create_liquidacion", response_model=LiquidacionResponse)
 async def create_liquidacion(payload: LiquidacionCreateRequest, db: Session = Depends(get_db)):
     try:
-        liq_id = str(uuid.uuid4())
-        liquidacion = Liquidaciones(
-            id=liq_id,
-            booking_id=payload.booking_id,
-            total_amout=payload.total_amout,
-            total_commission=payload.total_commission,
-            commission=payload.commission
-        )
-        db.add(liquidacion)
-        
-        # Create nested gastos if any
-        gastos_list = []
+        clean_b_id = payload.booking_id.strip().lower()
+        existing = db.query(Liquidaciones).filter(func.lower(Liquidaciones.booking_id) == clean_b_id).first()
+
+        if existing:
+            liquidacion = existing
+            liquidacion.total_amout = payload.total_amout
+            liquidacion.total_commission = payload.total_commission
+            liquidacion.commission = payload.commission
+            liq_id = existing.id
+        else:
+            liq_id = str(uuid.uuid4())
+            liquidacion = Liquidaciones(
+                id=liq_id,
+                iweb_client_id=payload.iweb_client_id,
+                booking_id=payload.booking_id,
+                total_amout=payload.total_amout,
+                total_commission=payload.total_commission,
+                commission=payload.commission
+            )
+            db.add(liquidacion)
+
         if payload.gastos:
             for g in payload.gastos:
-                g_id = str(uuid.uuid4())
-                gasto = GastosNoCommission(
-                    id=g_id,
-                    liquidacion_id=liq_id,
-                    name=g.name,
-                    amount=g.amount,
-                    iweb_client_id=g.iweb_client_id
-                )
-                db.add(gasto)
-                gastos_list.append(gasto)
+                ex_g = db.query(GastosNoCommission).filter(
+                    GastosNoCommission.liquidacion_id == liq_id,
+                    GastosNoCommission.name == g.name
+                ).first()
+                if ex_g:
+                    ex_g.amount = g.amount
+                else:
+                    gasto = GastosNoCommission(
+                        id=str(uuid.uuid4()),
+                        liquidacion_id=liq_id,
+                        name=g.name,
+                        amount=g.amount,
+                        iweb_client_id=payload.iweb_client_id
+                    )
+                    db.add(gasto)
         
         db.commit()
         db.refresh(liquidacion)
         
+        gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq_id).all()
+        
         return LiquidacionResponse(
             id=liquidacion.id,
+            iweb_client_id=liquidacion.iweb_client_id,
             booking_id=liquidacion.booking_id,
             total_amout=liquidacion.total_amout,
             total_commission=liquidacion.total_commission,
@@ -57,7 +143,7 @@ async def create_liquidacion(payload: LiquidacionCreateRequest, db: Session = De
                     name=g.name,
                     amount=g.amount,
                     iweb_client_id=g.iweb_client_id
-                ) for g in gastos_list
+                ) for g in gastos
             ]
         )
     except Exception as e:
@@ -68,21 +154,29 @@ async def create_liquidacion(payload: LiquidacionCreateRequest, db: Session = De
 @router.get("/get_liquidaciones", response_model=list[LiquidacionResponse])
 def get_liquidaciones(iweb_client_id: str, db: Session = Depends(get_db)):
     try:
-        # Join Reservas to filter by iweb_client_id
-        results = db.query(Liquidaciones).join(
-            Reservas, Liquidaciones.booking_id == Reservas.id
-        ).filter(Reservas.iweb_client_id == iweb_client_id).all()
+        norm_client = iweb_client_id.strip().lower()
+        results = db.query(Liquidaciones).filter(
+            func.lower(Liquidaciones.iweb_client_id) == norm_client
+        ).all()
+        if not results:
+            return []
         
+        liq_ids = [liq.id for liq in results]
+        all_gastos = db.query(GastosNoCommission).filter(
+            GastosNoCommission.liquidacion_id.in_(liq_ids)
+        ).all()
+        
+        gastos_by_liq: dict = {}
+        for g in all_gastos:
+            gastos_by_liq.setdefault(g.liquidacion_id, []).append(g)
+
         response = []
         for liq in results:
-            gastos = db.query(GastosNoCommission).filter(
-                GastosNoCommission.liquidacion_id == liq.id,
-                GastosNoCommission.iweb_client_id == iweb_client_id
-            ).all()
-            
+            gastos = gastos_by_liq.get(liq.id, [])
             response.append(
                 LiquidacionResponse(
                     id=liq.id,
+                    iweb_client_id=liq.iweb_client_id,
                     booking_id=liq.booking_id,
                     total_amout=liq.total_amout,
                     total_commission=liq.total_commission,
@@ -107,7 +201,8 @@ def get_liquidaciones(iweb_client_id: str, db: Session = Depends(get_db)):
 @router.get("/get_liquidacion/{id}", response_model=LiquidacionResponse)
 def get_liquidacion(id: str, db: Session = Depends(get_db)):
     try:
-        liq = db.query(Liquidaciones).filter(Liquidaciones.id == id).first()
+        clean_id = id.strip().lower()
+        liq = db.query(Liquidaciones).filter(func.lower(Liquidaciones.id) == clean_id).first()
         if not liq:
             raise HTTPException(status_code=404, detail="Liquidacion not found")
         
@@ -115,6 +210,7 @@ def get_liquidacion(id: str, db: Session = Depends(get_db)):
         
         return LiquidacionResponse(
             id=liq.id,
+            iweb_client_id=liq.iweb_client_id,
             booking_id=liq.booking_id,
             total_amout=liq.total_amout,
             total_commission=liq.total_commission,
@@ -136,10 +232,98 @@ def get_liquidacion(id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_client_id: Optional[str] = None):
+    clean_b_id = booking_id.strip().lower()
+    
+    liq = db.query(Liquidaciones).filter(func.lower(Liquidaciones.booking_id) == clean_b_id).first()
+    res_obj = db.query(Reservas).filter(
+        (func.lower(Reservas.id) == clean_b_id) | (func.lower(Reservas.codigo_reserva) == clean_b_id)
+    ).first()
+
+    if not res_obj and not liq:
+        return None
+
+    res_id = res_obj.id if res_obj else liq.booking_id
+    client_id = iweb_client_id or (res_obj.iweb_client_id if res_obj else (liq.iweb_client_id if liq else ""))
+
+    calc = calculate_booking_liquidacion_totals(db, res_id)
+    if not calc:
+        return liq
+
+    if not liq:
+        liq = Liquidaciones(
+            id=str(uuid.uuid4()),
+            iweb_client_id=client_id,
+            booking_id=res_id,
+            total_amout=calc["total_bruto"],
+            total_commission=calc["comm_amount"],
+            commission=calc["comm_amount"]
+        )
+        db.add(liq)
+        db.commit()
+        db.refresh(liq)
+
+    # Registrar o sincronizar GastosNoCommission derivados del paquete
+    existing_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
+    existing_names = [g.name for g in existing_gastos]
+    added_gasto = False
+
+    # Gastos administrativos del paquete si no existen
+    if calc["pkg_gastos"] > 0 and "Gastos administrativos" not in existing_names:
+        g_adm = GastosNoCommission(
+            id=str(uuid.uuid4()),
+            liquidacion_id=liq.id,
+            name="Gastos administrativos",
+            amount=calc["pkg_gastos"],
+            iweb_client_id=liq.iweb_client_id
+        )
+        db.add(g_adm)
+        added_gasto = True
+
+    # Adicional no comisionable del paquete si no es comisionable y no existe
+    if not calc["is_comisionable"] and calc["pkg_adicional"] > 0 and "Adicional paquete (no comisionable)" not in existing_names:
+        g_add = GastosNoCommission(
+            id=str(uuid.uuid4()),
+            liquidacion_id=liq.id,
+            name="Adicional paquete (no comisionable)",
+            amount=calc["pkg_adicional"],
+            iweb_client_id=liq.iweb_client_id
+        )
+        db.add(g_add)
+        added_gasto = True
+
+    if added_gasto:
+        db.commit()
+
+    # Recalcular total acumulado incluyendo gastos no comisionables extra
+    all_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
+    sum_extra_gastos = sum(g.amount or 0 for g in all_gastos if g.name not in ["Gastos administrativos", "Adicional paquete (no comisionable)"])
+
+    # Solo sincronizar automáticamente desde el paquete si la reserva TIENE un paquete con precio > 0
+    has_package_price = bool(calc and res_obj and res_obj.package_id and calc.get("pkg_price", 0) > 0)
+    if has_package_price:
+        calc_total = calc["total_bruto"] + sum_extra_gastos
+        calc_comm = calc["comm_amount"]
+
+        if liq.total_amout != calc_total or liq.commission != calc_comm:
+            liq.total_amout = calc_total
+            liq.commission = calc_comm
+            liq.total_commission = calc.get("monto_comisionable", calc_total)
+            db.commit()
+            db.refresh(liq)
+    elif liq.total_amout is None or float(liq.total_amout) == 0.0:
+        if sum_extra_gastos > 0:
+            liq.total_amout = sum_extra_gastos
+            db.commit()
+            db.refresh(liq)
+
+    return liq
+
+
 @router.get("/get_liquidacion_by_booking/{booking_id}", response_model=LiquidacionResponse)
 def get_liquidacion_by_booking(booking_id: str, db: Session = Depends(get_db)):
     try:
-        liq = db.query(Liquidaciones).filter(Liquidaciones.booking_id == booking_id).first()
+        liq = create_or_update_booking_liquidacion(db, booking_id)
         if not liq:
             raise HTTPException(status_code=404, detail="Liquidacion not found for the given booking")
         
@@ -147,6 +331,7 @@ def get_liquidacion_by_booking(booking_id: str, db: Session = Depends(get_db)):
         
         return LiquidacionResponse(
             id=liq.id,
+            iweb_client_id=liq.iweb_client_id,
             booking_id=liq.booking_id,
             total_amout=liq.total_amout,
             total_commission=liq.total_commission,
@@ -221,6 +406,7 @@ def update_liquidacion(id: str, payload: LiquidacionCreateRequest, db: Session =
         
         return LiquidacionResponse(
             id=liq.id,
+            iweb_client_id=liq.iweb_client_id,
             booking_id=liq.booking_id,
             total_amout=liq.total_amout,
             total_commission=liq.total_commission,
@@ -258,6 +444,7 @@ def delete_liquidacion(id: str, db: Session = Depends(get_db)):
         
         return LiquidacionResponse(
             id=liq.id,
+            iweb_client_id=liq.iweb_client_id,
             booking_id=liq.booking_id,
             total_amout=liq.total_amout,
             total_commission=liq.total_commission,

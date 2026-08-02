@@ -48,11 +48,25 @@ export const apiClient = {
       headers,
       credentials: 'include',
     });
+    if (response.status === 401) {
+      if (typeof window !== 'undefined') {
+        document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        localStorage.removeItem('iweb_client');
+        await this.logout().catch(() => { });
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
+      throw new Error('Session expired');
+    }
     if (!response.ok) throw new Error('Failed to get user info');
     return response.json();
   },
 
   async logout(): Promise<void> {
+    if (typeof window !== 'undefined') {
+      document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    }
     await fetch(`${API_BASE_URL}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
@@ -66,9 +80,30 @@ export const apiClient = {
     const response = await fetch(`${API_BASE_URL}/parameters/${name}?iweb_client_id=${id}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
     });
     if (!response.ok) throw new Error(`Failed to get ${name}`);
+    return response.json();
+  },
+
+  async getTransportCompanies(iwebClientId?: string): Promise<any[]> {
+    const id = iwebClientId || '';
+    const response = await fetch(`${API_BASE_URL}/parameters/get_transport_companies?iweb_client_id=${id}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (!response.ok) return [];
+    return response.json();
+  },
+
+  async getAllParameters(iwebClientId?: string): Promise<{ destinos: any[]; hotels: any[]; excursions: any[]; periods: any[]; regimenes: any[] }> {
+    const id = iwebClientId || '';
+    const response = await fetch(`${API_BASE_URL}/parameters/get_all_parameters?iweb_client_id=${id}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get all parameters');
     return response.json();
   },
 
@@ -431,7 +466,7 @@ export const apiClient = {
 
   async getReservas(iwebClientId: string, salidaId?: string): Promise<any[]> {
     const hasSalida = salidaId && salidaId !== 'undefined' && salidaId !== 'null' && salidaId !== 'none';
-    const url = hasSalida 
+    const url = hasSalida
       ? `${API_BASE_URL}/reservas/get_reservas?iweb_client_id=${iwebClientId}&salida_id=${salidaId}`
       : `${API_BASE_URL}/reservas/get_reservas?iweb_client_id=${iwebClientId}`;
     const response = await fetch(url, {
@@ -471,11 +506,64 @@ export const apiClient = {
     if (!response.ok) throw new Error('Failed to delete reserva');
   },
 
+  async duplicateReserva(iwebClientId: string, id: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/reservas/duplicate_reserva/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to duplicate reserva');
+    return response.json();
+  },
+
   async getReservaById(iwebClientId: string, id: string): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/reservas/get_reserva/${id}?iweb_client_id=${iwebClientId}`, {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to get reserva by id');
+    return response.json();
+  },
+
+  async updateReservationPassenger(iwebClientId: string, rpId: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/reservas/update_reservation_passenger/${rpId}?iweb_client_id=${iwebClientId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update reservation passenger');
+    return response.json();
+  },
+
+  async getVoucher(iwebClientId: string, reservaId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/vouchers/get_voucher/${reservaId}?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (response.status === 401) {
+      if (typeof window !== 'undefined') {
+        document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        localStorage.removeItem('iweb_client');
+        await this.logout().catch(() => { });
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
+      throw new Error('Session expired');
+    }
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to get voucher');
+    }
+    return response.json();
+  },
+
+  async generateVoucher(iwebClientId: string, reservaId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/vouchers/generate_voucher?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ reserva_id: reservaId }),
+    });
+    if (!response.ok) throw new Error('Failed to generate voucher');
     return response.json();
   },
 
@@ -536,11 +624,67 @@ export const apiClient = {
     return response.json();
   },
 
-  async createPago(iwebClientId: string, formData: FormData): Promise<any> {
+  async getSaldosClientes(
+    iwebClientId: string,
+    params?: {
+      clientId?: string;
+      fechaCreaDesde?: string;
+      fechaCreaHasta?: string;
+      fechaInDesde?: string;
+      fechaInHasta?: string;
+    } | string
+  ): Promise<any[]> {
+    let url = `${API_BASE_URL}/get_saldos_clientes?iweb_client_id=${iwebClientId}`;
+    if (typeof params === 'string') {
+      if (params) url += `&client_id=${params}`;
+    } else if (params) {
+      if (params.clientId) url += `&client_id=${params.clientId}`;
+      if (params.fechaCreaDesde) url += `&fecha_crea_desde=${params.fechaCreaDesde}`;
+      if (params.fechaCreaHasta) url += `&fecha_crea_hasta=${params.fechaCreaHasta}`;
+      if (params.fechaInDesde) url += `&fecha_in_desde=${params.fechaInDesde}`;
+      if (params.fechaInHasta) url += `&fecha_in_hasta=${params.fechaInHasta}`;
+    }
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) throw new Error('Failed to get saldos');
+    return response.json();
+  },
+
+  async getCCProvidersConsumptionPayments(iwebClientId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/get_cc_providers_consumption_payments?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get cc providers consumption payments');
+    return response.json();
+  },
+
+  async createCCProviderConsumptionPayment(data: Record<string, any>): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/create_cc_providers_consumption_payments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create cc provider consumption payment');
+    return response.json();
+  },
+
+  async createPago(iwebClientId: string, data: FormData | Record<string, any>): Promise<any> {
+    let bodyData: FormData;
+    if (data instanceof FormData) {
+      bodyData = data;
+    } else {
+      bodyData = new FormData();
+      Object.entries(data).forEach(([key, val]) => {
+        if (val !== undefined && val !== null) {
+          bodyData.append(key, String(val));
+        }
+      });
+    }
+
     const response = await fetch(`${API_BASE_URL}/create_pago?iweb_client_id=${iwebClientId}`, {
       method: 'POST',
       credentials: 'include',
-      body: formData,
+      body: bodyData,
     });
     if (!response.ok) throw new Error('Failed to create pago');
     return response.json();
@@ -553,6 +697,225 @@ export const apiClient = {
     });
     if (!response.ok) throw new Error('Failed to delete pago');
     return response.json();
+  },
+
+  async getTesoroMovimientos(
+    iwebClientId: string,
+    params?: {
+      accountId?: string;
+      startDate?: string;
+      endDate?: string;
+    }
+  ): Promise<{
+    movimientos: any[];
+    total_ingresos: number;
+    total_egresos: number;
+    saldo_total: number;
+  }> {
+    let url = `${API_BASE_URL}/tesoro/get_movimientos?iweb_client_id=${iwebClientId}`;
+    if (params?.accountId) url += `&account_id=${params.accountId}`;
+    if (params?.startDate) url += `&start_date=${params.startDate}`;
+    if (params?.endDate) url += `&end_date=${params.endDate}`;
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) throw new Error('Failed to get tesoro movimientos');
+    return response.json();
+  },
+
+  async createTesoroMovimiento(data: Record<string, any>): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/tesoro/create_movimiento`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create tesoro movimiento');
+    return response.json();
+  },
+
+  async createTesoroPase(data: Record<string, any>): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/tesoro/create_pase_dinero`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create tesoro pase de dinero');
+    return response.json();
+  },
+
+  async getLiquidacionByBooking(bookingId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/liquidaciones/get_liquidacion_by_booking/${bookingId}`, {
+      credentials: 'include',
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error('Failed to get liquidacion');
+    return response.json();
+  },
+
+  async createLiquidacion(data: Record<string, any>): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/liquidaciones/create_liquidacion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create liquidacion');
+    return response.json();
+  },
+
+  async updateLiquidacion(id: string, data: Record<string, any>): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/liquidaciones/update_liquidacion/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update liquidacion');
+    return response.json();
+  },
+
+  // --- FORMA DE PAGO & WEB ACCOUNTS/CARDS ---
+  async getFormaDePago(iwebClientId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/get_forma_de_pago?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch forma de pago');
+    return response.json();
+  },
+
+  async updateFormaDePago(iwebClientId: string, data: FormData): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/update_forma_de_pago?iweb_client_id=${iwebClientId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      body: data,
+    });
+    if (!response.ok) throw new Error('Failed to update forma de pago');
+    return response.json();
+  },
+
+  async getAccountsWeb(iwebClientId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/web/get_accounts_web?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch web accounts');
+    return response.json();
+  },
+
+  async createAccountWeb(iwebClientId: string, data: FormData): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/create_account_web?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      credentials: 'include',
+      body: data,
+    });
+    if (!response.ok) throw new Error('Failed to create web account');
+    return response.json();
+  },
+
+  async updateAccountWeb(iwebClientId: string, data: FormData): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/update_account_web?iweb_client_id=${iwebClientId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      body: data,
+    });
+    if (!response.ok) throw new Error('Failed to update web account');
+    return response.json();
+  },
+
+  async deleteAccountWeb(iwebClientId: string, id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/web/delete_account_web/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete web account');
+  },
+
+  async getCardsWeb(iwebClientId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/web/get_cards_web?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch cards web');
+    return response.json();
+  },
+
+  async createCardWeb(iwebClientId: string, data: FormData): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/create_card_web?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      credentials: 'include',
+      body: data,
+    });
+    if (!response.ok) throw new Error('Failed to create card web');
+    return response.json();
+  },
+
+  async updateCardWeb(iwebClientId: string, data: FormData): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/update_card_web?iweb_client_id=${iwebClientId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      body: data,
+    });
+    if (!response.ok) throw new Error('Failed to update card web');
+    return response.json();
+  },
+
+  async deleteCardWeb(iwebClientId: string, id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/web/delete_card_web/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete card web');
+  },
+
+  async getDashboardSummary(iwebClientId: string): Promise<{
+    proxima_salida: string;
+    reservas_hoy: number;
+    saldo_mes: string;
+    reservas_mes: number;
+    paquetes_activos: number;
+    cliente_del_mes: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/dashboard/summary?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch dashboard summary');
+    return response.json();
+  },
+
+  async getDocumentations(iwebClientId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/web/get_documentations?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch documentations');
+    return response.json();
+  },
+
+  async createDocumentation(iwebClientId: string, payload: { title: string; body: string }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/create_documentation?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to create documentation');
+    return response.json();
+  },
+
+  async updateDocumentation(iwebClientId: string, payload: { id: string; title?: string; body?: string }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/update_documentation?iweb_client_id=${iwebClientId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to update documentation');
+    return response.json();
+  },
+
+  async deleteDocumentation(iwebClientId: string, docId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/web/delete_documentation/${docId}?iweb_client_id=${iwebClientId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to delete documentation');
   },
 };
 

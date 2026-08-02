@@ -55,14 +55,58 @@ export default function HotelesPage() {
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [selectedFiles]);
 
+  const normalizeText = (str?: string | null) => {
+    if (!str) return "";
+    return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  };
+
   const getHoteles = async () => {
     if (!user?.iweb_client_id) return;
     setIsUpdating(true);
     try {
       const data = await apiClient.getParameters("get_hotels", user.iweb_client_id);
-      const hotelesFiltered = data.filter((e: Hotel) =>
-        e.name.toLowerCase().includes(search.toLowerCase())
-      );
+      const queryNorm = normalizeText(search);
+
+      if (!queryNorm) {
+        setHoteles(data);
+        return;
+      }
+
+      const hotelesFiltered = data.filter((e: any) => {
+        // 1. Nombre del hotel
+        const hotelName = normalizeText(e.name || e.nombre);
+
+        // 2. Sigla del hotel
+        const hotelSigla = normalizeText(e.sigla);
+
+        // 3. Nombre y sigla del destino
+        let destName = "";
+        let destSigla = "";
+        const rawDest = e.destino || "";
+
+        const destObj = destinos.find(
+          (d: any) => d.id === rawDest || d.name === rawDest || d.nombre === rawDest
+        );
+
+        if (destObj) {
+          destName = normalizeText(destObj.name || destObj.nombre);
+          destSigla = normalizeText(destObj.sigla);
+        } else {
+          destName = normalizeText(rawDest);
+        }
+
+        return (
+          hotelName.includes(queryNorm) ||
+          (hotelSigla && hotelSigla.includes(queryNorm)) ||
+          (destName && destName.includes(queryNorm)) ||
+          (destSigla && destSigla.includes(queryNorm))
+        );
+      });
+
       setHoteles(hotelesFiltered);
     } catch (error) {
       console.error("Error fetching hoteles:", error);
@@ -76,7 +120,7 @@ export default function HotelesPage() {
     if (user?.iweb_client_id) {
       getHoteles();
     }
-  }, [search, user?.iweb_client_id]);
+  }, [search, user?.iweb_client_id, destinos]);
 
   const handleClickPut = (hotel: Hotel) => {
     setHotelData(hotel);
@@ -232,7 +276,7 @@ export default function HotelesPage() {
           </span>
           <input
             type="text"
-            placeholder="Buscar"
+            placeholder="Buscar (nombre del hotel, sigla o nombre del destino)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
