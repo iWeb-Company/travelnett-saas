@@ -298,7 +298,7 @@ export default function VoucherPage() {
                         <div className="grid grid-cols-2 gap-2 text-xl place-items-center place-content-center py-5 border border-gray-500 rounded-md">
                             <div className="flex flex-col">
                                 <p className="font-bold">Cliente</p>
-                                <p>{reservaData.client_nombre}</p>
+                                <p>{reservaData.client_nombre || 'Reserva Particular'}</p>
                             </div>
                             <div className="flex flex-col">
                                 <p className="font-bold">Fecha de vencimiento</p>
@@ -306,7 +306,7 @@ export default function VoucherPage() {
                             </div>
                             <div className="flex flex-col">
                                 <p className="font-bold">Vendedor</p>
-                                <p>{reservaData.vendedor ?? reservaData.client_nombre}</p>
+                                <p>{reservaData.vendedor || reservaData.client_nombre || 'Reserva Particular'}</p>
                             </div>
                             <div className="flex flex-col items-start justify-start">
                                 <p className="font-bold text-start">Fecha de alta</p>

@@ -72,7 +72,7 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
             <div className="flex flex-col flex-1 justify-between items-start">
               <div className="flex gap-10 justify-between items-center">
                 <p>Destino: {reserva.destino}</p>
-                <p>Cliente: {reserva?.client_nombre}</p>
+                <p>Cliente: {reserva?.client_nombre || 'Reserva Particular'}</p>
               </div>
               <p className="font-semibold">
                 Titular de la reserva: {getNombreCompletoReserva()}

@@ -8,8 +8,13 @@ export default function Footer() {
                 <p>El sistema que te facilita la vida</p>
             </section>
             <section className="flex items-center gap-3">
-                <div className="flex items-center gap-3"><p>Desarrollado por:</p> <Link href="https://iweb.com.ar" target="_blank" className="hover:underline">iWeb Technology</Link></div>
-                <img src="/iweb.png" width={60} alt="iWeb" />
+                <div className="flex items-center font-semibold italic gap-3">
+                    <p>Desarrollado por:</p>
+                    <Link href="https://iwebtecnology.com" target="_blank" className="flex items-center">
+                        iWeb Technology
+                        <img src="/iweb.png" alt="iWeb" className="h-8 w-auto" />
+                    </Link>
+                </div>
             </section>
         </footer>
     )

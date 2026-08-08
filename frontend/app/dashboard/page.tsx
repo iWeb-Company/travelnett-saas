@@ -14,6 +14,7 @@ import { apiClient } from "@/lib/api";
 
 export default function DashboardPage() {
   const { user, permissions } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({
     proxima_salida: "Cargando...",
     reservas_hoy: 0,
@@ -28,7 +29,8 @@ export default function DashboardPage() {
       apiClient
         .getDashboardSummary(user.iweb_client_id)
         .then((data) => setSummary(data))
-        .catch((err) => console.error("Error fetching dashboard summary:", err));
+        .catch((err) => console.error("Error fetching dashboard summary:", err))
+        .finally(() => setLoading(false));
     }
   }, [user?.iweb_client_id]);
 
@@ -40,6 +42,99 @@ export default function DashboardPage() {
     { key: "permisos_users", label: "USUARIOS Y PERMISOS", href: "/usuarios", icon: <Usuarios />, allowed: permissions?.permisos_users ?? true },
     { key: "web", label: "WEB", href: "/web", icon: <Web />, allowed: permissions?.web ?? true },
   ];
+
+  if (loading) {
+    return (
+      <main>
+        <section className="px-5">
+          {/* MOBILE SKELETON */}
+          <div className="flex md:hidden text-sm bg-primary/90 rounded-lg shadow-md justify-between px-4 py-4 text-white animate-pulse">
+            <div className="flex flex-col gap-4 flex-1 items-center">
+              <div className="flex flex-col items-center gap-1.5 w-full">
+                <div className="h-3.5 w-20 bg-white/30 rounded-xs"></div>
+                <div className="h-5 w-24 bg-white/50 rounded-xs"></div>
+              </div>
+              <div className="flex flex-col items-center gap-1.5 w-full">
+                <div className="h-3.5 w-24 bg-white/30 rounded-xs"></div>
+                <div className="h-5 w-12 bg-white/50 rounded-xs"></div>
+              </div>
+              <div className="flex flex-col items-center gap-1.5 w-full">
+                <div className="h-3.5 w-24 bg-white/30 rounded-xs"></div>
+                <div className="h-5 w-28 bg-white/50 rounded-xs"></div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-4 flex-1 items-center">
+              <div className="flex flex-col items-center gap-1.5 w-full">
+                <div className="h-3.5 w-24 bg-white/30 rounded-xs"></div>
+                <div className="h-5 w-12 bg-white/50 rounded-xs"></div>
+              </div>
+              <div className="flex flex-col items-center gap-1.5 w-full">
+                <div className="h-3.5 w-24 bg-white/30 rounded-xs"></div>
+                <div className="h-5 w-12 bg-white/50 rounded-xs"></div>
+              </div>
+              <div className="flex flex-col items-center gap-1.5 w-full">
+                <div className="h-3.5 w-24 bg-white/30 rounded-xs"></div>
+                <div className="h-5 w-24 bg-white/50 rounded-xs"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* DESKTOP SKELETON */}
+          <div className="hidden md:flex overflow-hidden text-sm bg-primary/90 rounded-lg shadow-md py-4 px-8 text-white animate-pulse justify-between items-center">
+            <div className="flex items-center gap-8 w-full justify-around">
+              <div className="flex items-center gap-3">
+                <div className="h-4 w-24 bg-white/30 rounded-xs"></div>
+                <div className="h-6 w-28 bg-white/60 rounded-xs"></div>
+              </div>
+              <span className="opacity-30">|</span>
+              <div className="flex items-center gap-3">
+                <div className="h-4 w-28 bg-white/30 rounded-xs"></div>
+                <div className="h-6 w-12 bg-white/60 rounded-xs"></div>
+              </div>
+              <span className="opacity-30">|</span>
+              <div className="flex items-center gap-3">
+                <div className="h-4 w-28 bg-white/30 rounded-xs"></div>
+                <div className="h-6 w-28 bg-white/60 rounded-xs"></div>
+              </div>
+              <span className="opacity-30">|</span>
+              <div className="flex items-center gap-3">
+                <div className="h-4 w-28 bg-white/30 rounded-xs"></div>
+                <div className="h-6 w-12 bg-white/60 rounded-xs"></div>
+              </div>
+              <span className="opacity-30">|</span>
+              <div className="flex items-center gap-3">
+                <div className="h-4 w-24 bg-white/30 rounded-xs"></div>
+                <div className="h-6 w-12 bg-white/60 rounded-xs"></div>
+              </div>
+              <span className="opacity-30">|</span>
+              <div className="flex items-center gap-3">
+                <div className="h-4 w-24 bg-white/30 rounded-xs"></div>
+                <div className="h-6 w-24 bg-white/60 rounded-xs"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTIONS BUTTONS SKELETON */}
+        <section className="p-5 flex items-start justify-between">
+          <div className="flex flex-col mx-auto w-full max-w-4xl">
+            <hr className="my-5 border-gray-400" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-7 md:gap-x-20">
+              {[0, 1, 2, 3, 4, 5].map((idx) => (
+                <div
+                  key={idx}
+                  className="bg-primary/30 animate-pulse flex items-center gap-5 py-4 px-7 rounded-lg h-[68px] w-full"
+                >
+                  <div className="w-8 h-8 rounded-full bg-white/20"></div>
+                  <div className="h-6 w-40 bg-white/30 rounded-md"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main>
@@ -177,7 +272,7 @@ export default function DashboardPage() {
           alt="Logo de empresa logeada"
         />
       </section>
-      <img className="w-116 hidden md:block" src="/fotohome.png" alt="Foto Dashboard" />
+      <img className="w-117 hidden md:block" src="/fotohome.png" alt="Foto Dashboard" />
     </main>
   );
 }

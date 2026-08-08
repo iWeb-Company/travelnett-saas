@@ -14,15 +14,21 @@ router = APIRouter(prefix="/dashboard")
 async def get_dashboard_summary(iweb_client_id: str = Query(...), db: Session = Depends(get_db)) -> Dict[str, Any]:
     today = date.today()
 
-    # 1. Próxima Salida
-    salidas = db.query(Salidas).filter(Salidas.iweb_client_id == iweb_client_id).all()
+    # 1. Single JOIN query for Salidas + Destinos (Eliminates N+1 query overhead)
+    salidas_destinos = (
+        db.query(Salidas, Destinos)
+        .outerjoin(Destinos, Salidas.destino == Destinos.id)
+        .filter(Salidas.iweb_client_id == iweb_client_id)
+        .all()
+    )
+
     upcoming = []
-    for s in salidas:
+    for s, dest in salidas_destinos:
         if s.date_of_out:
             try:
                 dt_str = s.date_of_out.split()[0]
                 dt = datetime.strptime(dt_str, "%Y-%m-%d").date()
-                upcoming.append((dt, s))
+                upcoming.append((dt, s, dest))
             except Exception:
                 pass
 
@@ -32,26 +38,22 @@ async def get_dashboard_summary(iweb_client_id: str = Query(...), db: Session = 
 
     proxima_salida_str = "Sin salidas próximas"
     if target:
-        dt, s = target
-        dest_name = ""
-        if s.destino:
-            dest = db.query(Destinos).filter(Destinos.id == s.destino).first()
-            if dest:
-                dest_name = dest.sigla or dest.name or ""
+        dt, s, dest = target
+        dest_name = (dest.sigla or dest.name) if dest else ""
         salida_code = dest_name or s.periodo or "SALIDA"
         proxima_salida_str = f"{salida_code} {dt.strftime('%d/%m/%Y')}"
 
-    # 2. Reservas del día / total
+    # 2. Total active reservas count
     reservas_count = db.query(Reservas).filter(Reservas.iweb_client_id == iweb_client_id, Reservas.active == True).count()
 
-    # 3. Saldo general
+    # 3. Saldo general sum
     total_liq = db.query(func.sum(Liquidaciones.total_amout)).filter(Liquidaciones.iweb_client_id == iweb_client_id).scalar() or 0.0
     saldo_mes_str = f"${total_liq:,.0f}".replace(",", ".")
 
-    # 4. Paquetes activos
+    # 4. Paquetes activos count
     paquetes_count = db.query(Packages).filter(Packages.iweb_client_id == iweb_client_id, Packages.active == True).count()
 
-    # 5. Cliente del mes
+    # 5. Top client (optimized with single JOIN query)
     top_client_row = (
         db.query(Clients.complete_name, func.count(Reservas.id))
         .join(Reservas, Reservas.client_id == Clients.id)

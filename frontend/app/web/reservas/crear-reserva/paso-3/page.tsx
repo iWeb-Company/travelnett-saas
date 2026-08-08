@@ -248,8 +248,8 @@ function Paso3Content() {
         return;
       }
       if (salidaInfo) {
-        const availableSemicama = salidaInfo.semicama ?? 999;
-        const availableCama = salidaInfo.cama ?? 999;
+        const availableSemicama = salidaInfo.semicama_disponibles ?? salidaInfo.semicama ?? 999;
+        const availableCama = salidaInfo.cama_disponibles ?? salidaInfo.cama ?? 999;
 
         if (bloqueoData.cantSemicama > availableSemicama) {
           toast.error(`No hay suficientes asientos Semicama. Disponibles: ${availableSemicama}`);
@@ -558,12 +558,12 @@ function Paso3Content() {
             <div className="flex flex-col gap-4 p-5 rounded-xl ">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold text-gray-700">
-                  Cantidad de pasajeros Semicama {salidaInfo?.semicama !== undefined && `(Disp: ${salidaInfo.semicama})`}
+                  Cantidad de pasajeros Semicama {(salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama) !== undefined && `(Disp: ${salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama})`}
                 </label>
                 <input
                   type="number"
                   min="0"
-                  max={salidaInfo?.semicama ?? 999}
+                  max={salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama ?? 999}
                   placeholder="Cantidad de pasajeros semicama"
                   value={bloqueoData.cantSemicama}
                   onChange={(e) => setBloqueoData({ ...bloqueoData, cantSemicama: Number(e.target.value) })}
@@ -573,12 +573,12 @@ function Paso3Content() {
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold text-gray-700">
-                  Cantidad de pasajeros Cama {salidaInfo?.cama !== undefined && `(Disp: ${salidaInfo.cama})`}
+                  Cantidad de pasajeros Cama {(salidaInfo?.cama_disponibles ?? salidaInfo?.cama) !== undefined && `(Disp: ${salidaInfo?.cama_disponibles ?? salidaInfo?.cama})`}
                 </label>
                 <input
                   type="number"
                   min="0"
-                  max={salidaInfo?.cama ?? 999}
+                  max={salidaInfo?.cama_disponibles ?? salidaInfo?.cama ?? 999}
                   placeholder="Cantidad de pasajeros cama"
                   value={bloqueoData.cantCama}
                   onChange={(e) => setBloqueoData({ ...bloqueoData, cantCama: Number(e.target.value) })}

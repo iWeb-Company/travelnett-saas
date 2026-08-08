@@ -17,21 +17,22 @@ export default function Header() {
               className="w-20 md:w-40 aspect-square"
             />
             {path === "/dashboard" ? (
-              <div className="text-black flex-col hidden md:flex items-start justify-center gap-2">
-                <div className="font-semibold text-3xl">
-                  {isLoading ? (
-                    "Cargando información..."
-                  ) : user ? (
-                    <p>
-                      Hola 👋 {user.name}
-                    </p>
-                  ) : null}
-                </div>
-                {user && (
-                  <h1 className="font-bold text-lg text-start">
-                    ¡Bienvenido a Trannet!
-                  </h1>
-                )}
+              <div className="text-black flex-col hidden md:flex items-start justify-center gap-1.5 py-2 min-h-[64px]">
+                {isLoading ? (
+                  <div className="flex flex-col gap-2 animate-pulse">
+                    <div className="h-7 w-48 bg-gray-300/80 rounded-md"></div>
+                    <div className="h-5 w-36 bg-gray-200/80 rounded-md"></div>
+                  </div>
+                ) : user ? (
+                  <>
+                    <div className="font-semibold text-3xl">
+                      <p>Hola 👋 {user.name}</p>
+                    </div>
+                    <h1 className="font-bold text-lg text-start">
+                      ¡Bienvenido a Trannet!
+                    </h1>
+                  </>
+                ) : null}
               </div>
             ) : (
               user && (
