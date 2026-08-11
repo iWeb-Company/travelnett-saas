@@ -22,6 +22,19 @@ type CardWeb = {
   recargo: number;
 };
 
+type QuoteOption = {
+  id?: string;
+  tempId?: number;
+  quotes: number;
+  recargo: number;
+};
+
+type CardGroup = {
+  groupTempId: number;
+  name: string;
+  options: QuoteOption[];
+};
+
 type AccountWeb = {
   id: string;
   iweb_client_id: string;
@@ -33,13 +46,40 @@ type AccountWeb = {
   active: boolean;
 };
 
+function groupCardsByName(rawCards: CardWeb[]): CardGroup[] {
+  const map = new Map<string, QuoteOption[]>();
+  for (const c of rawCards) {
+    const nameKey = (c.name || "Tarjeta").trim();
+    if (!map.has(nameKey)) {
+      map.set(nameKey, []);
+    }
+    map.get(nameKey)!.push({
+      id: c.id,
+      tempId: c.tempId || Math.random(),
+      quotes: c.quotes || 1,
+      recargo: c.recargo !== undefined ? c.recargo : 0,
+    });
+  }
+
+  const groups: CardGroup[] = [];
+  map.forEach((options, name) => {
+    groups.push({
+      groupTempId: Math.random(),
+      name,
+      options: options.sort((a, b) => a.quotes - b.quotes),
+    });
+  });
+
+  return groups;
+}
+
 export default function FormasDePagoPage() {
   const r = useRouter();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingCards, setSavingCards] = useState(false);
   const [cuentas, setCuentas] = useState<AccountWeb[]>([]);
-  const [tarjetas, setTarjetas] = useState<CardWeb[]>([]);
+  const [cardGroups, setCardGroups] = useState<CardGroup[]>([]);
   const [deletedCardIds, setDeletedCardIds] = useState<string[]>([]);
 
   // Settings
@@ -76,7 +116,7 @@ export default function FormasDePagoPage() {
           setCardText(fdp.card_text);
         }
       }
-      setTarjetas(cards);
+      setCardGroups(groupCardsByName(cards));
       setCuentas(accs);
     } catch (error) {
       console.error(error);
@@ -92,35 +132,91 @@ export default function FormasDePagoPage() {
     }
   }, [user?.iweb_client_id]);
 
-  // ---- CARDS & SETTINGS HANDLERS (LOCAL FIRST, SAVE ON CONFIRM) ----
+  // ---- CARDS & SETTINGS HANDLERS ----
 
-  const handleAddCard = () => {
-    const newCard: CardWeb = {
-      id: undefined,
-      tempId: Date.now() + Math.random(),
-      name: "Tarjeta",
-      quotes: 1,
-      recargo: 0,
+  const handleAddCardGroup = () => {
+    const newGroup: CardGroup = {
+      groupTempId: Date.now() + Math.random(),
+      name: "Nueva Tarjeta",
+      options: [
+        { quotes: 1, recargo: 0, tempId: Date.now() + Math.random() }
+      ],
     };
-    setTarjetas((prev) => [...prev, newCard]);
-    toast.success("Fila de tarjeta agregada");
+    setCardGroups((prev) => [...prev, newGroup]);
+    toast.success("Tarjeta agregada");
   };
 
-  const handleUpdateCardField = (index: number, field: keyof CardWeb, value: any) => {
-    setTarjetas((prev) => {
+  const handleAddQuoteOption = (gIdx: number) => {
+    setCardGroups((prev) => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
+      const targetGroup = { ...updated[gIdx] };
+      const existingQuotes = targetGroup.options.map((o) => Number(o.quotes));
+      let nextQuote = 1;
+      const possibleQuotes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24];
+      for (const q of possibleQuotes) {
+        if (!existingQuotes.includes(q)) {
+          nextQuote = q;
+          break;
+        }
+      }
+      targetGroup.options = [
+        ...targetGroup.options,
+        { quotes: nextQuote, recargo: 0, tempId: Date.now() + Math.random() },
+      ];
+      updated[gIdx] = targetGroup;
       return updated;
     });
   };
 
-  const handleDeleteCard = (index: number) => {
-    const cardToDelete = tarjetas[index];
-    if (cardToDelete.id) {
-      setDeletedCardIds((prev) => [...prev, cardToDelete.id!]);
+  const handleDeleteQuoteOption = (gIdx: number, oIdx: number) => {
+    setCardGroups((prev) => {
+      const updated = [...prev];
+      const targetGroup = { ...updated[gIdx] };
+      const optToDelete = targetGroup.options[oIdx];
+      if (optToDelete.id) {
+        setDeletedCardIds((prevIds) => [...prevIds, optToDelete.id!]);
+      }
+      targetGroup.options = targetGroup.options.filter((_, i) => i !== oIdx);
+      updated[gIdx] = targetGroup;
+      return updated;
+    });
+    toast.success("Opción de cuota removida");
+  };
+
+  const handleDeleteCardGroup = (gIdx: number) => {
+    const targetGroup = cardGroups[gIdx];
+    for (const opt of targetGroup.options) {
+      if (opt.id) {
+        setDeletedCardIds((prevIds) => [...prevIds, opt.id!]);
+      }
     }
-    setTarjetas((prev) => prev.filter((_, i) => i !== index));
-    toast.success("Fila de tarjeta removida");
+    setCardGroups((prev) => prev.filter((_, i) => i !== gIdx));
+    toast.success(`Tarjeta "${targetGroup.name}" removida`);
+  };
+
+  const handleUpdateGroupName = (gIdx: number, newName: string) => {
+    setCardGroups((prev) => {
+      const updated = [...prev];
+      updated[gIdx] = { ...updated[gIdx], name: newName };
+      return updated;
+    });
+  };
+
+  const handleUpdateQuoteOption = (
+    gIdx: number,
+    oIdx: number,
+    field: "quotes" | "recargo",
+    val: number
+  ) => {
+    setCardGroups((prev) => {
+      const updated = [...prev];
+      const targetGroup = { ...updated[gIdx] };
+      const options = [...targetGroup.options];
+      options[oIdx] = { ...options[oIdx], [field]: val };
+      targetGroup.options = options;
+      updated[gIdx] = targetGroup;
+      return updated;
+    });
   };
 
   const handleToggleCalculadora = async (checked: boolean) => {
@@ -153,27 +249,30 @@ export default function FormasDePagoPage() {
       }
       setDeletedCardIds([]);
 
-      // 3. Create or Update Cards
-      for (const card of tarjetas) {
-        if (card.id) {
-          const cardData = new FormData();
-          cardData.append("id", card.id);
-          cardData.append("name", card.name || "Tarjeta");
-          cardData.append("quotes", String(card.quotes || 1));
-          cardData.append("recargo", String(card.recargo || 0));
-          await apiClient.updateCardWeb(user.iweb_client_id, cardData);
-        } else {
-          const cardData = new FormData();
-          cardData.append("name", card.name || "Tarjeta");
-          cardData.append("quotes", String(card.quotes || 1));
-          cardData.append("recargo", String(card.recargo || 0));
-          await apiClient.createCardWeb(user.iweb_client_id, cardData);
+      // 3. Create or Update Cards from cardGroups
+      for (const group of cardGroups) {
+        const cardName = group.name.trim() || "Tarjeta";
+        for (const opt of group.options) {
+          if (opt.id) {
+            const cardData = new FormData();
+            cardData.append("id", opt.id);
+            cardData.append("name", cardName);
+            cardData.append("quotes", String(opt.quotes || 1));
+            cardData.append("recargo", String(opt.recargo || 0));
+            await apiClient.updateCardWeb(user.iweb_client_id, cardData);
+          } else {
+            const cardData = new FormData();
+            cardData.append("name", cardName);
+            cardData.append("quotes", String(opt.quotes || 1));
+            cardData.append("recargo", String(opt.recargo || 0));
+            await apiClient.createCardWeb(user.iweb_client_id, cardData);
+          }
         }
       }
 
-      // 4. Refetch updated list
+      // 4. Refetch updated list & regroup
       const refreshedCards = await apiClient.getCardsWeb(user.iweb_client_id);
-      setTarjetas(refreshedCards);
+      setCardGroups(groupCardsByName(refreshedCards));
 
       toast.success("Configuración de tarjetas guardada correctamente");
     } catch (error) {
@@ -298,7 +397,7 @@ export default function FormasDePagoPage() {
       <section className="max-w-3/4 flex flex-col justify-around mx-auto">
         <div className="flex gap-10 justify-around items-center w-full my-5">
           <button
-            onClick={handleAddCard}
+            onClick={handleAddCardGroup}
             className="border-2 flex items-center gap-2 border-primary rounded-lg font-semibold px-10 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
           >
             <svg
@@ -318,7 +417,10 @@ export default function FormasDePagoPage() {
             <p>Agregar Tarjeta</p>
           </button>
           <button
-            onClick={() => { resetForm(); setModalOpenAdd(true); }}
+            onClick={() => {
+              resetForm();
+              setModalOpenAdd(true);
+            }}
             className="border-2 flex items-center gap-2 border-primary rounded-lg font-semibold px-10 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
           >
             <svg
@@ -346,82 +448,160 @@ export default function FormasDePagoPage() {
           <div className="flex w-full gap-10 justify-between items-center">
             <img
               src="/master.png"
-              className="w-30 mx-14"
+              className="w-30 mx-14 hidden md:block"
               alt="MasterCard Image"
             />
-            <div className="flex-10 border border-gray-300 rounded-md gap-5 p-5">
-              {/* Header */}
-              <div className="grid grid-cols-[1fr_1fr_1fr_auto] text-center font-semibold text-sm mb-1">
-                <span>Tarjeta</span>
-                <span>Cuotas</span>
-                <span>Recargo (%)</span>
-                <span />
-              </div>
-              {/* Rows */}
-              {tarjetas.map((t, idx) => (
-                <div
-                  key={t.id || t.tempId || idx}
-                  className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center mb-5"
-                >
-                  <input
-                    value={t.name || ""}
-                    onChange={(e) =>
-                      handleUpdateCardField(idx, "name", e.target.value)
-                    }
-                    placeholder="Nombre de Tarjeta"
-                    className="border border-gray-300 rounded-md px-3 py-1.5 text-sm text-center w-full"
-                  />
-                  <select
-                    value={String(t.quotes || 1)}
-                    onChange={(e) =>
-                      handleUpdateCardField(idx, "quotes", Number(e.target.value))
-                    }
-                    className="border border-gray-300 rounded-md px-2 py-1.5 text-sm text-center w-full"
+            <div className="flex-1 border border-gray-300 rounded-md gap-5 p-5 bg-white">
+              {cardGroups.length === 0 ? (
+                <p className="text-center text-sm text-gray-500 py-4">
+                  No hay tarjetas registradas
+                </p>
+              ) : (
+                cardGroups.map((group, gIdx) => (
+                  <div
+                    key={group.groupTempId || gIdx}
+                    className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50/50"
                   >
-                    {[
-                      "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"
-                    ].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    value={t.recargo !== undefined ? t.recargo : 0}
-                    onChange={(e) =>
-                      handleUpdateCardField(idx, "recargo", Number(e.target.value))
-                    }
-                    placeholder="Recargo %"
-                    className="border border-gray-300 rounded-md px-3 py-1.5 text-sm text-center w-full"
-                  />
-                  <button
-                    onClick={() => handleDeleteCard(idx)}
-                    className="text-blue-400 hover:text-red-500 cursor-pointer"
-                    title="Eliminar tarjeta"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6M14 11v6" />
-                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-3 w-full max-w-xs">
+                        <label className="text-xs font-bold text-gray-600 uppercase">
+                          Tarjeta:
+                        </label>
+                        <input
+                          value={group.name}
+                          onChange={(e) =>
+                            handleUpdateGroupName(gIdx, e.target.value)
+                          }
+                          placeholder="Nombre de Tarjeta (Ej: Visa)"
+                          className="border border-gray-300 rounded-md px-3 py-1.5 text-sm font-bold text-gray-800 bg-white w-full"
+                        />
+                      </div>
+                      <button
+                        onClick={() => handleDeleteCardGroup(gIdx)}
+                        className="text-red-500 hover:text-red-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                        title="Eliminar tarjeta completa"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                        </svg>
+                        Eliminar Tarjeta
+                      </button>
+                    </div>
 
-              {tarjetas.length === 0 && (
-                <p className="text-center text-sm text-gray-500 py-4">No hay tarjetas registradas</p>
+                    <div className="space-y-2 mt-2">
+                      <div className="grid grid-cols-[1fr_1fr_auto] text-center font-semibold text-xs text-gray-500 mb-1 px-2">
+                        <span>Cuotas</span>
+                        <span>Recargo (%)</span>
+                        <span />
+                      </div>
+                      {group.options.map((opt, oIdx) => (
+                        <div
+                          key={opt.id || opt.tempId || oIdx}
+                          className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center bg-white p-2 border border-gray-200 rounded-md"
+                        >
+                          <select
+                            value={String(opt.quotes || 1)}
+                            onChange={(e) =>
+                              handleUpdateQuoteOption(
+                                gIdx,
+                                oIdx,
+                                "quotes",
+                                Number(e.target.value)
+                              )
+                            }
+                            className="border border-gray-300 rounded-md px-2 py-1 text-sm text-center font-medium"
+                          >
+                            {[
+                              "1",
+                              "2",
+                              "3",
+                              "4",
+                              "5",
+                              "6",
+                              "7",
+                              "8",
+                              "9",
+                              "10",
+                              "11",
+                              "12",
+                              "18",
+                              "24",
+                            ].map((n) => (
+                              <option key={n} value={n}>
+                                {n} {Number(n) === 1 ? "cuota" : "cuotas"}
+                              </option>
+                            ))}
+                          </select>
+
+                          <div className="flex items-center gap-1 justify-center">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={
+                                opt.recargo !== undefined ? opt.recargo : 0
+                              }
+                              onChange={(e) =>
+                                handleUpdateQuoteOption(
+                                  gIdx,
+                                  oIdx,
+                                  "recargo",
+                                  Number(e.target.value)
+                                )
+                              }
+                              placeholder="Recargo %"
+                              className="border border-gray-300 rounded-md px-3 py-1 text-sm text-center font-medium w-24"
+                            />
+                            <span className="text-sm font-semibold text-gray-600">
+                              %
+                            </span>
+                          </div>
+
+                          <button
+                            onClick={() => handleDeleteQuoteOption(gIdx, oIdx)}
+                            className="text-gray-400 hover:text-red-500 p-1 cursor-pointer"
+                            title="Eliminar esta cuota"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => handleAddQuoteOption(gIdx)}
+                      className="mt-3 text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      + Agregar otra cuota a {group.name || "esta tarjeta"}
+                    </button>
+                  </div>
+                ))
               )}
 
               {/* Editable Card Text Note */}
@@ -437,7 +617,11 @@ export default function FormasDePagoPage() {
                 />
               </div>
             </div>
-            <img src="/visa.png" className="w-60" alt="Visa Image" />
+            <img
+              src="/visa.png"
+              className="w-60 hidden md:block"
+              alt="Visa Image"
+            />
           </div>
         </div>
 
@@ -459,7 +643,9 @@ export default function FormasDePagoPage() {
             />
             <div className="relative w-11 h-6 peer-focus:outline-none peer-focus:ring-4 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
           </label>
-          <p className="text-black font-semibold">Calculadora de Tarjetas (en web pública)</p>
+          <p className="text-black font-semibold">
+            Calculadora de Tarjetas (en web pública)
+          </p>
         </div>
 
         {/* Cuentas para transferencias y depósitos */}
@@ -470,7 +656,9 @@ export default function FormasDePagoPage() {
 
           <div className="border border-gray-300 rounded-md p-6 max-w-4xl mx-auto bg-white shadow-sm divide-y divide-gray-200">
             {cuentas.length === 0 ? (
-              <p className="text-center py-6 text-gray-500">No hay cuentas bancarias web registradas</p>
+              <p className="text-center py-6 text-gray-500">
+                No hay cuentas bancarias web registradas
+              </p>
             ) : (
               cuentas.map((cuenta) => (
                 <div
@@ -479,8 +667,12 @@ export default function FormasDePagoPage() {
                 >
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-gray-600">Tipo / Banco</p>
-                      <p className="text-base font-bold text-primary">{cuenta.type_account}</p>
+                      <p className="text-sm font-semibold text-gray-600">
+                        Tipo / Banco
+                      </p>
+                      <p className="text-base font-bold text-primary">
+                        {cuenta.type_account}
+                      </p>
                     </div>
                     <div className="flex justify-end gap-3 items-start">
                       <button
@@ -488,8 +680,17 @@ export default function FormasDePagoPage() {
                         title="Editar"
                         className="text-gray-600 hover:text-primary transition-colors cursor-pointer"
                       >
-                        <svg width="15" height="15" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M8.6821 0.655196C9.10147 0.23574 9.67029 5.8616e-05 10.2634 1.09323e-08C10.8566 -5.85942e-05 11.4255 0.23551 11.8449 0.654884C12.2644 1.07426 12.5 1.64308 12.5001 2.23622C12.5002 2.82937 12.2646 3.39824 11.8452 3.8177L11.2877 4.37582L8.12522 1.2127L8.6821 0.655196ZM7.46272 1.87582L1.21272 8.1252C0.958684 8.37897 0.780167 8.69836 0.697097 9.0477L0.0127222 11.9239C-0.00580801 12.0019 -0.00407066 12.0832 0.0177686 12.1602C0.039608 12.2373 0.0808211 12.3075 0.137477 12.3641C0.194133 12.4206 0.264344 12.4618 0.341412 12.4835C0.41848 12.5053 0.499837 12.5069 0.577722 12.4883L3.45335 11.8033C3.80291 11.7204 4.12252 11.5418 4.37647 11.2877L10.6252 5.03832L7.46272 1.87582Z" fill="currentColor" />
+                        <svg
+                          width="15"
+                          height="15"
+                          viewBox="0 0 13 13"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M8.6821 0.655196C9.10147 0.23574 9.67029 5.8616e-05 10.2634 1.09323e-08C10.8566 -5.85942e-05 11.4255 0.23551 11.8449 0.654884C12.2644 1.07426 12.5 1.64308 12.5001 2.23622C12.5002 2.82937 12.2646 3.39824 11.8452 3.8177L11.2877 4.37582L8.12522 1.2127L8.6821 0.655196ZM7.46272 1.87582L1.21272 8.1252C0.958684 8.37897 0.780167 8.69836 0.697097 9.0477L0.0127222 11.9239C-0.00580801 12.0019 -0.00407066 12.0832 0.0177686 12.1602C0.039608 12.2373 0.0808211 12.3075 0.137477 12.3641C0.194133 12.4206 0.264344 12.4618 0.341412 12.4835C0.41848 12.5053 0.499837 12.5069 0.577722 12.4883L3.45335 11.8033C3.80291 11.7204 4.12252 11.5418 4.37647 11.2877L10.6252 5.03832L7.46272 1.87582Z"
+                            fill="currentColor"
+                          />
                         </svg>
                       </button>
                       <button
@@ -516,173 +717,172 @@ export default function FormasDePagoPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3 rounded-md text-sm">
                     <div>
-                      <p className="text-sm font-semibold text-gray-600">
-                        Titular
-                      </p>
-                      <p className="text-base font-semibold">{cuenta.titular}</p>
+                      <p className="text-xs text-gray-500 font-medium">Titular</p>
+                      <p className="font-semibold">{cuenta.titular || "-"}</p>
                     </div>
-                    {cuenta.account_number && (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-600">
-                          N° de cuenta
-                        </p>
-                        <p className="text-base font-mono">{cuenta.account_number}</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
-                      <p className="text-sm font-semibold text-gray-600">
-                        CBU/CVU
+                      <p className="text-xs text-gray-500 font-medium">
+                        N° Cuenta
                       </p>
-                      <p className="text-base font-mono">{cuenta.cbu_cvu}</p>
+                      <p className="font-semibold">
+                        {cuenta.account_number || "-"}
+                      </p>
                     </div>
-                    {cuenta.alias && (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-600">
-                          Alias
-                        </p>
-                        <p className="text-base font-semibold text-primary">{cuenta.alias}</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-4">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${cuenta.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                      {cuenta.active ? "Activa" : "Inactiva"}
-                    </span>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium">
+                        CBU / CVU
+                      </p>
+                      <p className="font-semibold">{cuenta.cbu_cvu || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium">Alias</p>
+                      <p className="font-semibold">{cuenta.alias || "-"}</p>
+                    </div>
                   </div>
                 </div>
               ))
             )}
           </div>
         </div>
-
-        {/* CUIT y Logo */}
-        <div className="mt-10 flex flex-col items-center gap-4">
-          <p className="text-black font-bold text-lg">CUIT: 20-22194061-0</p>
-          <img src="/logo-grande.png" className="w-32" alt="Ruta 86 Logo" />
-        </div>
       </section>
 
-      {/* Modal: Add Account */}
+      {/* Modal Agregar Cuenta */}
       {modalOpenAdd && (
         <ModalLayout
-          onSubmit={handleCreateAccount}
-          setModalOpen={() => { setModalOpenAdd(false); resetForm(); }}
-          title="Agregar Cuenta Bancaria Web"
           svg={<Administracion />}
+          title="Agregar Cuenta"
+          setModalOpen={setModalOpenAdd}
+          onSubmit={handleCreateAccount}
         >
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1 text-white">
             <input
               type="text"
-              placeholder="Tipo de Cuenta / Banco (ej: Cuenta Corriente Galicia)"
+              placeholder="Titulo de la cuenta (Tipo)"
               value={accountTitle}
               onChange={(e) => setAccountTitle(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
-              required
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
+          </div>
+          <div className="flex flex-col gap-1 text-white">
             <input
               type="text"
-              placeholder="Titular de la cuenta"
+              placeholder="Titular"
               value={titular}
               onChange={(e) => setTitular(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
-              required
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
+          </div>
+          <div className="flex flex-col gap-1 text-white">
             <input
               type="text"
-              placeholder="Número de cuenta (Opcional)"
+              placeholder="Número de Cuenta"
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
+          </div>
+          <div className="flex flex-col gap-1 text-white">
             <input
               type="text"
               placeholder="CBU / CVU"
               value={cbuCvu}
               onChange={(e) => setCbuCvu(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
-              required
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
+          </div>
+          <div className="flex flex-col gap-1 text-white">
             <input
               type="text"
               placeholder="Alias"
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
-              required
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
-            <label className="flex items-center gap-2 text-sm text-white font-medium cursor-pointer my-1">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-                className="w-4 h-4 accent-primary"
-              />
-              Cuenta Activa
+          </div>
+          <div className="flex items-center gap-2 mt-2 text-white">
+            <input
+              type="checkbox"
+              id="activeAdd"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+              className="w-4 h-4 rounded"
+            />
+            <label htmlFor="activeAdd" className="text-sm font-semibold cursor-pointer">
+              Cuenta activa
             </label>
           </div>
         </ModalLayout>
       )}
 
-      {/* Modal: Edit Account */}
+      {/* Modal Editar Cuenta */}
       {modalOpenEdit && (
         <ModalLayout
-          onSubmit={handleEditAccount}
-          setModalOpen={() => { setModalOpenEdit(false); resetForm(); }}
           title="Editar Cuenta Bancaria Web"
-          svg={<svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#F1F1F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+          setModalOpen={setModalOpenEdit}
+          onSubmit={handleEditAccount}
         >
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1 text-white">
+            <label className="text-xs font-semibold">Tipo de Cuenta / Banco *</label>
             <input
               type="text"
-              placeholder="Tipo de Cuenta / Banco"
+              placeholder="Ej: Cuenta Corriente Pesos - Banco Galicia"
               value={accountTitle}
               onChange={(e) => setAccountTitle(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
-              required
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
+          </div>
+          <div className="flex flex-col gap-1 text-white">
+            <label className="text-xs font-semibold">Titular *</label>
             <input
               type="text"
-              placeholder="Titular de la cuenta"
+              placeholder="Ej: Empresa S.A."
               value={titular}
               onChange={(e) => setTitular(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
-              required
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
+          </div>
+          <div className="flex flex-col gap-1 text-white">
+            <label className="text-xs font-semibold">Número de Cuenta</label>
             <input
               type="text"
-              placeholder="Número de cuenta"
+              placeholder="Ej: 1234-5678/9"
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
+          </div>
+          <div className="flex flex-col gap-1 text-white">
+            <label className="text-xs font-semibold">CBU / CVU *</label>
             <input
               type="text"
-              placeholder="CBU / CVU"
+              placeholder="Ej: 0070000000000000000000"
               value={cbuCvu}
               onChange={(e) => setCbuCvu(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
-              required
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
+          </div>
+          <div className="flex flex-col gap-1 text-white">
+            <label className="text-xs font-semibold">Alias *</label>
             <input
               type="text"
-              placeholder="Alias"
+              placeholder="Ej: EMPRESA.GALICIA"
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
-              className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
-              required
+              className="p-2.5 rounded-lg text-black bg-white outline-none text-sm"
             />
-            <label className="flex items-center gap-2 text-sm text-white font-medium cursor-pointer my-1">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-                className="w-4 h-4 accent-primary"
-              />
-              Cuenta Activa
+          </div>
+          <div className="flex items-center gap-2 mt-2 text-white">
+            <input
+              type="checkbox"
+              id="activeEdit"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+              className="w-4 h-4 rounded"
+            />
+            <label htmlFor="activeEdit" className="text-sm font-semibold cursor-pointer">
+              Cuenta activa
             </label>
           </div>
         </ModalLayout>

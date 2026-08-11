@@ -124,8 +124,15 @@ class ReservaDetailedResponse(BaseModel):
     destino: Optional[str] = None
     fecha: Optional[str] = None
 
+    # Importes de liquidación y saldo
+    total_amount: Optional[float] = None
+    total_commission: Optional[float] = None
+    total_payments: Optional[float] = None
+    balance: Optional[float] = None
+
     class Config:
         from_attributes = True
+
 
 
 @router.get("/get_reservas", response_model=list[ReservaDetailedResponse])
@@ -215,7 +222,26 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
             ).all()
             destinos_map = {d.id: d for d in dests}
 
+    # ── 8.5. Liquidaciones + Pagos (batch) ──────────────────────────────────
+    all_liqs = db.query(Liquidaciones).filter(
+        Liquidaciones.booking_id.in_(res_ids)
+    ).all()
+    liqs_map: dict = {}
+    for l in all_liqs:
+        if l.booking_id:
+            liqs_map[l.booking_id.strip().lower()] = l
+
+    all_pagos = db.query(Pagos).filter(
+        Pagos.reserva_id.in_(res_ids),
+        Pagos.iweb_client_id == norm_client
+    ).all()
+    pagos_by_reserva: dict = {}
+    for p in all_pagos:
+        pagos_by_reserva.setdefault(p.reserva_id, 0.0)
+        pagos_by_reserva[p.reserva_id] += float(p.amount or 0.0)
+
     # ── 9. Construir respuesta en memoria ────────────────────────────────────
+
     result = []
     for r in res_list:
         rp_list = rp_by_reserva.get(r.id, [])
@@ -312,6 +338,16 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
         dest_obj    = destinos_map.get(sal.destino) if sal else None
         salida_dest_name = dest_obj.name if dest_obj else ""
 
+        # Importes de liquidación y saldo
+        clean_res_id = r.id.strip().lower()
+        clean_res_code = (r.codigo_reserva or "").strip().lower()
+        liq_obj = liqs_map.get(clean_res_id) or (liqs_map.get(clean_res_code) if clean_res_code else None)
+
+        tot_amount = float(liq_obj.total_amout) if (liq_obj and liq_obj.total_amout is not None) else None
+        tot_commission = float(liq_obj.total_commission) if (liq_obj and liq_obj.total_commission is not None) else None
+        tot_payments = pagos_by_reserva.get(r.id, 0.0)
+        tot_balance = (tot_amount - tot_payments) if tot_amount is not None else None
+
         result.append(
             ReservaDetailedResponse(
                 id=r.id,
@@ -343,9 +379,14 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
                 tipo_butaca=comp_tipo_butaca,
                 reservation_passengers=passengers_details,
                 destino=salida_dest_name,
-                fecha=salida_date
+                fecha=salida_date,
+                total_amount=tot_amount,
+                total_commission=tot_commission,
+                total_payments=tot_payments,
+                balance=tot_balance,
             )
         )
+
     return result
 
 

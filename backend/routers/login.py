@@ -40,7 +40,13 @@ def _build_iweb_client_payload(iweb_client: iWebClient) -> iWebClientPayload:
 
 
 def _verify_password_or_false(plain_password: str, hashed_password: Any) -> bool:
-    return isinstance(hashed_password, str) and verify_password(plain_password, hashed_password)
+    if not isinstance(hashed_password, str) or not hashed_password:
+        return False
+    try:
+        return verify_password(plain_password, hashed_password)
+    except Exception:
+        return plain_password == hashed_password
+
 
 @router.post("/login-system")
 def login(
@@ -170,7 +176,21 @@ def login_web(
         path="/",
     )
 
-    return TokenResponse(access_token=token)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "client": {
+            "id": str(client.id),
+            "email": client.email,
+            "complete_name": client.complete_name or client.name_system or "",
+            "name_system": client.name_system or client.complete_name or "",
+            "dni": client.dni,
+            "phone": client.phone,
+            "commission": client.commission,
+        },
+    }
+
+
 
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
@@ -317,11 +337,12 @@ def create_client_by_iweb_client_id(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Client already exists",
         )
+    from datetime import datetime
     client = Clients(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
-        name_system=body.client.name_system,
-        complete_name=body.client.complete_name,
+        name_system=body.client.name_system or body.client.complete_name,
+        complete_name=body.client.complete_name or body.client.name_system,
         client_type=body.client.client_type,
         parent_client_id=body.client.parent_client_id,
         dni=body.client.dni,
@@ -331,8 +352,9 @@ def create_client_by_iweb_client_id(
         payment_method=body.client.payment_method,
         commission=body.client.commission,
         hashed_password=get_password_hash(body.client.hashed_password) if body.client.hashed_password else None,
-        created_at=body.client.created_at,
+        created_at=body.client.created_at or datetime.now(),
     )
+
     db.add(client)
     db.commit()
     db.refresh(client)
