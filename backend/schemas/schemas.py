@@ -1,9 +1,3 @@
-import email
-from http import client
-
-from fastapi import File, UploadFile
-from pydantic import BaseModel
-from typing import Optional, Union, Any
 from datetime import datetime, date
 PyDate = date
 
@@ -796,6 +790,201 @@ class AccountsWebPayload(BaseModel):
 
 class CardsWebPayload(BaseModel):
     id: str
+amount: Optional[float] = None
+    currency: Optional[str] = None
+    observations: Optional[str] = None
+    card_number: Optional[str] = None
+    titular: Optional[str] = None
+    operation_number: Optional[str] = None
+    quotes_number: Optional[str] = None
+    receipt_number: Optional[str] = None
+    account_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class cuentasCorrientsClientsCreateRequest(BaseModel):
+    id: Optional[str] = None
+    iweb_client_id: Optional[str] = None
+    client_id: Optional[str] = None
+    booking_id: Optional[str] = None
+    description: Optional[str] = None
+    balance: Optional[float] = None
+    total_bookings: Optional[float] = None
+    total_payments: Optional[float] = None
+    created_at: Optional[str] = None
+
+class cuentasCorrientsClientsResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    client_id: str
+    booking_id: str
+    description: Optional[str] = None
+    balance: Optional[float] = None
+    total_bookings: Optional[float] = None
+    total_payments: Optional[float] = None
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class cuentasCorrientsProvidersCreateRequest(BaseModel):
+    id: Optional[str] = None
+    iweb_client_id: Optional[str] = None
+    type: Optional[str] = None
+    transport_id: Optional[str] = None
+    hotel_id: Optional[str] = None
+    detail: Optional[str] = None
+    balance: Optional[float] = None
+    total_consumption: Optional[float] = None
+    total_payments: Optional[float] = None
+    created_at: Optional[str] = None
+
+class cuentasCorrientsProvidersResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    type: Optional[str] = None
+    transport_id: Optional[str] = None
+    hotel_id: Optional[str] = None
+    detail: Optional[str] = None
+    balance: Optional[float] = None
+    total_consumption: Optional[float] = None
+    total_payments: Optional[float] = None
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
+    id: Optional[str] = None
+    cc_provider_id: Optional[str] = None
+    provider_type: Optional[str] = None
+    hotel_id: Optional[str] = None
+    transport_id: Optional[str] = None
+    date: Optional[Union[PyDate, str]] = None
+    detail: Optional[str] = None
+    type: Optional[str] = None
+    transf_account: Optional[str] = None
+    amount: Optional[float] = None
+    iweb_client_id: Optional[str] = None
+
+
+class ccProvidersConsumptionPaymentsResponse(BaseModel):
+    id: str
+    cc_provider_id: Optional[str] = None
+    provider_type: Optional[str] = None
+    hotel_id: Optional[str] = None
+    transport_id: Optional[str] = None
+    date: Optional[Union[PyDate, str]] = None
+    detail: Optional[str] = None
+    type: Optional[str] = None
+    transf_account: Optional[str] = None
+    amount: Optional[float] = None
+    iweb_client_id: str
+
+    class Config:
+        from_attributes = True
+
+
+class GastoNoCommissionCreate(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    amount: Optional[float] = None
+    iweb_client_id: Optional[str] = None
+
+
+class GastoNoCommissionResponse(BaseModel):
+    id: str
+    liquidacion_id: Optional[str] = None
+    name: Optional[str] = None
+    amount: Optional[float] = None
+    iweb_client_id: str
+
+    class Config:
+        from_attributes = True
+
+
+class LiquidacionCreateRequest(BaseModel):
+    id: Optional[str] = None
+    iweb_client_id: str
+    booking_id: Optional[str] = None
+    total_amout: Optional[float] = None
+    total_commission: Optional[float] = None
+    commission: Optional[float] = None
+    gastos: Optional[list[GastoNoCommissionCreate]] = []
+
+
+class LiquidacionResponse(BaseModel):
+    id: str
+    iweb_client_id: Optional[str] = None
+    booking_id: Optional[str] = None
+    total_amout: Optional[float] = None
+    total_commission: Optional[float] = None
+    commission: Optional[float] = None
+    gastos: list[GastoNoCommissionResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class TesoroMovimientoCreateRequest(BaseModel):
+    iweb_client_id: str
+    account_id: str
+    movement_type: str  # 'ingreso' or 'egreso'
+    recibo_number: Optional[str] = None
+    amount: float
+    detail: str
+    date: Optional[Union[PyDate, str]] = None
+
+
+class TesoroPaseDineroCreateRequest(BaseModel):
+    iweb_client_id: str
+    account_origen_id: str
+    account_destino_id: str
+    amount: float
+    detail: str
+    date: Optional[Union[PyDate, str]] = None
+
+
+class TesoroMovimientoResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    account_id: str
+    cuenta: str
+    fecha: str
+    recibo: str
+    monto: float
+    tipo: str
+    detalle: str
+
+
+class FormaDePagoPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    calculator: bool = True
+    card_text: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AccountsWebPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    type_account: Optional[str] = None
+    titular: Optional[str] = None
+    account_number: Optional[str] = None
+    cbu_cvu: Optional[str] = None
+    alias: Optional[str] = None
+    active: bool = True
+
+    class Config:
+        from_attributes = True
+
+
+class CardsWebPayload(BaseModel):
+    id: str
     iweb_client_id: str
     name: Optional[str] = None
     quotes: Optional[int] = 1
@@ -803,4 +992,381 @@ class CardsWebPayload(BaseModel):
 
     class Config:
         from_attributes = True
-
+
+import email
+from http import client
+
+from fastapi import File, UploadFile
+from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional
+from datetime import date
+
+# Schemas for authentication and user management
+
+class LoginWebRequest(BaseModel):
+    email: str
+    password: str
+    iweb_client_id: Optional[str] = None
+
+class LoginSystemRequest(BaseModel):
+    username: str
+    password: str
+    slug: Optional[str] = None
+
+class iWebClientPayload(BaseModel):
+    id: str
+    folder_id: int
+    slug: str
+    name: str
+    cuit: int
+    email: str
+    status: bool
+    logo_xl: str
+    logo_s: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    iweb_client: Optional[iWebClientPayload] = None
+
+class UserPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str]
+    last_name: Optional[str]
+    username: str
+
+class UserCreatePayload(BaseModel):
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    dni: Optional[int] = None
+    birthday: Optional[str] = None
+    username: str
+    password: str
+    phone: Optional[int] = None
+    active: int = 1
+
+class ClientsCreatePayload(BaseModel):
+    name_system: Optional[str] = None
+    complete_name: Optional[str] = None
+    client_type: Optional[str] = None
+    parent_client_id: Optional[str] = None
+    dni: Optional[int] = None
+    birthday: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[int] = None
+    payment_method: Optional[str] = None
+    commission: Optional[int] = None
+    hashed_password: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+class UserCreateRequest(BaseModel):
+    user: UserCreatePayload
+
+class ClientsCreateRequest(BaseModel):
+    client: ClientsCreatePayload
+
+class iWebClientCreateRequest(BaseModel):
+    name: str
+    cuit: int
+    email: str
+    status: bool
+    logo_xl: str
+    logo_s: str
+
+class iWebClientResponse(BaseModel):
+    id: str
+    folder_id: int
+    slug: str
+    name: str
+    cuit: int
+    email: str
+    status: bool
+    logo_xl: str
+    logo_s: str
+
+class TenantAdminInfo(BaseModel):
+    id: str
+    username: str
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    initial_password: Optional[str] = None
+
+class ProvisioningStatus(BaseModel):
+    database: str = "OK"
+    storage: str = "OK"
+    subdomain: str = "OK"
+
+class iWebClientProvisionResponse(BaseModel):
+    client: iWebClientResponse
+    admin_user: TenantAdminInfo
+    login_url: str
+    status: ProvisioningStatus
+
+class TenantPublicInfoResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    status: bool
+    logo_xl: str
+    logo_s: str
+
+    
+# Schemas for parameters management #
+
+# Create
+
+class CreateTransportCompanyRequest(BaseModel):
+    id : Optional[str] = None
+    type : Optional[str] = None
+    name : Optional[str] = None
+    cuit : Optional[int] = None
+    web: Optional[str] = None
+    phone: Optional[int] = None
+    
+class CreateHotelsRequest(BaseModel):
+    id : Optional[str] = None
+    destino : Optional[str] = None
+    name : Optional[str] = None
+    phone: Optional[int] = None
+    address: Optional[str] = None
+    web: Optional[str] = None
+    
+class CreateExcursionsRequest(BaseModel):
+    id : Optional[str] = None
+    name : Optional[str] = None
+    destino : Optional[str] = None
+    description: Optional[str] = None
+    
+class CreatePeriodsRequest(BaseModel):
+    id : Optional[str] = None
+    name : Optional[str] = None
+    
+class CreateDestinosRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    sigla: Optional[str] = None
+    
+class CreateLugaresCargaRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    type: Optional[str] = None
+    address: Optional[str] = None
+    
+class CreateClientsTypeRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    adminForSellers: Optional[bool] = None
+    admin_clients: Optional[str] = None
+    
+class CreateClientsRequest(BaseModel):
+    id: Optional[str] = None
+    name_system: Optional[str] = None
+    complete_name: Optional[str] = None
+    client_type_id: Optional[str] = None
+    parent_client_id: Optional[str] = None
+    dni: Optional[int] = None
+    birthday: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[int] = None
+    payment_method: Optional[str] = None
+    commission: Optional[int] = None
+    hashed_password: Optional[str] = None
+    created_at: Optional[datetime] = None
+    
+class CreateRegimenesRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    sigla: Optional[str] = None
+    description: Optional[str] = None
+    
+class CreatePassengersRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    dni: Optional[int] = None
+    date_of_birth: Optional[date] = None
+    sex: Optional[str] = None
+    phone: Optional[int] = None
+    
+class CreateBusTypesRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    semicama_quantity: Optional[int] = None
+    cama_quantity: Optional[int] = None
+    panoramicos_quantity: Optional[int] = None
+    description: Optional[str] = None
+
+# Update
+
+class UpdateTransportCompanyRequest(BaseModel):
+    id : Optional[str] = None
+    type : Optional[str] = None
+    name : Optional[str] = None
+    cuit : Optional[int] = None
+    web: Optional[str] = None
+    phone: Optional[int] = None
+    
+class UpdateHotelsRequest(BaseModel):
+    id : Optional[str] = None
+    destino : Optional[str] = None
+    name : Optional[str] = None
+    phone: Optional[int] = None
+    address: Optional[str] = None
+    web: Optional[str] = None
+    
+class UpdateExcursionsRequest(BaseModel):
+    id : Optional[str] = None
+    name : Optional[str] = None
+    destino : Optional[str] = None
+    description: Optional[str] = None
+    
+class UpdatePeriodsRequest(BaseModel):
+    id : Optional[str] = None
+    name : Optional[str] = None
+    
+class UpdateDestinosRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    sigla: Optional[str] = None
+    
+class UpdateLugaresCargaRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    type: Optional[str] = None
+    address: Optional[str] = None
+    
+class UpdateClientsTypeRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    adminForSellers: Optional[bool] = None
+    admin_clients: Optional[str] = None
+    
+class UpdateClientsRequest(BaseModel):
+    id: Optional[str] = None
+    name_system: Optional[str] = None
+    complete_name: Optional[str] = None
+    client_type_id: Optional[str] = None
+    parent_client_id: Optional[str] = None
+    dni: Optional[int] = None
+    birthday: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[int] = None
+    payment_method: Optional[str] = None
+    commission: Optional[int] = None
+    hashed_password: Optional[str] = None
+    
+class UpdateRegimenesRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    sigla: Optional[str] = None
+    description: Optional[str] = None
+    
+class UpdatePassengersRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    dni: Optional[int] = None
+    date_of_birth: Optional[date] = None
+    sex: Optional[str] = None
+    phone: Optional[int] = None
+    
+class UpdateBusTypesRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    semicama_quantity: Optional[int] = None
+    cama_quantity: Optional[int] = None
+    panoramicos_quantity: Optional[int] = None
+    description: Optional[str] = None
+
+# Schemas for permissions management
+
+class PermissionPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str] = None
+    salidas: Optional[bool] = None
+    paquetes: Optional[bool] = None
+    administracion: Optional[bool] = None
+    parametros: Optional[bool] = None
+    web: Optional[bool] = None
+    permisos_users: Optional[bool] = None
+
+class CreatePermissionRequest(BaseModel):
+    name: Optional[str] = None
+    salidas: Optional[bool] = None
+    paquetes: Optional[bool] = None
+    administracion: Optional[bool] = None
+    parametros: Optional[bool] = None
+    web: Optional[bool] = None
+    permisos_users: Optional[bool] = None
+
+class UpdatePermissionRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    salidas: Optional[bool] = None
+    paquetes: Optional[bool] = None
+    administracion: Optional[bool] = None
+    parametros: Optional[bool] = None
+    web: Optional[bool] = None
+    permisos_users: Optional[bool] = None
+
+# Schemas for web management
+
+class FlyerPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str] = None
+    url: Optional[str] = None
+
+class CreateFlyerRequest(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
+    
+class UpdateFlyerRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    url: Optional[str] = None
+
+class NewsPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    url: Optional[str] = None
+
+class CreateNewsRequest(BaseModel):
+    url: Optional[str] = None
+    
+class UpdateNewsRequest(BaseModel):
+    id: Optional[str] = None
+    url: Optional[str] = None
+
+class AccountCreateRequest(BaseModel):
+    account_title: Optional[str] = None
+    titular: Optional[str] = None
+    account_number: Optional[str] = None
+    cuit_cuil: Optional[int] = None
+    cbu_cvu: Optional[int] = None
+    alias: Optional[str] = None
+    active: Optional[bool] = None
+
+class AccountPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    account_title: Optional[str] = None
+    titular: Optional[str] = None
+    account_number: Optional[str] = None
+    cuit_cuil: Optional[int] = None
+    cbu_cvu: Optional[int] = None
+    alias: Optional[str] = None
+    active: Optional[bool] = None
+
+class AccountUpdateRequest(BaseModel):
+    id: Optional[str] = None
+    account_title: Optional[str] = None
+    titular: Optional[str] = None
+    account_number: Optional[str] = None
+    cuit_cuil: Optional[int] = None
+    cbu_cvu: Optional[int] = None
+    alias: Optional[str] = None
+    active: Optional[bool] = None
