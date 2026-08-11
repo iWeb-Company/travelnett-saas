@@ -38,6 +38,9 @@ def _guess_extension(filename: str, content_type: Optional[str]) -> str:
 
 def _data_base() -> Path:
     """Base directory for persistent data, outside the repo."""
+    configured_path = os.getenv("DATA_PATH") or os.getenv("STORAGE_PATH")
+    if configured_path:
+        return Path(configured_path)
     env = (os.getenv("ENV") or os.getenv("APP_ENV") or "dev").lower()
     if env in {"prod", "production"}:
         return Path("/home/iweb/saas/data/travelnett")
