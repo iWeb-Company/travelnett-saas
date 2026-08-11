@@ -1,22 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Rutas que no requieren autenticación
-const publicRoutes = ['/login'];
+export function extractSubdomain(host: string | null): string | null {
+  if (!host) return null;
+  const hostname = host.split(':')[0].toLowerCase();
 
-export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  // Verificar si la ruta es pública
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-
-  if (isPublicRoute) {
-    return NextResponse.next();
+  // Ignorar hosts locales directos o IPs
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+    return null;
   }
 
-  // Para rutas protegidas, permitir acceso
-  // El contexto de auth se encarga de validar el token con /auth/me
-  // Si no hay token válido, el contexto redirige a /login
-  return NextResponse.next();
+  const parts = hostname.split('.');
+
+  // Soporte para subdominio en desarrollo local (ej: ruta86.localhost)
+  if (parts.length === 2 && parts[1] === 'localhost') {
+    return parts[0];
+  }
+
+  // Subdominios en producción: {slug}.tranett.com
+  if (parts.length >= 3) {
+    const sub = parts[0];
+    const reserved = ['www', 'api', 'ops', 'operations', 'admin', 'panel', 'mail', 'data'];
+    if (reserved.includes(sub)) {
+      return null;
+    }
+    return sub;
+  }
+
+  return null;
+}
+
+export function proxy(request: NextRequest) {
+  const host = request.headers.get('host');
+  const slug = extractSubdomain(host);
+
+  const requestHeaders = new Headers(request.headers);
+  if (slug) {
+    requestHeaders.set('x-tenant-slug', slug);
+  }
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  if (slug) {
+    response.cookies.set('tenant_slug', slug, { path: '/', sameSite: 'lax' });
+  }
+
+  return response;
 }
 
 export const config = {
@@ -32,3 +64,4 @@ export const config = {
     '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp)$).*)',
   ],
 };
+
