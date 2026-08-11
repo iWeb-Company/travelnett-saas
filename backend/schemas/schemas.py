@@ -1,3 +1,8 @@
+import email
+from http import client
+from fastapi import File, UploadFile
+from pydantic import BaseModel
+from typing import Optional, Union, Any, List
 from datetime import datetime, date
 PyDate = date
 
@@ -790,15 +795,10 @@ class AccountsWebPayload(BaseModel):
 
 class CardsWebPayload(BaseModel):
     id: str
-amount: Optional[float] = None
-    currency: Optional[str] = None
-    observations: Optional[str] = None
-    card_number: Optional[str] = None
-    titular: Optional[str] = None
-    operation_number: Optional[str] = None
-    quotes_number: Optional[str] = None
-    receipt_number: Optional[str] = None
-    account_id: Optional[str] = None
+    iweb_client_id: str
+    name: Optional[str] = None
+    quotes: Optional[int] = 1
+    recargo: Optional[float] = 0.0
 
     class Config:
         from_attributes = True

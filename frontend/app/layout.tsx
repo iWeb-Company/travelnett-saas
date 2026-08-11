@@ -12,7 +12,7 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "TravelNett - Software para Turismo",
+  title: "Tranett - Software para Turismo",
   description: "TravelNett, plataforma de gestión de turismo",
 
   icons: {
