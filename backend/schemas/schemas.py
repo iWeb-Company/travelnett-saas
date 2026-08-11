@@ -90,6 +90,33 @@ class iWebClientResponse(BaseModel):
     status: bool
     logo_xl: str
     logo_s: str
+
+class TenantAdminInfo(BaseModel):
+    id: str
+    username: str
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    initial_password: Optional[str] = None
+
+class ProvisioningStatus(BaseModel):
+    database: str = "OK"
+    storage: str = "OK"
+    subdomain: str = "OK"
+
+class iWebClientProvisionResponse(BaseModel):
+    client: iWebClientResponse
+    admin_user: TenantAdminInfo
+    login_url: str
+    status: ProvisioningStatus
+
+class TenantPublicInfoResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    status: bool
+    logo_xl: str
+    logo_s: str
+
     
 # Schemas for parameters management #
 

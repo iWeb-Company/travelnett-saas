@@ -10,10 +10,9 @@ services:
     environment:
       - ENV=production
       - APP_ENV=production
-      - PUBLIC_DATA_URL=https://api-tranett.iwebtecnology.com/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
+      - PUBLIC_DATA_URL=/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
     volumes:
       # Datos persistentes del SaaS (logos, imágenes de períodos, documentos)
-      # El host tiene la carpeta real; el contenedor la ve en /home/iweb/data/travelnett
       - /home/iweb/saas/data/travelnett:/home/iweb/saas/data/travelnett
     restart: unless-stopped
     healthcheck:
@@ -27,8 +26,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=https://api-tranett.iwebtecnology.com/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api
-        - NEXT_PUBLIC_DATA_URL=https://api-tranett.iwebtecnology.com/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
+        - NEXT_PUBLIC_API_URL=/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api
+        - NEXT_PUBLIC_DATA_URL=/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
     ports:
       - "3012:3000"
     restart: unless-stopped
+

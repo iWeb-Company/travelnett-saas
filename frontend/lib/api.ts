@@ -19,9 +19,33 @@ interface User {
   username: string;
 }
 
+interface PublicTenantInfo {
+  id: string;
+  name: string;
+  slug: string;
+  status: boolean;
+  logo_xl: string;
+  logo_s: string;
+}
+
 const IWEB_CLIENT_ID = 'fdd2a8bf-4c81-4743-99e0-5d0443b5465b';
 
 export const apiClient = {
+  async getPublicTenantInfo(slug: string): Promise<PublicTenantInfo> {
+    const response = await fetch(`${API_BASE_URL}/iweb-clients/public/${encodeURIComponent(slug)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tenant '${slug}' no encontrado`);
+    }
+
+    return response.json();
+  },
+
 
   async loginSystem(data: LoginRequest): Promise<LoginResponse> {
     const response = await fetch(`${API_BASE_URL}/auth/login-system`, {
