@@ -30,6 +30,21 @@ interface PublicTenantInfo {
 }
 
 const IWEB_CLIENT_ID = 'fdd2a8bf-4c81-4743-99e0-5d0443b5465b';
+function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
+  if (match && match[1]) {
+    return decodeURIComponent(match[1]);
+  }
+  return null;
+}
+
+function setTokenCookie(token: string) {
+  if (typeof window === 'undefined') return;
+  const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  document.cookie = `access_token=${encodeURIComponent(bearerToken)}; path=/; max-age=2592000; SameSite=Lax`;
+}
+
 export const apiClient = {
   async getPublicTenantInfo(slug: string): Promise<PublicTenantInfo> {
     const response = await fetch(`${API_BASE_URL}/iweb-clients/public/${encodeURIComponent(slug)}`, {
@@ -58,12 +73,19 @@ export const apiClient = {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.detail || 'Login failed');
     }
-    return response.json();
+    const res: LoginResponse = await response.json();
+    if (res.access_token) {
+      setTokenCookie(res.access_token);
+    }
+    return res;
   },
 
   async getMe(token?: string): Promise<User> {
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const activeToken = token || getStoredToken();
+    if (activeToken) {
+      headers['Authorization'] = activeToken.startsWith('Bearer ') ? activeToken : `Bearer ${activeToken}`;
+    }
     const response = await fetch(`${API_BASE_URL}/auth/me`, {
       method: 'GET',
       headers,
