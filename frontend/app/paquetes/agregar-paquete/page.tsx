@@ -215,6 +215,15 @@ function AgregarPaqueteContent() {
     );
   }, [hoteles, destino, destinos]);
 
+  const excursionesFiltered = useMemo(() => {
+    if (!destino) return [];
+    const selectedDestinoObj = destinos.find((d: Destino) => d.id === destino || d.name === destino);
+    return excursiones.filter((e: Excursion) =>
+      e.destino === destino ||
+      (selectedDestinoObj && (e.destino === selectedDestinoObj.id || e.destino === selectedDestinoObj.name))
+    );
+  }, [excursiones, destino, destinos]);
+
   useEffect(() => {
     if (user?.iweb_client_id) {
       loadParameters();
@@ -357,9 +366,12 @@ function AgregarPaqueteContent() {
             className="text-gray-500 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
             value={destino}
             onChange={(e) => {
-              setDestino(e.target.value);
+              const val = e.target.value;
+              setDestino(val);
               setHotel("");
               setOpenHotel(false);
+              setSelectedSalidaIds([]);
+              setSelectedExcursion([]);
             }}
             required
           >
@@ -426,7 +438,6 @@ function AgregarPaqueteContent() {
             className="text-gray-500 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
             value={periodo}
             onChange={(e) => setPeriodo(e.target.value)}
-            required
           >
             <option value="" disabled>Periodo</option>
             {periodos.map((p: Period) => (
@@ -669,16 +680,18 @@ function AgregarPaqueteContent() {
           </div>
         </div>
 
-        {/* Lugares de Carga */}
-        {excursiones.length === 0 ? (
-          <p className="text-xs text-gray-500">No hay excursiones registradas en parámetros.</p>
+        {/* Lugares de Carga / Excursiones */}
+        {!destino ? (
+          <p className="text-xs text-gray-500">Selecciona un destino para ver las excursiones disponibles.</p>
+        ) : excursionesFiltered.length === 0 ? (
+          <p className="text-xs text-gray-500">No hay excursiones registradas para el destino seleccionado.</p>
         ) : (
           <ComponentToogleModal
             onSelect={(value) => {
               setSelectedExcursion(value ? value.split(", ") : []);
             }}
             value={selectedExcursion.join(", ")}
-            options={excursiones.map((excursion) => ({
+            options={excursionesFiltered.map((excursion) => ({
               id: excursion.id || '',
               label: excursion.name || '',
             }))}

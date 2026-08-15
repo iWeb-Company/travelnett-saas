@@ -86,8 +86,8 @@ export default function CargasPage() {
       toast.success("Lugar de carga eliminado correctamente");
       getLugares();
       r.refresh();
-    } catch (error) {
-      toast.error("Error al eliminar el lugar de carga");
+    } catch (error: any) {
+      toast.error(error?.message || error?.detail || "Error al eliminar el lugar de carga");
       console.error("Error deleting loading place:", error);
     }
   };

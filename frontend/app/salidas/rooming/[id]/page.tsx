@@ -9,6 +9,8 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
 
+import { parseRoomItem } from "@/lib/formatRooms";
+
 export default function RoomingPage() {
   const router = useRouter();
   const params = useParams();
@@ -71,34 +73,48 @@ export default function RoomingPage() {
 
   const roomsList = Object.values(roomsGrouped);
 
-  // Filter rooms by category
-  const matrimonialRooms = roomsList.filter(r => r.type === "doble_matrimonial");
-  const individualRooms = roomsList.filter(r => r.type === "doble_individual");
-  const tripleRooms = roomsList.filter(r => r.type === "triple_individual");
-  const cuadrupleRooms = roomsList.filter(r => r.type === "cuadruple_individual");
-  const otherRooms = roomsList.filter(
-    r => !["doble_matrimonial", "doble_individual", "triple_individual", "cuadruple_individual"].includes(r.type)
-  );
+  // Filter rooms by category using parseRoomItem
+  const matrimonialRooms = roomsList.filter(r => {
+    const parsed = parseRoomItem(r.type);
+    return parsed.camaCode === "DBL" && parsed.distribucionCode === "MAT";
+  });
+  const individualRooms = roomsList.filter(r => {
+    const parsed = parseRoomItem(r.type);
+    return parsed.camaCode === "SGL" || (parsed.camaCode === "DBL" && parsed.distribucionCode === "IND");
+  });
+  const tripleRooms = roomsList.filter(r => {
+    const parsed = parseRoomItem(r.type);
+    return parsed.camaCode === "TPL";
+  });
+  const cuadrupleRooms = roomsList.filter(r => {
+    const parsed = parseRoomItem(r.type);
+    return parsed.camaCode === "CPL";
+  });
+  const otherRooms = roomsList.filter(r => {
+    const parsed = parseRoomItem(r.type);
+    const isMatched = (parsed.camaCode === "DBL" && parsed.distribucionCode === "MAT") ||
+      parsed.camaCode === "SGL" ||
+      (parsed.camaCode === "DBL" && parsed.distribucionCode === "IND") ||
+      parsed.camaCode === "TPL" ||
+      parsed.camaCode === "CPL";
+    return !isMatched;
+  });
 
   // Room Summary Statistics
-  const getStatsForType = (types: string[]) => {
-    const typeRooms = roomsList.filter(r => types.includes(r.type));
-    const totalRooms = typeRooms.length;
-    const totalPax = typeRooms.reduce((sum, r) => sum + r.pasajeros.length, 0);
-    return { rooms: totalRooms, pax: totalPax };
+  const getStatsForList = (list: any[]) => {
+    return {
+      rooms: list.length,
+      pax: list.reduce((sum, r) => sum + r.pasajeros.length, 0),
+    };
   };
 
-  const matrimonialStats = getStatsForType(["doble_matrimonial"]);
-  const individualStats = getStatsForType(["doble_individual"]);
-  const tripleStats = getStatsForType(["triple_individual"]);
-  const cuadrupleStats = getStatsForType(["cuadruple_individual"]);
+  const matrimonialStats = getStatsForList(matrimonialRooms);
+  const individualStats = getStatsForList(individualRooms);
+  const tripleStats = getStatsForList(tripleRooms);
+  const cuadrupleStats = getStatsForList(cuadrupleRooms);
 
   const hasOthers = otherRooms.length > 0;
-  const otherStats = getStatsForType(
-    roomsList
-      .map(r => r.type)
-      .filter(t => !["doble_matrimonial", "doble_individual", "triple_individual", "cuadruple_individual"].includes(t))
-  );
+  const otherStats = getStatsForList(otherRooms);
 
   const totalHabs = roomsList.length;
 

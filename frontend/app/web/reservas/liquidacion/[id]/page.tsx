@@ -302,7 +302,7 @@ export default function VoucherPage() {
                             </div>
                             <div className="flex flex-col">
                                 <p className="font-bold">Fecha de vencimiento</p>
-                                <p>{reservaData.venciment}</p>
+                                <p>{reservaData.venciment ?? 'Sin fecha indicada'}</p>
                             </div>
                             <div className="flex flex-col">
                                 <p className="font-bold">Vendedor</p>
@@ -356,11 +356,11 @@ export default function VoucherPage() {
                                 <div className="flex w-full border-t border-gray-500 justify-around p-5">
                                     <div className="flex flex-col text-xl gap-2">
                                         <p className="font-semibold">Fecha de salida</p>
-                                        <p className="">{salidaData?.date_of_out}</p>
+                                        <p className="">{salidaData?.date_of_out || 'A confirmar'}</p>
                                     </div>
                                     <div className="flex flex-col text-xl gap-2">
                                         <p className="font-semibold">Fecha de regreso</p>
-                                        <p className="">{packageData?.hotel_fecha_out}</p>
+                                        <p className="">{packageData?.hotel_fecha_out ?? 'A confirmar'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -380,11 +380,11 @@ export default function VoucherPage() {
                             </div><div className="flex w-full border-t border-gray-500 justify-around p-5">
                                 <div className="flex flex-col text-xl gap-2">
                                     <p className="font-semibold">Fecha de ingreso</p>
-                                    <p className="">{packageData?.hotel_fecha_in}</p>
+                                    <p className="">{packageData?.hotel_fecha_in ?? 'A confirmar'}</p>
                                 </div>
                                 <div className="flex flex-col text-xl gap-2">
                                     <p className="font-semibold">Fecha de salida</p>
-                                    <p className="">{packageData?.hotel_fecha_out}</p>
+                                    <p className="">{packageData?.hotel_fecha_out ?? 'A confirmar'}</p>
                                 </div>
                             </div><div className="flex w-full border-t border-gray-500 justify-around p-5">
                                 <div className="flex flex-col text-xl gap-2 max-w-md">
@@ -394,7 +394,7 @@ export default function VoucherPage() {
                                 </div>
                                 <div className="flex flex-col text-xl gap-2">
                                     <p className="font-semibold">Cantidad de noches</p>
-                                    <p className="">{packageData?.hotel_noches}</p>
+                                    <p className="">{packageData?.hotel_noches ?? 'A confirmar'}</p>
                                 </div>
                             </div>
                         </div>

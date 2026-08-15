@@ -35,6 +35,7 @@ export default function ReservaIdPage() {
   // Liquidacion state
   const [liquidacionId, setLiquidacionId] = useState<string | null>(null);
   const [totalReserva, setTotalReserva] = useState<number>(0);
+  const [totalComisionable, setTotalComisionable] = useState<number>(0);
   const [commission, setCommission] = useState<number>(0);
   const [clientCommissionPct, setClientCommissionPct] = useState<number | null>(null);
   const [gastos, setGastos] = useState<GastoNoComm[]>([]);
@@ -50,17 +51,30 @@ export default function ReservaIdPage() {
 
   // State for Add Room Modal
   const [openAddRoomModal, setOpenAddRoomModal] = useState(false);
+  const [modalCommissionOpen, setModalCommissionOpen] = useState(false);
   const [newRoomCama, setNewRoomCama] = useState<string>("doble");
   const [newRoomDistribucion, setNewRoomDistribucion] = useState<string>("matrimonial");
   const [newRoomTipo, setNewRoomTipo] = useState<string>("estandar");
 
 
+  const [clientesList, setClientesList] = useState<any[]>([]);
+  const [modalCamaValue, setModalCamaValue] = useState<string>("doble");
+  const [modalDistribucionValue, setModalDistribucionValue] = useState<string>("matrimonial");
+
   useEffect(() => {
     if (!id || !user?.iweb_client_id) return;
+
+    // Load Clients
+    apiClient.getParameters('get_clients', user.iweb_client_id).then((cls) => {
+      setClientesList(Array.isArray(cls) ? cls : []);
+    }).catch(() => []);
 
     // Load Reserva and Clients
     apiClient.getReservaById(user.iweb_client_id, id).then((data) => {
       setReserva(data);
+      if (data.commission !== null && data.commission !== undefined) {
+        setClientCommissionPct(Number(data.commission));
+      }
       if (data.room_type) {
         try {
           if (data.room_type.startsWith("[")) {
@@ -119,6 +133,8 @@ export default function ReservaIdPage() {
       if (liq) {
         setLiquidacionId(liq.id);
         if (liq.total_amout !== null && liq.total_amout !== undefined) setTotalReserva(Number(liq.total_amout));
+        const tc = liq.total_commission !== undefined && liq.total_commission !== null ? liq.total_commission : (liq.total_comisionable ?? liq.total_commissionable);
+        if (tc !== null && tc !== undefined) setTotalComisionable(Number(tc));
         if (liq.commission !== null && liq.commission !== undefined) setCommission(Number(liq.commission));
         if (liq.gastos && Array.isArray(liq.gastos)) {
           setGastos(liq.gastos.map((g: any) => ({ id: g.id, name: g.name, amount: Number(g.amount) })));
@@ -137,7 +153,7 @@ export default function ReservaIdPage() {
 
   // Dynamic calculations
   const totalNoComisionable = gastos.reduce((acc, g) => acc + (g.amount || 0), 0);
-  const totalComisionable = Math.max(0, totalReserva - totalNoComisionable);
+  // const totalComisionable = Math.max(0, totalReserva - totalNoComisionable);
   const saldoTotalNeto = totalReserva - pagosRealizados;
 
   useEffect(() => {
@@ -256,6 +272,8 @@ export default function ReservaIdPage() {
         active: reserva.active,
         venciment: reserva.venciment,
         observations: reserva.observations,
+        client_id: reserva.client_id,
+        commission: clientCommissionPct,
         room_type: roomTypePayload,
         passengers: passengersPayload,
       });
@@ -299,18 +317,38 @@ export default function ReservaIdPage() {
     setTargetRoomIdx(idx);
     const roomStr = rooms[idx] || "DBL_MAT_STD";
     const detail = parseRoomItem(roomStr);
-    const camaDistKey = getCamaDistribucionKey(detail);
-    const tipoHabKey = getTipoHabitacionKey(detail);
-    const tipoCodeMap: Record<string, string> = { estandar: "STD", superior: "SUP", suite: "SUI" };
-    setModalRoomValue(`${camaDistKey}_${tipoCodeMap[tipoHabKey] || "STD"}`);
+
+    if (detail.camaCode === "SGL") setModalCamaValue("single");
+    else if (detail.camaCode === "DBL") setModalCamaValue("doble");
+    else if (detail.camaCode === "TPL") setModalCamaValue("triple");
+    else if (detail.camaCode === "CPL") setModalCamaValue("cuadruple");
+    else if (detail.camaCode === "QTL") setModalCamaValue("quintuple");
+    else if (detail.camaCode === "DEP") setModalCamaValue("depto_x5");
+    else setModalCamaValue("doble");
+
+    setModalDistribucionValue(detail.distribucionCode === "MAT" ? "matrimonial" : "twin");
     setOpenSetRoomType(true);
   };
 
   const handleSubmitRoomType = () => {
-    if (targetRoomIdx !== null && modalRoomValue) {
+    if (targetRoomIdx !== null) {
+      let camaDistCode = "DBL_MAT";
+      if (modalCamaValue === "single") camaDistCode = "SGL";
+      else if (modalCamaValue === "doble") camaDistCode = modalDistribucionValue === "matrimonial" ? "DBL_MAT" : "doble_individual";
+      else if (modalCamaValue === "triple") camaDistCode = "triple_individual";
+      else if (modalCamaValue === "cuadruple") camaDistCode = "cuadruple_individual";
+      else if (modalCamaValue === "quintuple") camaDistCode = "quintuple_individual";
+      else if (modalCamaValue === "depto_x5") camaDistCode = "depto_x5_individual";
+
+      const currentRoom = rooms[targetRoomIdx] || "DBL_MAT_STD";
+      const detail = parseRoomItem(currentRoom);
+      const tipoHabKey = getTipoHabitacionKey(detail);
+      const tipoCodeMap: Record<string, string> = { estandar: "STD", superior: "SUP", suite: "SUI" };
+      const newFullCode = `${camaDistCode}_${tipoCodeMap[tipoHabKey] || "STD"}`;
+
       setRooms((prev) => {
         const copy = [...prev];
-        copy[targetRoomIdx] = modalRoomValue;
+        copy[targetRoomIdx] = newFullCode;
         return copy;
       });
     }
@@ -320,16 +358,16 @@ export default function ReservaIdPage() {
   const getCamaDistribucionKey = (detail: any): string => {
     const c = detail.camaCode;
     const d = detail.distribucionCode;
-    if (c === "DEP") return "depto_x5_individual";
-    if (c === "QTL") return "quintuple_individual";
-    if (c === "SGL") return "SGL";
-    if (c === "TPL") return "triple_individual";
-    if (c === "CPL") return "cuadruple_individual";
+    if (c === "DEP") return "Depto x5 Individual";
+    if (c === "QTL") return "Quintuple Individual";
+    if (c === "SGL") return "Single";
+    if (c === "TPL") return "Triple Individual";
+    if (c === "CPL") return "Cuádruple Individual";
     if (c === "DBL") {
-      if (d === "MAT") return "DBL_MAT";
-      return "doble_individual";
+      if (d === "MAT") return "Doble Matrimonial";
+      return "Doble Individual";
     }
-    return "DBL_MAT";
+    return "Doble Matrimonial";
   };
 
   const getTipoHabitacionKey = (detail: any): string => {
@@ -470,12 +508,30 @@ export default function ReservaIdPage() {
           </div>
           <div className="flex items-center w-full">
             <p className="font-medium w-1/3 text-lg">Cliente</p>
-            <input
-              type="text"
-              value={reserva?.client_nombre || "Cliente General"}
-              disabled
-              className="border border-gray-200 px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-gray-50"
-            />
+            <select
+              value={reserva?.client_id || ""}
+              onChange={(e) => {
+                const newClientId = e.target.value;
+                const matched = clientesList.find((c: any) => c.id === newClientId);
+                const newComm = matched && matched.commission !== null && matched.commission !== undefined ? Number(matched.commission) : clientCommissionPct;
+                setReserva({
+                  ...reserva!,
+                  client_id: newClientId,
+                  client_nombre: matched ? (matched.complete_name || matched.name_system) : ""
+                });
+                if (newComm !== null && newComm !== undefined) {
+                  setClientCommissionPct(newComm);
+                }
+              }}
+              className="border border-gray-200 px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-white cursor-pointer"
+            >
+              <option value="">Seleccionar Cliente</option>
+              {clientesList.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.complete_name || c.name_system}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center w-full">
             <p className="font-medium w-1/2 text-lg">Vencimiento</p>
@@ -698,18 +754,18 @@ export default function ReservaIdPage() {
           </div>
           <div className="flex items-center text-xl justify-between w-full">
             <p className="font-medium">Total comisionable</p>
-            <p className="font-semibold">{formatMonto(totalComisionable)}</p>
+            <input
+              type="number"
+              value={totalComisionable}
+              onChange={(e) => setTotalComisionable(parseFloat(e.target.value) || 0)}
+              className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-lg w-44 bg-white"
+            />
           </div>
           <div className="flex items-center text-xl justify-between w-full">
             <p className="font-medium">
-              Comisión {clientCommissionPct !== null && clientCommissionPct !== undefined ? `(${clientCommissionPct}%)` : ""}
+              Comisión <button onClick={() => setModalCommissionOpen(true)} className="hover:underline cursor-pointer">{clientCommissionPct !== null && clientCommissionPct !== undefined ? `(${clientCommissionPct}%)` : ""}</button>
             </p>
-            <input
-              type="number"
-              value={commission}
-              onChange={(e) => setCommission(parseFloat(e.target.value) || 0)}
-              className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-lg w-44 bg-white"
-            />
+            <p className="font-semibold text-right">{formatMonto(commission)}</p>
           </div>
           <div className="flex items-center text-xl justify-between w-full mt-4">
             <p className="font-medium">Pagos realizados</p>
@@ -789,7 +845,8 @@ export default function ReservaIdPage() {
               <thead className="sticky top-0 bg-gray-700">
                 <tr>
                   <th className="py-1.5 px-2 font-semibold">Hotel</th>
-                  <th className="py-1.5 px-2 text-center font-semibold">Tipo de Habitación</th>
+                  <th className="py-1.5 px-2 text-center font-semibold">Tipo de Cama</th>
+                  <th className="py-1.5 px-2 text-center font-semibold">Distribución</th>
                 </tr>
               </thead>
               <tbody className="bg-gray-600 py-2">
@@ -797,28 +854,26 @@ export default function ReservaIdPage() {
                   <th className="px-2 font-semibold">{reserva?.hotel_nombre || "Garden"}</th>
                   <th>
                     <select
-                      value={modalRoomValue}
-                      onChange={(e) => setModalRoomValue(e.target.value)}
-                      className="bg-gray-600 border border-gray-500 rounded-lg p-1.5 w-44 text-right cursor-pointer text-white font-medium"
+                      value={modalCamaValue}
+                      onChange={(e) => setModalCamaValue(e.target.value)}
+                      className="bg-gray-600 border border-gray-500 rounded-lg p-1.5 w-full text-center cursor-pointer text-white font-medium"
                     >
-                      <option value="DBL_MAT_STD">DBL MAT (Estándar)</option>
-                      <option value="DBL_MAT_SUP">DBL MAT (Superior)</option>
-                      <option value="DBL_MAT_SUI">DBL MAT (Suite)</option>
-                      <option value="doble_individual_STD">Doble Individual (Estándar)</option>
-                      <option value="doble_individual_SUP">Doble Individual (Superior)</option>
-                      <option value="SGL_STD">SGL (Estándar)</option>
-                      <option value="SGL_SUI">SGL (Suite)</option>
-                      <option value="triple_individual_STD">Triple Individual (Estándar)</option>
-                      <option value="cuadruple_individual_STD">Cuádruple Individual (Estándar)</option>
-                      <option value="quintuple_individual_STD">Quíntuple Individual (Estándar)</option>
-                      <option value="depto_x5_individual_STD">Depto x5 Individual (Estándar)</option>
-                      <option value="depto_x5_individual_SUP">Depto x5 Individual (Superior)</option>
-                      <option value="depto_x5_individual_SUI">Depto x5 Individual (Suite)</option>
-                      <option value="depto_x5_individual_estandar">depto_x5_individual_estandar</option>
-                      <option value="depto_x5_individual_suite">depto_x5_individual_suite</option>
-                      <option value="doble_matrimonial_estandar">doble_matrimonial_estandar</option>
-                      <option value="doble_individual_estandar">doble_individual_estandar</option>
-                      <option value="simple_individual_estandar">simple_individual_estandar</option>
+                      <option value="single">Single</option>
+                      <option value="doble">Doble</option>
+                      <option value="triple">Triple</option>
+                      <option value="cuadruple">Cuádruble</option>
+                      <option value="quintuple">Quíntuple</option>
+                      <option value="depto_x5">Depto x5</option>
+                    </select>
+                  </th>
+                  <th>
+                    <select
+                      value={modalDistribucionValue}
+                      onChange={(e) => setModalDistribucionValue(e.target.value)}
+                      className="bg-gray-600 border border-gray-500 rounded-lg p-1.5 w-full text-center cursor-pointer text-white font-medium"
+                    >
+                      <option value="matrimonial">Matrimonial</option>
+                      <option value="twin">Individual / Twin</option>
                     </select>
                   </th>
                 </tr>
@@ -898,6 +953,48 @@ export default function ReservaIdPage() {
         </ModalLayout>
       )}
 
+      {modalCommissionOpen && (
+        <ModalLayout
+          setModalOpen={setModalCommissionOpen}
+          onSubmit={() => setModalCommissionOpen(false)}
+        >
+          <section className="flex flex-col gap-5">
+            <div className="flex justify-center">
+              <img
+                src="/logo.png"
+                alt="Tranett"
+                className="w-20"
+              />
+            </div>
+            <p className="text-white text-center font-bold text-base">
+              Modificar Comisión de Reserva
+            </p>
+            <table className="w-full text-xs text-center text-white border-collapse">
+              <thead className="sticky top-0 bg-gray-700">
+                <tr>
+                  <th className="py-1.5 px-2 font-semibold">Comisión (%)</th>
+                  <th className="py-1.5 px-2 text-center font-semibold">Valor comisión</th>
+                  <th className="py-1.5 px-2 text-center font-semibold">Valor Neto</th>
+                </tr>
+              </thead>
+              <tbody className="bg-gray-600 py-2">
+                <tr className="py-2 h-10">
+                  <th>
+                    <input
+                      className="bg-gray-700 border border-gray-400 rounded-lg p-1.5 w-full text-center cursor-pointer text-white font-bold"
+                      type="number"
+                      value={clientCommissionPct ?? 0}
+                      onChange={(e) => setClientCommissionPct(parseFloat(e.target.value) || 0)}
+                    />
+                  </th>
+                  <th className="font-semibold">{formatMonto(commission)}</th>
+                  <th className="font-semibold text-green-400">{formatMonto(totalReserva - commission)}</th>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </ModalLayout>
+      )}
       {/* BOTÓN CONTINUAR / GUARDAR */}
       <div className="flex items-center justify-center mx-auto max-w-3xl mb-10">
         <button

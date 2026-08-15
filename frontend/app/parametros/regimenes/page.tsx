@@ -87,8 +87,8 @@ export default function RegimenesPage() {
       toast.success("Régimen eliminado correctamente");
       getRegimenes();
       r.refresh();
-    } catch (error) {
-      toast.error("Error al eliminar el régimen");
+    } catch (error: any) {
+      toast.error(error?.message || error?.detail || "Error al eliminar el régimen");
       console.error("Error deleting regimen:", error);
     }
   };

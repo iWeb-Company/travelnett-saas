@@ -112,8 +112,8 @@ export default function PeriodosPage() {
       toast.success("Periodo eliminado correctamente");
       getPeriodos();
       r.refresh();
-    } catch (error) {
-      toast.error("Error al eliminar el periodo");
+    } catch (error: any) {
+      toast.error(error?.message || error?.detail || "Error al eliminar el periodo");
       console.error("Error deleting periodo:", error);
     }
   };

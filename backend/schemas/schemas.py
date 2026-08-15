@@ -1036,33 +1036,32 @@ class UserPayload(BaseModel):
     name: Optional[str]
     last_name: Optional[str]
     username: str
+    rol: Optional[str] = "admin"
 
 class UserCreatePayload(BaseModel):
     name: Optional[str] = None
     last_name: Optional[str] = None
-    dni: Optional[int] = None
+    dni: Optional[Union[int, str]] = None
     birthday: Optional[str] = None
     username: str
-    password: str
-    phone: Optional[int] = None
-    active: int = 1
+    password: Optional[str] = None
+    phone: Optional[Union[int, str]] = None
+    active: Optional[Union[bool, int]] = 1
+    rol: Optional[str] = "admin"
 
-class ClientsCreatePayload(BaseModel):
-    name_system: Optional[str] = None
-    complete_name: Optional[str] = None
-    client_type: Optional[str] = None
-    parent_client_id: Optional[str] = None
-    dni: Optional[int] = None
-    birthday: Optional[date] = None
-    email: Optional[str] = None
-    phone: Optional[int] = None
-    payment_method: Optional[str] = None
-    commission: Optional[int] = None
-    hashed_password: Optional[str] = None
-    created_at: Optional[datetime] = None
+class UserUpdatePayload(BaseModel):
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    dni: Optional[Union[int, str]] = None
+    birthday: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    phone: Optional[Union[int, str]] = None
+    active: Optional[Union[bool, int]] = 1
+    rol: Optional[str] = None
 
-class UserCreateRequest(BaseModel):
-    user: UserCreatePayload
+class UserUpdateRequest(BaseModel):
+    user: UserUpdatePayload
 
 class ClientsCreateRequest(BaseModel):
     client: ClientsCreatePayload

@@ -191,8 +191,8 @@ export default function HotelesPage() {
       toast.success("Hotel eliminado correctamente");
       getHoteles();
       r.refresh();
-    } catch (error) {
-      toast.error("Error al eliminar el hotel");
+    } catch (error: any) {
+      toast.error(error?.message || error?.detail || "Error al eliminar el hotel");
       console.error("Error deleting hotel:", error);
     }
   };

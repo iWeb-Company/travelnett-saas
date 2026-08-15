@@ -13,7 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 
 export default function DashboardPage() {
-  const { user, permissions } = useAuth();
+  const { user, permissions, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({
     proxima_salida: "Cargando...",
@@ -35,15 +35,17 @@ export default function DashboardPage() {
   }, [user?.iweb_client_id]);
 
   const sections = [
-    { key: "salidas", label: "SALIDAS", href: "/salidas", icon: <Salidas />, allowed: permissions?.salidas ?? true },
-    { key: "paquetes", label: "PAQUETES", href: "/paquetes", icon: <Paquetes />, allowed: permissions?.paquetes ?? true },
-    { key: "administracion", label: "ADMINISTRACIÓN", href: "/administracion", icon: <Administracion />, allowed: permissions?.administracion ?? true },
-    { key: "parametros", label: "PARÁMETROS", href: "/parametros", icon: <Parametros />, allowed: permissions?.parametros ?? true },
-    { key: "permisos_users", label: "USUARIOS Y PERMISOS", href: "/usuarios", icon: <Usuarios />, allowed: permissions?.permisos_users ?? true },
-    { key: "web", label: "WEB", href: "/web", icon: <Web />, allowed: permissions?.web ?? true },
+    { key: "salidas", label: "SALIDAS", href: "/salidas", icon: <Salidas />, allowed: permissions?.salidas ?? false },
+    { key: "paquetes", label: "PAQUETES", href: "/paquetes", icon: <Paquetes />, allowed: permissions?.paquetes ?? false },
+    { key: "administracion", label: "ADMINISTRACIÓN", href: "/administracion", icon: <Administracion />, allowed: permissions?.administracion ?? false },
+    { key: "parametros", label: "PARÁMETROS", href: "/parametros", icon: <Parametros />, allowed: permissions?.parametros ?? false },
+    { key: "permisos_users", label: "USUARIOS Y PERMISOS", href: "/usuarios", icon: <Usuarios />, allowed: permissions?.permisos_users ?? false },
+    { key: "web", label: "WEB", href: "/web", icon: <Web />, allowed: permissions?.web ?? false },
   ];
 
-  if (loading) {
+  console.log(sections)
+
+  if (loading || authLoading) {
     return (
       <main>
         <section className="px-5">

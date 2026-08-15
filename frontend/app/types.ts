@@ -365,6 +365,8 @@ export interface Reserva {
     active?: boolean;
     venciment?: string | null;
     observations?: string | null;
+    commission?: number | null;
+    liberados?: number | null;
 
     // Virtuales/compatibilidad legacy
     passenger_id?: string | null;

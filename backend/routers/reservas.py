@@ -53,6 +53,8 @@ class ReservaCreatePayload(BaseModel):
     room_type: Optional[str] = None
     venciment: Optional[str] = None
     observations: Optional[str] = None
+    commission: Optional[float] = None
+    liberados: Optional[int] = 0
     
     # Nuevo campo
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
@@ -76,6 +78,8 @@ class ReservaUpdatePayload(BaseModel):
     venciment: Optional[str] = None
     observations: Optional[str] = None
     package_id: Optional[str] = None
+    commission: Optional[float] = None
+    liberados: Optional[int] = None
     
     # Nuevo campo para actualizar pasajeros
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
@@ -106,6 +110,8 @@ class ReservaDetailedResponse(BaseModel):
     active: bool
     venciment: Optional[str] = None
     observations: Optional[str] = None
+    commission: Optional[float] = None
+    liberados: Optional[int] = 0
     
     # Compatibilidad virtual para frontend tradicional
     passenger_id: Optional[str] = None
@@ -145,7 +151,7 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
     )
     if salida_id and salida_id.strip() not in ("", "undefined", "null", "none", "None"):
         query = query.filter(Reservas.salida_id == salida_id.strip().lower())
-    res_list = query.all()
+    res_list = query.order_by(Reservas.id.desc()).all()
     if not res_list:
         return []
 
@@ -369,6 +375,8 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
                 active=bool(r.active if r.active is not None else True),
                 venciment=r.venciment,
                 observations=r.observations,
+                commission=float(r.commission) if r.commission is not None else None,
+                liberados=r.liberados or 0,
                 passenger_id=comp_passenger_id,
                 nombre_completo=comp_nombre_completo,
                 telefono=comp_telefono,
@@ -433,6 +441,12 @@ async def create_reserva(
     
     generated_code = f"{dest_sigla.upper()}#{str(res_count + 1).zfill(2)}"
         
+    comm_val = body.commission
+    if comm_val is None and body.client_id:
+        cli_obj = db.query(Clients).filter(Clients.id == body.client_id).first()
+        if cli_obj and cli_obj.commission is not None:
+            comm_val = float(cli_obj.commission)
+
     res_id = str(uuid.uuid4())
     new_res = Reservas(
         id=res_id,
@@ -448,7 +462,9 @@ async def create_reserva(
         room_type=body.room_type,
         active=True,
         venciment=body.venciment,
-        observations=body.observations
+        observations=body.observations,
+        commission=comm_val,
+        liberados=body.liberados or 0,
     )
     db.add(new_res)
     
@@ -659,6 +675,10 @@ async def update_reserva(
         r.venciment = body.venciment
     if body.observations is not None:
         r.observations = body.observations
+    if body.commission is not None:
+        r.commission = body.commission
+    if body.liberados is not None:
+        r.liberados = body.liberados
         
     # Si viene passengers, actualizamos la intermedia
     if body.passengers is not None:
@@ -1119,6 +1139,7 @@ class ReservationPassengerUpdateInput(BaseModel):
     bus_number: Optional[str] = None
     butaca_number: Optional[int] = None
     butaca_type: Optional[str] = None
+    lugar_carga_id: Optional[str] = None
 
 
 @router.patch("/update_reservation_passenger/{rp_id}")
@@ -1131,6 +1152,18 @@ async def update_reservation_passenger(
     norm_client = iweb_client_id.strip().lower()
     rp = db.query(ReservationPassengers).filter(ReservationPassengers.id == rp_id).first()
     if not rp:
+        # Check if rp_id is actually a Reservas ID
+        res_obj = db.query(Reservas).filter(
+            Reservas.id == rp_id,
+            func.lower(Reservas.iweb_client_id) == norm_client
+        ).first()
+        if res_obj:
+            if body.bus_number is not None:
+                pass
+            if body.lugar_carga_id is not None:
+                res_obj.lugar_carga_id = body.lugar_carga_id
+            db.commit()
+            return {"message": "Reserva actualizada con éxito"}
         raise HTTPException(status_code=404, detail="Pasajero de reserva no encontrado")
         
     res_obj = db.query(Reservas).filter(
@@ -1146,7 +1179,11 @@ async def update_reservation_passenger(
         rp.butaca_number = body.butaca_number
     if body.butaca_type is not None:
         rp.butaca_type = body.butaca_type
+    if body.lugar_carga_id is not None:
+        rp.lugar_carga_id = body.lugar_carga_id
+        if not res_obj.lugar_carga_id:
+            res_obj.lugar_carga_id = body.lugar_carga_id
         
     db.commit()
     db.refresh(rp)
-    return {"message": "Pasajero de reserva actualizado con éxito", "bus_number": rp.bus_number}
+    return {"message": "Pasajero de reserva actualizado con éxito", "bus_number": rp.bus_number, "lugar_carga_id": rp.lugar_carga_id}
