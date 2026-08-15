@@ -43,8 +43,6 @@ export default function DashboardPage() {
     { key: "web", label: "WEB", href: "/web", icon: <Web />, allowed: permissions?.web ?? false },
   ];
 
-  console.log(sections)
-
   if (loading || authLoading) {
     return (
       <main>

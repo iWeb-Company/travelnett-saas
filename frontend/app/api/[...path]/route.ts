@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = (
+const rawBackendUrl = (
   process.env.INTERNAL_API_URL ||
   (process.env.NODE_ENV === "production" ? "http://backend:8000" : "http://127.0.0.1:8000")
 ).replace(/\/$/, "");
+
+// Ensure baseHost is a valid absolute URL for server-side fetch
+let baseHost = rawBackendUrl;
+if (!baseHost.startsWith("http://") && !baseHost.startsWith("https://")) {
+  baseHost = "http://127.0.0.1:8000";
+}
 
 async function handleProxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
@@ -11,7 +17,7 @@ async function handleProxy(request: NextRequest, { params }: { params: Promise<{
   const searchParams = request.nextUrl.searchParams.toString();
   const queryString = searchParams ? `?${searchParams}` : "";
 
-  const targetUrl = `${BACKEND_URL}/${targetPath}${queryString}`;
+  const targetUrl = `${baseHost}/${targetPath}${queryString}`;
 
   const headers = new Headers();
   request.headers.forEach((value, key) => {
@@ -66,9 +72,8 @@ async function handleProxy(request: NextRequest, { params }: { params: Promise<{
     });
   } catch (error: any) {
     console.error(`[Proxy Error] ${request.method} ${targetUrl}:`, error?.cause || error);
-    const msg = error?.cause?.message || error?.message || "Proxy connection error to backend";
     return NextResponse.json(
-      { detail: `Proxy error to ${targetUrl}: ${msg}` },
+      { detail: "No se pudo establecer conexión con el servidor. Por favor intenta más tarde." },
       { status: 502 }
     );
   }

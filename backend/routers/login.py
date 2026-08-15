@@ -67,7 +67,7 @@ def login(
         if not iweb_client:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid slug",
+                detail="Slug invalido. Consulte a su administrador.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
     
@@ -79,7 +79,7 @@ def login(
         if not iweb_client:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Slug is required for non-admin users",
+                detail="El slug es requerido para el inicio de sesion.",
             )
         q = db.query(User).filter(User.username == body.username)
         q = q.filter(User.iweb_client_id == iweb_client.id)
@@ -88,14 +88,14 @@ def login(
     if not user or not _verify_password_or_false(body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
+            detail="Credenciales invalidas",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     if not user.active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
+            detail="Usuario inactivo",
         )
 
     # Get the iWebClient for the token if not already loaded
