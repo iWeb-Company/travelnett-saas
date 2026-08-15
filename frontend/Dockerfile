@@ -18,8 +18,8 @@ RUN npm install -g pnpm@9
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG NEXT_PUBLIC_API_URL=https://api-tranett.iwebtecnology.com/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api
-ARG NEXT_PUBLIC_DATA_URL=https://api-tranett.iwebtecnology.com/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
+ARG NEXT_PUBLIC_API_URL=/api
+ARG NEXT_PUBLIC_DATA_URL=/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_DATA_URL=$NEXT_PUBLIC_DATA_URL
 ENV NEXT_TELEMETRY_DISABLED=1
