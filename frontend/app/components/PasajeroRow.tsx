@@ -79,18 +79,33 @@ export default function PasajeroRow({
   }, [pasajero.lugar_carga_id]);
 
   const handleConfirm = async () => {
-    if (!user?.iweb_client_id || !pasajero.reserva_id) return;
+    if (!user?.iweb_client_id || (!pasajero.id && !pasajero.reserva_id)) return;
     setIsUpdating(true);
     try {
-      await apiClient.updateReserva(user.iweb_client_id, pasajero.reserva_id, {
-        lugar_carga_id: selectedLugarCarga || null,
-      });
+      const promises = [];
+      if (pasajero.id) {
+        promises.push(
+          apiClient.updateReservationPassenger(user.iweb_client_id, pasajero.id, {
+            lugar_carga_id: selectedLugarCarga || null,
+          }).catch(() => null)
+        );
+      }
+      if (pasajero.reserva_id) {
+        promises.push(
+          apiClient.updateReserva(user.iweb_client_id, pasajero.reserva_id, {
+            lugar_carga_id: selectedLugarCarga || null,
+          }).catch(() => null)
+        );
+      }
+      await Promise.all(promises);
+      toast.success("Lugar de ascenso actualizado");
       setIsOpenModal(false);
       if (onUpdated) {
         onUpdated();
       }
     } catch (error) {
       console.error(error);
+      toast.error("Error al actualizar lugar de ascenso");
     } finally {
       setIsUpdating(false);
     }

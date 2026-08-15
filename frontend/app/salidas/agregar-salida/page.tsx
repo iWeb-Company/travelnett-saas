@@ -59,9 +59,9 @@ function AgregarSalidaContent() {
       setPeriodos(periodData);
       setLugaresCarga(cargaData);
 
-      // If we are editing, fetch the existing data from context
+      // If we are editing, fetch the existing data
       if (id) {
-        const sal = salidasData.find((x: any) => x.id === id);
+        const sal = await apiClient.getSalida(user.iweb_client_id, id).catch(() => salidasData.find((x: any) => x.id === id));
         if (sal) {
           setDestino(sal.destino || "");
           setEmpresa(sal.transport_company || "");
@@ -70,7 +70,12 @@ function AgregarSalidaContent() {
           setPasajerosTotales(sal.passengers?.toString() || "");
           setEconomy(sal.semicama?.toString() || "");
           setBusiness(sal.cama?.toString() || "");
-          setSelectedCargas(sal.cargas ? sal.cargas.map((c: any) => c.id) : []);
+          const cargas = sal.cargas || sal.lugares_carga || [];
+          setSelectedCargas(
+            Array.isArray(cargas)
+              ? cargas.map((c: any) => (typeof c === "object" && c !== null ? (c.id || c.name) : c))
+              : []
+          );
           setActive(sal.active ?? true);
         }
       }

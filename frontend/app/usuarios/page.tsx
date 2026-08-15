@@ -185,6 +185,16 @@ export default function UsuariosPage() {
     }
   };
 
+  const getMatchingRolValue = (currentRol: string) => {
+    if (!currentRol || currentRol.toLowerCase() === 'admin') return 'admin';
+    const norm = currentRol.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace("adminstr", "administr");
+    const matched = permissions.find((p) => {
+      const pNorm = (p.name || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace("adminstr", "administr");
+      return pNorm === norm || p.id === currentRol;
+    });
+    return matched ? (matched.name || 'admin') : currentRol;
+  };
+
   const openEditUser = (u: UserInternal) => {
     setEditUserId(u.id);
     setUserData({
@@ -448,7 +458,7 @@ export default function UsuariosPage() {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-white/90">Rol / Permiso</label>
               <select
-                value={userData.rol || 'admin'}
+                value={getMatchingRolValue(userData.rol)}
                 onChange={e => setUserData({ ...userData, rol: e.target.value })}
                 className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none capitalize"
               >
@@ -485,7 +495,7 @@ export default function UsuariosPage() {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-white/90">Rol / Permiso</label>
               <select
-                value={userData.rol || 'admin'}
+                value={getMatchingRolValue(userData.rol)}
                 onChange={e => setUserData({ ...userData, rol: e.target.value })}
                 className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none capitalize"
               >

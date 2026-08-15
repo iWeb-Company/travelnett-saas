@@ -91,8 +91,8 @@ export default function MicrosPage() {
       toast.success("Tipo de micro eliminado correctamente");
       getMicros();
       r.refresh();
-    } catch (error) {
-      toast.error("Error al eliminar el tipo de micro");
+    } catch (error: any) {
+      toast.error(error?.message || error?.detail || "Error al eliminar el tipo de micro");
       console.error("Error deleting micro:", error);
     }
   };

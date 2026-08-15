@@ -99,8 +99,8 @@ export default function ExcursionesPage() {
       toast.success("Excursión eliminada correctamente");
       getData();
       r.refresh();
-    } catch (error) {
-      toast.error("Error al eliminar la excursión");
+    } catch (error: any) {
+      toast.error(error?.message || error?.detail || "Error al eliminar la excursión");
       console.error("Error deleting excursion:", error);
     }
   };

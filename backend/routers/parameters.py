@@ -246,22 +246,29 @@ async def create_excursions(
 @router.post("/create_periods", tags=["Create Endpoints Parameters"])
 async def create_periods(
     name: str = Form(...),
-    iweb_client_id: str = Form(...),
-    main_image: UploadFile = File(...),
+    iweb_client_id: Optional[str] = Query(None),
+    client_id_form: Optional[str] = Form(None, alias="iweb_client_id"),
+    main_image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
-    tenant = _get_tenant_or_404(db, iweb_client_id)
+    cid = iweb_client_id or client_id_form
+    if not cid:
+        raise HTTPException(status_code=400, detail="iweb_client_id is required")
+    tenant = _get_tenant_or_404(db, cid)
     period_id = str(uuid.uuid4())
-    ext = _guess_extension(main_image.filename or "", main_image.content_type)
-    filename = f"{period_id}{ext}"
-    folder_id = int(tenant.folder_id)
-    dest_dir = tenant_dir(folder_id) / "periodos"
-    _save_upload(main_image, dest_dir / filename)
-    relative_path = public_tenant_asset_url(folder_id, "periodos", filename)
+    relative_path = ""
+
+    if main_image and main_image.filename:
+        ext = _guess_extension(main_image.filename or "", main_image.content_type)
+        filename = f"{period_id}{ext}"
+        folder_id = int(tenant.folder_id)
+        dest_dir = tenant_dir(folder_id) / "periodos"
+        _save_upload(main_image, dest_dir / filename)
+        relative_path = public_tenant_asset_url(folder_id, "periodos", filename)
 
     new_period = Periods(
         id=period_id,
-        iweb_client_id=iweb_client_id,
+        iweb_client_id=cid,
         name=name,
         main_image=relative_path,
     )
@@ -812,21 +819,24 @@ async def update_excursions(
 @router.put("/update_periods/{period_id}", tags=["Update Endpoints Parameters"])
 async def update_periods(
     period_id: str,
-    body: UpdatePeriodsRequest,
-    iweb_client_id: str,
+    name: Optional[str] = Form(None),
+    iweb_client_id: Optional[str] = Query(None),
+    client_id_form: Optional[str] = Form(None, alias="iweb_client_id"),
+    main_image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    main_image: UploadFile = File(None),
 ):
+    cid = iweb_client_id or client_id_form
+    if not cid:
+        raise HTTPException(status_code=400, detail="iweb_client_id is required")
     period = db.query(Periods).filter(
-        Periods.id == period_id, Periods.iweb_client_id == iweb_client_id
+        Periods.id == period_id, Periods.iweb_client_id == cid
     ).first()
     if not period:
         raise HTTPException(status_code=404, detail="Period not found")
-    for key, value in body.model_dump(exclude_unset=True).items():
-        if key != "id":
-            setattr(period, key, value)
-    if main_image is not None:
-        tenant = _get_tenant_or_404(db, iweb_client_id)
+    if name is not None:
+        period.name = name
+    if main_image is not None and main_image.filename:
+        tenant = _get_tenant_or_404(db, cid)
         ext = _guess_extension(main_image.filename or "", main_image.content_type)
         filename = f"{period_id}{ext}"
         folder_id = int(tenant.folder_id)
@@ -1124,8 +1134,15 @@ async def delete_destinos(destino_id: str, iweb_client_id: str, db: Session = De
     ).first()
     if not destino:
         raise HTTPException(status_code=404, detail="Destination not found")
-    db.delete(destino)
-    db.commit()
+    try:
+        db.delete(destino)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar el destino porque posee elementos asociados (hoteles, paquetes o salidas)."
+        )
     return {"detail": "Destination deleted successfully"}
 
 

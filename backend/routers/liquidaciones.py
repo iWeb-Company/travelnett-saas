@@ -36,23 +36,58 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
     pkg_adicional = float(pkg.adicional or 0) if pkg else 0.0
     is_comisionable = bool(pkg.comisionable) if pkg else False
 
-    # 1. Total Pasajeros: ADL 100%, CHD 80%, INF 0%
+    # 1. Total Base Comisionable de Paquete según pricing_type y tipo de habitación
     pax_total = 0.0
-    if rps:
-        for rp in rps:
-            ptype = (rp.pasajero_type or "ADL").upper()
-            if ptype == "ADL":
-                pax_total += pkg_price * 1.0
-            elif ptype == "CHD":
-                pax_total += pkg_price * 0.8  # 20% de descuento
-            elif ptype == "INF":
-                pax_total += 0.0  # Infante no paga
-    else:
-        # Fallback a 1 adulto si no hay pasajeros registrados
-        pax_total = pkg_price
+    if pkg and res_obj.room_type:
+        import json
+        is_por_habitacion = "habitacion" in (pkg.pricing_type or "").lower()
+        rooms_list = []
+        try:
+            rooms_list = json.loads(res_obj.room_type) if isinstance(res_obj.room_type, str) else res_obj.room_type
+        except Exception:
+            rooms_list = [str(res_obj.room_type)]
 
-# 2. Base Comisionable: Únicamente pax_total + (pkg_adicional si es_comisionable)
-    # Los gastos administrativos del paquete (pkg_gastos) NO son comisionables.
+        if isinstance(rooms_list, list) and len(rooms_list) > 0:
+            for rm_str in rooms_list:
+                rm_lower = str(rm_str).lower()
+                capacity = 1
+                tariff = pkg_price
+
+                if "doble" in rm_lower or "2" in rm_lower:
+                    capacity = 2
+                    tariff = float(pkg.tarifa_doble) if pkg.tarifa_doble is not None else pkg_price
+                elif "triple" in rm_lower or "3" in rm_lower:
+                    capacity = 3
+                    tariff = float(pkg.tarifa_triple) if pkg.tarifa_triple is not None else pkg_price
+                elif "cuadruple" in rm_lower or "4" in rm_lower:
+                    capacity = 4
+                    tariff = float(pkg.tarifa_cuadruple) if pkg.tarifa_cuadruple is not None else pkg_price
+                elif "quintuple" in rm_lower or "5" in rm_lower:
+                    capacity = 5
+                    tariff = float(pkg.tarifa_quintuple) if pkg.tarifa_quintuple is not None else pkg_price
+                elif "single" in rm_lower or "individual" in rm_lower or "1" in rm_lower:
+                    capacity = 1
+                    tariff = float(pkg.tarifa_single) if pkg.tarifa_single is not None else pkg_price
+
+                if is_por_habitacion:
+                    pax_total += tariff
+                else:
+                    pax_total += tariff * capacity
+
+    if pax_total == 0.0:
+        if rps:
+            for rp in rps:
+                ptype = (rp.pasajero_type or "ADL").upper()
+                if ptype == "ADL":
+                    pax_total += pkg_price * 1.0
+                elif ptype == "CHD":
+                    pax_total += pkg_price * 0.8  # 20% de descuento
+                elif ptype == "INF":
+                    pax_total += 0.0  # Infante no paga
+        else:
+            pax_total = pkg_price
+
+    # 2. Base Comisionable: Únicamente pax_total + (pkg_adicional si es_comisionable)
     monto_comisionable = pax_total
     if is_comisionable:
         monto_comisionable += pkg_adicional
@@ -266,10 +301,11 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     # Registrar o sincronizar GastosNoCommission derivados del paquete
     existing_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
     existing_names = [g.name for g in existing_gastos]
+    has_admin_gasto = any(n in ["Gastos administrativos", "Gastos de Reserva"] for n in existing_names)
     added_gasto = False
 
     # Gastos administrativos del paquete si no existen
-    if calc["pkg_gastos"] > 0 and "Gastos administrativos" not in existing_names:
+    if calc["pkg_gastos"] > 0 and not has_admin_gasto:
         g_adm = GastosNoCommission(
             id=str(uuid.uuid4()),
             liquidacion_id=liq.id,

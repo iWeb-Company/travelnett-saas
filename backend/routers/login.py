@@ -11,6 +11,7 @@ from schemas.schemas import (
     TokenResponse,
     UserPayload,
     UserCreateRequest,
+    UserUpdateRequest,
     ClientsCreateRequest,
     iWebClientPayload,
 )
@@ -258,7 +259,7 @@ def get_users_by_iweb_client_id(
 def update_user_by_id(  
     iweb_client_id: str,
     user_id: str,
-    body: UserCreateRequest,
+    body: UserUpdateRequest,
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.id == user_id, User.iweb_client_id == iweb_client_id).first()
@@ -267,15 +268,22 @@ def update_user_by_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    user.name = body.user.name
-    user.dni = body.user.dni
-    user.birthday = body.user.birthday
-    user.last_name = body.user.last_name
-    user.username = body.user.username
+    if body.user.name is not None:
+        user.name = body.user.name
+    if body.user.dni is not None:
+        user.dni = int(body.user.dni) if body.user.dni else None
+    if body.user.birthday is not None:
+        user.birthday = body.user.birthday
+    if body.user.last_name is not None:
+        user.last_name = body.user.last_name
+    if body.user.username is not None:
+        user.username = body.user.username
     if body.user.password:
         user.hashed_password = get_password_hash(body.user.password)
-    user.phone = body.user.phone
-    user.active = body.user.active
+    if body.user.phone is not None:
+        user.phone = int(body.user.phone) if body.user.phone else None
+    if body.user.active is not None:
+        user.active = 1 if body.user.active else 0
     if body.user.rol is not None:
         user.rol = body.user.rol
     db.commit()

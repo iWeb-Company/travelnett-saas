@@ -393,6 +393,20 @@ function Paso3Content() {
       const primaryHotelId = roomsConfig[0]?.hotel || hotelIdParam || null;
       const primaryLugarCargaId = passengersPayload[0]?.lugar_carga_id || null;
 
+      // Fetch client commission if client_id is present
+      let clientCommPct = 0;
+      const matchedClient = clientes.find((c: any) => c.id === clienteId) ||
+        (Array.isArray(clientes) ? clientes.find((c: any) => c.id === clienteId) : null);
+      if (matchedClient && matchedClient.commission !== null && matchedClient.commission !== undefined) {
+        clientCommPct = Number(matchedClient.commission) || 0;
+      } else if (clienteId && user?.iweb_client_id) {
+        const freshClients = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
+        const fc = Array.isArray(freshClients) ? freshClients.find((c: any) => c.id === clienteId) : null;
+        if (fc && fc.commission !== null && fc.commission !== undefined) {
+          clientCommPct = Number(fc.commission) || 0;
+        }
+      }
+
       const createdReserva = await apiClient.createReserva(user.iweb_client_id, {
         salida_id: actualSalidaId,
         package_id: actualPaqueteId,
@@ -402,51 +416,73 @@ function Paso3Content() {
         room_type: roomTypesJoined,
         observations: tituloReserva || null,
         venciment: fechaVencimiento || null,
-        passengers: passengersPayload
+        passengers: passengersPayload,
+        commission: clientCommPct,
+        liberados: bloqueoData.cantLiberados || 0,
       });
 
       // Calculate and save Liquidacion with total_amount, total_commission, and gastos
       try {
         let precioPaquete = 0;
         let gastosReserva = 0;
+        let montoComisionable = 0;
 
         if (paqueteInfo) {
-          precioPaquete = Number(paqueteInfo.price) || 0;
           gastosReserva = Number(paqueteInfo.gastos) || 0;
+          const isPorHabitacion = (paqueteInfo.pricing_type || "").toLowerCase().includes("habitacion");
+          const defaultPrice = Number(paqueteInfo.price) || 0;
+
+          if (roomsConfig && roomsConfig.length > 0) {
+            for (const rm of roomsConfig) {
+              const tc = (rm.tipoCama || "").toLowerCase();
+              let capacity = 1;
+              let tariff = defaultPrice;
+
+              if (tc.includes("doble") || tc.includes("2")) {
+                capacity = 2;
+                tariff = Number(paqueteInfo.tarifa_doble) || defaultPrice;
+              } else if (tc.includes("triple") || tc.includes("3")) {
+                capacity = 3;
+                tariff = Number(paqueteInfo.tarifa_triple) || defaultPrice;
+              } else if (tc.includes("cuadruple") || tc.includes("4")) {
+                capacity = 4;
+                tariff = Number(paqueteInfo.tarifa_cuadruple) || defaultPrice;
+              } else if (tc.includes("quintuple") || tc.includes("5")) {
+                capacity = 5;
+                tariff = Number(paqueteInfo.tarifa_quintuple) || defaultPrice;
+              } else if (tc.includes("single") || tc.includes("individual") || tc.includes("1")) {
+                capacity = 1;
+                tariff = Number(paqueteInfo.tarifa_single) || defaultPrice;
+              }
+
+              if (isPorHabitacion) {
+                montoComisionable += tariff;
+              } else {
+                montoComisionable += tariff * capacity;
+              }
+            }
+          } else {
+            let totalPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length || 1;
+            montoComisionable = defaultPrice * totalPax;
+          }
         } else {
           precioPaquete = Number(bloqueoData.precioPaquete) || 0;
           gastosReserva = Number(bloqueoData.gastosReserva) || 0;
-        }
-
-        // Count paying passengers (non-INF)
-        let totalPax = 0;
-        if (tipoReserva === "bloqueo") {
-          totalPax = (Number(bloqueoData.cantSemicama) || 0) + (Number(bloqueoData.cantCama) || 0);
-        }
-        if (totalPax === 0) {
-          totalPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length;
-        }
-        if (totalPax === 0 && passengersPayload.length > 0) {
-          totalPax = passengersPayload.length;
-        }
-        if (totalPax === 0) totalPax = 1;
-
-        const montoComisionable = precioPaquete * totalPax;
-        const totalBruto = montoComisionable + gastosReserva;
-
-        // Fetch client commission if client_id is present
-        let clientCommPct = 0;
-        const matchedClient = clientes.find((c: any) => c.id === clienteId) ||
-          (Array.isArray(clientes) ? clientes.find((c: any) => c.id === clienteId) : null);
-        if (matchedClient && matchedClient.commission !== null && matchedClient.commission !== undefined) {
-          clientCommPct = Number(matchedClient.commission) || 0;
-        } else if (clienteId && user?.iweb_client_id) {
-          const freshClients = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
-          const fc = Array.isArray(freshClients) ? freshClients.find((c: any) => c.id === clienteId) : null;
-          if (fc && fc.commission !== null && fc.commission !== undefined) {
-            clientCommPct = Number(fc.commission) || 0;
+          let totalPax = 0;
+          if (tipoReserva === "bloqueo") {
+            const rawSeats = (Number(bloqueoData.cantSemicama) || 0) + (Number(bloqueoData.cantCama) || 0);
+            totalPax = Math.max(0, rawSeats - (Number(bloqueoData.cantLiberados) || 0));
           }
+          if (totalPax === 0 && tipoReserva !== "bloqueo") {
+            totalPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length;
+          }
+          if (totalPax === 0 && passengersPayload.length > 0 && tipoReserva !== "bloqueo") {
+            totalPax = passengersPayload.length;
+          }
+          montoComisionable = precioPaquete * totalPax;
         }
+
+        const totalBruto = montoComisionable + gastosReserva;
 
         const commAmount = (montoComisionable * clientCommPct) / 100;
 
@@ -457,7 +493,7 @@ function Paso3Content() {
           total_commission: montoComisionable,
           commission: commAmount,
           gastos: gastosReserva > 0 ? [{
-            name: "Gastos de Reserva",
+            name: "Gastos administrativos",
             amount: gastosReserva,
             iweb_client_id: user.iweb_client_id
           }] : []
@@ -564,10 +600,11 @@ function Paso3Content() {
                   type="number"
                   min="0"
                   max={salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama ?? 999}
-                  placeholder="Cantidad de pasajeros semicama"
+                  disabled={(salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama) === 0}
+                  placeholder={(salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama) === 0 ? "Sin butacas semicama disponibles" : "Cantidad de pasajeros semicama"}
                   value={bloqueoData.cantSemicama}
                   onChange={(e) => setBloqueoData({ ...bloqueoData, cantSemicama: Number(e.target.value) })}
-                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -579,10 +616,11 @@ function Paso3Content() {
                   type="number"
                   min="0"
                   max={salidaInfo?.cama_disponibles ?? salidaInfo?.cama ?? 999}
-                  placeholder="Cantidad de pasajeros cama"
+                  disabled={(salidaInfo?.cama_disponibles ?? salidaInfo?.cama) === 0}
+                  placeholder={(salidaInfo?.cama_disponibles ?? salidaInfo?.cama) === 0 ? "Sin butacas cama disponibles" : "Cantidad de pasajeros cama"}
                   value={bloqueoData.cantCama}
                   onChange={(e) => setBloqueoData({ ...bloqueoData, cantCama: Number(e.target.value) })}
-                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 

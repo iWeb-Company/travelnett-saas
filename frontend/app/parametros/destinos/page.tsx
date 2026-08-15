@@ -86,8 +86,8 @@ export default function DestinosPage() {
       toast.success("Destino eliminado correctamente");
       getDestinos();
       r.refresh();
-    } catch (error) {
-      toast.error("Error al eliminar el destino");
+    } catch (error: any) {
+      toast.error(error?.message || error?.detail || "Error al eliminar el destino");
       console.error("Error deleting destino:", error);
     }
   };

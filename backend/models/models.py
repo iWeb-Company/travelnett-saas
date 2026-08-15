@@ -264,7 +264,7 @@ class Packages(Base):
     destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hotel: Mapped[str | None] = mapped_column(String(255), nullable=True)
     periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    image: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    image: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
     web: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True, default=True)
     comisionable: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True, default=False)
@@ -314,6 +314,8 @@ class Reservas(Base):
     venciment: Mapped[str | None] = mapped_column(String(255), nullable=True)
     observations: Mapped[str | None] = mapped_column(String(255), nullable=True)
     package_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    commission: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    liberados: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
 
 class ReservationPassengers(Base):

@@ -60,14 +60,20 @@ export default function TransportePage() {
     setBusData(bus);
   };
 
+  const parseOptionalInt = (val: any) => {
+    if (val === null || val === undefined || val === "") return null;
+    const parsed = parseInt(String(val).replace(/\D/g, ""), 10);
+    return isNaN(parsed) ? null : parsed;
+  };
+
   const handleSubmitAdd = async () => {
     const { name, cuit, web, phone } = busData;
     try {
       await apiClient.createParameter("create_transport_company", {
         name,
-        cuit,
-        web,
-        phone,
+        cuit: parseOptionalInt(cuit),
+        web: web || null,
+        phone: parseOptionalInt(phone),
         type: tipo,
       }, user?.iweb_client_id);
       toast.success("Empresa agregada correctamente");
@@ -85,9 +91,9 @@ export default function TransportePage() {
     try {
       await apiClient.updateParameter("update_transport_company", busData.id!, {
         name,
-        cuit,
-        web,
-        phone,
+        cuit: parseOptionalInt(cuit),
+        web: web || null,
+        phone: parseOptionalInt(phone),
         type,
       }, user?.iweb_client_id);
       toast.success("Empresa actualizada correctamente");
@@ -106,8 +112,8 @@ export default function TransportePage() {
       toast.success("Empresa eliminada correctamente");
       getEmpresas();
       r.refresh();
-    } catch (error) {
-      toast.error("Error al eliminar la empresa");
+    } catch (error: any) {
+      toast.error(error?.message || error?.detail || "Error al eliminar la empresa");
       console.error("Error deleting empresa:", error);
     }
   };

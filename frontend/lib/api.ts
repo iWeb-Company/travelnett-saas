@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api';
+const API_BASE_URL = typeof window !== 'undefined'
+  ? '/api'
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + '/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api';
 
 interface LoginRequest {
   slug: string;
@@ -150,14 +152,22 @@ export const apiClient = {
     return response.json();
   },
 
-  async deleteParameter(name: string, id: string, iwebClientId?: string): Promise<void> {
+  async deleteParameter(name: string, id: string, iwebClientId?: string): Promise<any> {
     const clientId = iwebClientId || '';
     const response = await fetch(`${API_BASE_URL}/parameters/${name}/${id}?iweb_client_id=${clientId}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
     });
-    if (!response.ok) throw new Error(`Failed to delete ${name}`);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      const error: any = new Error(err.detail || `Failed to delete ${name}`);
+      error.status = response.status;
+      error.statusCode = response.status;
+      error.detail = err.detail || `Failed to delete ${name}`;
+      throw error;
+    }
+    return response.json().catch(() => ({ success: true }));
   },
 
   async createParameter(name: string, data: any, iwebClientId?: string, extraHeaders: any = null): Promise<any> {
