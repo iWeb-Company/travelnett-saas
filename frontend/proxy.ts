@@ -52,11 +52,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Si ya hay token y se intenta acceder a /login
-  if (token && token.value && pathname === '/login') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-
   const host = request.headers.get('host');
   const slug = extractSubdomain(host);
 

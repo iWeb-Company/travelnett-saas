@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = (
   process.env.INTERNAL_API_URL ||
-  "http://localhost:8000"
+  (process.env.NODE_ENV === "production" ? "http://backend:8000" : "http://127.0.0.1:8000")
 ).replace(/\/$/, "");
 
 async function handleProxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
@@ -15,7 +15,14 @@ async function handleProxy(request: NextRequest, { params }: { params: Promise<{
 
   const headers = new Headers();
   request.headers.forEach((value, key) => {
-    if (key.toLowerCase() !== "host") {
+    const lower = key.toLowerCase();
+    // Exclude hop-by-hop headers and host/content-length
+    if (
+      lower !== "host" &&
+      lower !== "connection" &&
+      lower !== "content-length" &&
+      lower !== "transfer-encoding"
+    ) {
       headers.set(key, value);
     }
   });
@@ -27,10 +34,13 @@ async function handleProxy(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const body =
-      request.method !== "GET" && request.method !== "HEAD"
-        ? await request.blob()
-        : undefined;
+    let body: Buffer | undefined = undefined;
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      const arrayBuffer = await request.arrayBuffer();
+      if (arrayBuffer.byteLength > 0) {
+        body = Buffer.from(arrayBuffer);
+      }
+    }
 
     const response = await fetch(targetUrl, {
       method: request.method,
@@ -49,16 +59,16 @@ async function handleProxy(request: NextRequest, { params }: { params: Promise<{
       }
     });
 
-    const res = new NextResponse(response.body, {
+    return new NextResponse(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
     });
-
-    return res;
   } catch (error: any) {
+    console.error(`[Proxy Error] ${request.method} ${targetUrl}:`, error?.cause || error);
+    const msg = error?.cause?.message || error?.message || "Proxy connection error to backend";
     return NextResponse.json(
-      { detail: error.message || "Proxy connection error to backend" },
+      { detail: `Proxy error to ${targetUrl}: ${msg}` },
       { status: 502 }
     );
   }
