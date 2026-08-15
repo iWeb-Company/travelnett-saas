@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = (
   process.env.INTERNAL_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:8000"
 ).replace(/\/$/, "");
 
@@ -12,8 +11,7 @@ async function handleProxy(request: NextRequest, { params }: { params: Promise<{
   const searchParams = request.nextUrl.searchParams.toString();
   const queryString = searchParams ? `?${searchParams}` : "";
 
-  const backendPrefix = "/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api";
-  const targetUrl = `${BACKEND_URL}${backendPrefix}/${targetPath}${queryString}`;
+  const targetUrl = `${BACKEND_URL}/${targetPath}${queryString}`;
 
   const headers = new Headers();
   request.headers.forEach((value, key) => {

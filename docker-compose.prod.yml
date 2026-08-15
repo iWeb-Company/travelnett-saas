@@ -25,10 +25,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_API_URL=/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/api
-        - NEXT_PUBLIC_DATA_URL=/MdpuF8KsXiRArNIHtI6pXO2XyLSJMTQ8_Tranett/data
+    environment:
+      - INTERNAL_API_URL=http://backend:8000
     ports:
       - "3012:3000"
     restart: unless-stopped
+    depends_on:
+      - backend
+
 
