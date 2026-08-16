@@ -13,7 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 
 export default function DashboardPage() {
-  const { user, permissions, isLoading: authLoading } = useAuth();
+  const { user, iwebClient, permissions, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({
     proxima_salida: "Cargando...",
@@ -267,12 +267,12 @@ export default function DashboardPage() {
           </ul>
         </div>
         <img
-          src="/logo-empresa.png"
-          className="w-20 md:absolute right-10 md:w-50 self-start mt-5"
+          src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-empresa.png"}
+          className="md:absolute right-10 md:w-60 object-contain self-start mt-5"
           alt="Logo de empresa logeada"
         />
       </section>
-      <img className="w-117 hidden md:block" src="/fotohome.png" alt="Foto Dashboard" />
+      <img className="w-117 hidden md:block absolute bottom-0 left-0" src="/fotohome.png" alt="Foto Dashboard" />
     </main>
   );
 }

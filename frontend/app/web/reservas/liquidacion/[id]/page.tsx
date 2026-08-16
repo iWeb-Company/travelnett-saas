@@ -18,7 +18,7 @@ import { formatRoomType, formatRoomTypeDetails } from "@/lib/formatRooms";
 export default function VoucherPage() {
     const params = useParams();
     const router = useRouter();
-    const { user } = useAuth();
+    const { user, iwebClient } = useAuth();
 
     const id = params.id as string;
     const [reservaData, setReservaData] = useState<Reserva | null>(null);
@@ -273,7 +273,7 @@ export default function VoucherPage() {
                 <div className="max-w-4xl mx-auto bg-white shadow-lg border border-black overflow-hidden print-voucher w-full text-black">
                     <section className="bg-border/50 text-black p-5 flex items-center justify-around">
                         <div className="flex items-center justify-around w-full">
-                            <img src="/logo-empresa.png" alt="Logo" />
+                            <img src={iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png"} alt="Logo" className="max-h-20 object-contain" />
                             <div className="flex flex-col gap-5">
                                 <div className="flex flex-col">
                                     <p className="text-[10px] uppercase font-bold text-center tracking-wider text-blue-900">

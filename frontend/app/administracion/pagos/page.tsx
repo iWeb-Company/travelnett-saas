@@ -31,7 +31,7 @@ interface Pago {
 
 export default function PagosPage() {
   const r = useRouter();
-  const { user } = useAuth();
+  const { user, iwebClient } = useAuth();
 
   const [reservaBusqueda, setReservaBusqueda] = useState("");
   const [clienteSelect, setClienteSelect] = useState("");
@@ -1170,7 +1170,7 @@ export default function PagosPage() {
               <div className="border-2 border-black p-6 rounded-xl">
                 {/* Header del recibo */}
                 <div className="flex items-start justify-between mb-4">
-                  <img src="/logo-empresa.png" alt="" className="h-20" />
+                  <img src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-empresa.png"} alt="Logo" className="h-20 object-contain" />
                   <div className="flex flex-col items-center">
                     <p>N 0000001</p>
                     <h3 className="text-center font-medium text-black text-lg mb-6 tracking-wide  pb-2">

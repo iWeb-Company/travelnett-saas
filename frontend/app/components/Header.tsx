@@ -4,7 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function Header() {
   const path = usePathname();
-  const { logout, user, isLoading } = useAuth();
+  const { logout, user, iwebClient, isLoading } = useAuth();
+  const agencyLogo = iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png";
 
   return (
     <>
@@ -38,9 +39,9 @@ export default function Header() {
               user && (
                 <div className="hidden md:flex flex-col items-center absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2">
                   <img
-                    src="/logo-empresa.png"
+                    src={agencyLogo}
                     alt="Logo empresa logeada"
-                    className="w-20 md:w-28"
+                    className="w-20 md:w-28 object-contain"
                   />
                   <span className="text-lg text-black font-medium">
                     {user.name}

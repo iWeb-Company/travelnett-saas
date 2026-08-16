@@ -13,7 +13,7 @@ import { Loader } from "@/app/components/Loader";
 import toast from "react-hot-toast";
 
 export default function ClientesPage() {
-  const { user } = useAuth();
+  const { user, iwebClient } = useAuth();
   const r = useRouter();
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -361,7 +361,7 @@ export default function ClientesPage() {
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-        <img src="/logo-grande.png" className="size-50" alt="Logo Empresa" />
+        <img src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"} className="size-50 object-contain" alt="Logo Empresa" />
       </div>
       {modalOpenClientType && (
         <ModalLayout

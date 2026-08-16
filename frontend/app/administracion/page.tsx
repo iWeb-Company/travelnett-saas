@@ -1,9 +1,15 @@
+"use client";
+
 import Link from "next/link";
 import Container from "../components/Container";
 import ToggleSalidas from "../components/ToggleSalidas";
 import ArrowLeft from "../components/icons/ArrowLeft";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Administracion() {
+  const { iwebClient } = useAuth();
+  const agencyLogo = iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png";
+
   return (
     <Container>
       <ToggleSalidas />
@@ -18,31 +24,31 @@ export default function Administracion() {
         <ul className="text-white flex flex-col gap-8">
           <Link
             href={"/administracion/cuentas"}
-            className="bg-primary w-full gap-3 py-2 text-center px-3 rounded-lg font-medium"
+            className="bg-primary flex flex-col gap-3 py-2 text-center px-3 rounded-lg font-medium"
           >
-            {/* <Salidas /> */}
-            <i className="text-center">CUENTAS</i>
+            {/* <Micro /> */}
+            <i className="text-center">CUENTAS BANCARIAS</i>
           </Link>
           <Link
-            href="/administracion/tesoro"
-            className="bg-primary gap-3 py-2 text-center px-3 rounded-lg font-medium"
+            href="/administracion/tarjetas"
+            className="bg-primary flex flex-col gap-3 py-2 text-center px-3 rounded-lg font-medium"
           >
-            {/* <Paquetes /> */}
-            <i className="text-center">TESORO</i>
+            {/* <Micro /> */}
+            <i className="text-center">TARJETAS</i>
           </Link>
           <Link
             href="/administracion/pagos"
             className="bg-primary gap-3 py-2 text-center px-3 rounded-lg font-medium"
           >
-            {/* <Paquetes /> */}
+            {/* <Hoteles /> */}
             <i className="text-center">PAGOS</i>
           </Link>
           <Link
-            href="/administracion/tarjetas"
+            href="/administracion/tesoro"
             className="bg-primary gap-3 py-2 text-center px-3 rounded-lg font-medium"
           >
-            {/* <Parametros /> */}
-            <i className="text-center">TARJETAS</i>
+            {/* <Regimen /> */}
+            <i className="text-center">TESORO</i>
           </Link>
           <Link
             href="/administracion/cuentas-corrientes"
@@ -61,7 +67,7 @@ export default function Administracion() {
         </ul>
       </section>
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-        <img src="logo-grande.png" className="size-50" alt="Logo Empresa" />
+        <img src={agencyLogo} className="size-50 object-contain" alt="Logo Empresa" />
       </div>
     </Container>
   );

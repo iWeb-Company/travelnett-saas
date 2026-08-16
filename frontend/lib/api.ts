@@ -63,6 +63,13 @@ export const apiClient = {
     return response.json();
   },
 
+  async getIwebClient(iwebClientId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/iweb-clients/get_iweb_client?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) return null;
+    return response.json();
+  },
 
   async loginSystem(data: LoginRequest): Promise<LoginResponse> {
     const response = await fetch(`${API_BASE_URL}/auth/login-system`, {

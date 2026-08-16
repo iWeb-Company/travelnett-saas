@@ -18,7 +18,8 @@ import { formatRoomType } from "@/lib/formatRooms";
 export default function VoucherPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, iwebClient } = useAuth();
+  const agencyLogo = iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png";
 
   const id = params.id as string;
   const [voucherData, setVoucherData] = useState<any>(null);
@@ -172,7 +173,7 @@ export default function VoucherPage() {
           {/* Header / Azul Claro */}
           <div className="bg-[#3DADFF]/50 text-black p-5 flex items-center justify-around border-b border-b-black">
             <div className="flex items-center justify-around w-full">
-              <img src="/logo-empresa.png" alt="Logo" />
+              <img src={agencyLogo} alt="Logo" className="max-h-20 object-contain" />
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col">
                   <p className="text-[10px] uppercase font-bold text-center tracking-wider text-blue-900">
@@ -202,7 +203,7 @@ export default function VoucherPage() {
           {/* Bloque Transporte */}
           <div className="border-black border-b flex flex-col gap-5 p-5">
             <div className="flex items-center justify-center gap-5">
-              <img src="/logo-empresa.png" className="h-15" alt="Logo" />
+              <img src={agencyLogo} className="h-15 object-contain" alt="Logo" />
               <h3 className="font-bold text-sm text-[#1105F7] uppercase">
                 Voucher de Transporte #
                 {voucherData.reserva_id.substring(0, 5).toUpperCase()}
@@ -302,7 +303,7 @@ export default function VoucherPage() {
           {/* Bloque Hotelería */}
           <div className="border-black border-b flex flex-col gap-5 p-5">
             <div className="flex items-center justify-center gap-5">
-              <img src="/logo-empresa.png" className="h-15" alt="Logo" />
+              <img src={agencyLogo} className="h-15 object-contain" alt="Logo" />
               <h3 className="font-bold text-sm text-[#1105F7] uppercase">
                 Voucher de Hoteleria #
                 {voucherData.reserva_id.substring(0, 5).toUpperCase()}
@@ -383,7 +384,7 @@ export default function VoucherPage() {
           {/* Bloque Observaciones */}
           <div className="border-black border-b flex flex-col gap-5 p-5">
             <div className="flex items-center justify-center gap-5">
-              <img src="/logo-empresa.png" className="h-15" alt="Logo" />
+              <img src={agencyLogo} className="h-15 object-contain" alt="Logo" />
               <h3 className="font-bold text-sm text-[#1105F7] uppercase">
                 Observaciones de Voucher
               </h3>
