@@ -15,7 +15,7 @@ import toast from "react-hot-toast";
 type TipoTransporte = "aereo" | "bus" | null;
 
 export default function TransportePage() {
-  const { user } = useAuth();
+  const { user, iwebClient } = useAuth();
   const r = useRouter();
   const [empresas, setEmpresas] = useState<TransportCompany[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,7 +298,7 @@ export default function TransportePage() {
       )}
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-        <img src="/logo-grande.png" className="size-50" alt="Logo Empresa" />
+        <img src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"} className="size-50 object-contain" alt="Logo Empresa" />
       </div>
       {modalOpenAdd && (
         <ModalLayout

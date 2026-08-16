@@ -120,6 +120,7 @@ function SeatGrid({
   asignaciones: Record<string, Pasajero>;
   onDrop: (layoutType: "S" | "C", asiento: number, reservationId: string) => void;
 }) {
+  const { iwebClient } = useAuth();
   return (
     <div className="flex flex-col gap-1.5">
       {layout.map((row, rowIdx) => {
@@ -157,7 +158,7 @@ function SeatGrid({
               {hasLogo ? (
                 <div className="flex items-center justify-center bg-secondary rounded-lg px-3 py-2 w-[164px]">
                   <img
-                    src="/logo-empresa.png"
+                    src={iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png"}
                     alt="Logo"
                     className="h-12 object-contain"
                   />
@@ -206,7 +207,7 @@ export default function ButacasPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
-  const { user } = useAuth();
+  const { user, iwebClient } = useAuth();
 
   const [salida, setSalida] = useState<Salida | null>(null);
   const [destinoName, setDestinoName] = useState<string>("");

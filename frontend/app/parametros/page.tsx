@@ -1,9 +1,15 @@
+"use client";
+
 import Link from "next/link";
 import Container from "../components/Container";
 import ToggleSalidas from "../components/ToggleSalidas";
 import ArrowLeft from "../components/icons/ArrowLeft";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ParametrosPage() {
+  const { iwebClient } = useAuth();
+  const agencyLogo = iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png";
+
   return (
     <Container>
       <ToggleSalidas />
@@ -79,7 +85,7 @@ export default function ParametrosPage() {
         </ul>
       </section>
         <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-          <img src="logo-grande.png" className='size-50' alt="Logo Empresa" />
+          <img src={agencyLogo} className='size-50 object-contain' alt="Logo Empresa" />
         </div>
     </Container>
   );
