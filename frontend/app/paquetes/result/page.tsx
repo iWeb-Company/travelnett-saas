@@ -221,9 +221,20 @@ function ResultContent() {
               const destObj = destinos.find((d: any) => d.id === pkg.destino || (d.name || d.nombre) === pkg.destino);
               // pkg.periodo may be stored as an id OR a name — search both ways
               const periodObj = periodos.find((pr: any) => pr.id === pkg.periodo || (pr.name || pr.nombre || pr.description) === pkg.periodo);
-              // hotel, regimen, excursion are always stored as IDs
-              const hotelObj = hoteles.find((h: any) => h.id === pkg.hotel);
-              const regimenObj = regimenes.find((r: any) => r.id === pkg.hotel_regimen_id);
+              // Resolve hotels array
+              const resolvedHotels = (pkg.hotels || []).map((ph: any) => {
+                const hotelObj = hoteles.find((h: any) => h.id === ph.hotel_id);
+                const regimenObj = regimenes.find((r: any) => r.id === ph.hotel_regimen_id);
+                return {
+                  hotel_id: ph.hotel_id,
+                  hotelNombre: hotelObj?.name || "Desconocido",
+                  regimenNombre: regimenObj?.name || "Desconocido",
+                  hotel_noches: ph.hotel_noches,
+                  pricing_type: ph.pricing_type,
+                  tarifa_doble: ph.tarifa_doble,
+                  tarifa_triple: ph.tarifa_triple,
+                };
+              });
               const excursionObj = excursiones.find((e: any) => e.id === pkg.excursiones);
 
               let resolvedDate = "";
@@ -252,8 +263,10 @@ function ResultContent() {
                 moneda: pkg.moneda === "dolares" ? "USD" : (pkg.moneda === "pesos" ? "ARS" : (pkg.moneda || "ARS")),
                 precio: pkg.price || 0,
                 gastosAdmin: pkg.gastos || 0,
-                hotelNombre: hotelObj?.name || "Desconocido",
-                regimenNombre: regimenObj?.name || "Desconocido",
+                hotels: resolvedHotels,
+                // backward-compat single hotel for card display
+                hotelNombre: resolvedHotels.length > 0 ? resolvedHotels.map((h: any) => h.hotelNombre).join(" / ") : "Sin hotel",
+                regimenNombre: resolvedHotels.length > 0 ? resolvedHotels[0].regimenNombre : "Desconocido",
                 excursionNombre: excursionObj?.name || "Ninguna",
                 active: pkg.active ?? true,
                 web: pkg.web ?? true,

@@ -59,7 +59,23 @@ export default function CarteleraPage() {
     }
   }, [user?.iweb_client_id]);
 
-  // Grouping sections: Destacados (predeterminado) + periodos precargados
+  // Helper to resolve period name from ID or Name string
+  const resolvePeriodName = (rawPeriod?: string) => {
+    if (!rawPeriod) return "";
+    const clean = rawPeriod.trim();
+    const match = periodosOptions.find((p) => {
+      if (typeof p === "string") return p.trim().toLowerCase() === clean.toLowerCase();
+      const pId = String(p.id || "").trim().toLowerCase();
+      const pName = String(p.name || p.nombre || p.title || "").trim().toLowerCase();
+      return pId === clean.toLowerCase() || pName === clean.toLowerCase();
+    });
+    if (match) {
+      return typeof match === "string" ? match : match.name || match.nombre || match.title || clean;
+    }
+    return clean;
+  };
+
+  // Grouping sections: Destacados (predeterminado) + periodos precargados + periodos en flyers
   const sections = useMemo(() => {
     const list: { name: string; isDestacados: boolean }[] = [
       { name: 'Destacados', isDestacados: true }
@@ -75,8 +91,9 @@ export default function CarteleraPage() {
 
     // Custom periodos from existing flyers
     flyers.forEach((f) => {
-      if (f.periodo && f.periodo.toLowerCase() !== 'destacados' && !list.some((s) => s.name.toLowerCase() === f.periodo!.toLowerCase())) {
-        list.push({ name: f.periodo, isDestacados: false });
+      const resolved = resolvePeriodName(f.periodo);
+      if (resolved && resolved.toLowerCase() !== 'destacados' && !list.some((s) => s.name.toLowerCase() === resolved.toLowerCase())) {
+        list.push({ name: resolved, isDestacados: false });
       }
     });
 
@@ -199,9 +216,11 @@ export default function CarteleraPage() {
         {sections.map((section) => {
           const sectionFlyers = flyers.filter((f) => {
             if (section.isDestacados) {
-              return !f.periodo || f.periodo === "" || f.periodo.toLowerCase() === "destacados";
+              const res = resolvePeriodName(f.periodo);
+              return !res || res === "" || res.toLowerCase() === "destacados";
             }
-            return f.periodo?.toLowerCase() === section.name.toLowerCase();
+            const res = resolvePeriodName(f.periodo);
+            return res.toLowerCase() === section.name.toLowerCase();
           });
 
           return (

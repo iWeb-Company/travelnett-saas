@@ -13,9 +13,67 @@ import toast from "react-hot-toast";
 import { Loader } from "@/app/components/Loader";
 import ComponentToogleModal from "@/app/components/ComponentToogleModal";
 import { useMemo } from "react";
-import { Destino, Excursion, Hotel, Package, Period, Regimen, Salida } from "@/app/types";
+import { Destino, Excursion, Hotel, Package, PackageHotel, Period, Regimen, Salida } from "@/app/types";
 import DateInput from "@/app/components/DateComponent";
 
+// ─── Hotel entry type for the multi-hotel form ────────────────────────────────
+interface HotelEntry {
+  hotel_id: string;
+  open: boolean;
+  hotel_noches: string;
+  hotel_fecha_in: string;
+  hotel_fecha_out: string;
+  hotel_fecha_salida_mas: string;
+  hotel_regimen_id: string;
+  tarifa_single: string;
+  comisionable_single: boolean;
+  tarifa_doble: string;
+  tarifa_triple: string;
+  tarifa_cuadruple: string;
+  tarifa_quintuple: string;
+  tarifa_menores: string;
+  pricing_type: string;
+}
+
+const emptyHotelEntry = (): HotelEntry => ({
+  hotel_id: "",
+  open: false,
+  hotel_noches: "",
+  hotel_fecha_in: "",
+  hotel_fecha_out: "",
+  hotel_fecha_salida_mas: "",
+  hotel_regimen_id: "",
+  tarifa_single: "",
+  comisionable_single: false,
+  tarifa_doble: "",
+  tarifa_triple: "",
+  tarifa_cuadruple: "",
+  tarifa_quintuple: "",
+  tarifa_menores: "",
+  pricing_type: "persona",
+});
+
+function pkgHotelToEntry(h: PackageHotel): HotelEntry {
+  return {
+    hotel_id: h.hotel_id || "",
+    open: !!h.hotel_id,
+    hotel_noches: String(h.hotel_noches ?? ""),
+    hotel_fecha_in: h.hotel_fecha_in || "",
+    hotel_fecha_out: h.hotel_fecha_out || "",
+    hotel_fecha_salida_mas: h.hotel_fecha_salida_mas || "",
+    hotel_regimen_id: h.hotel_regimen_id || "",
+    tarifa_single: String(h.tarifa_single ?? ""),
+    comisionable_single: h.comisionable_single ?? false,
+    tarifa_doble: String(h.tarifa_doble ?? ""),
+    tarifa_triple: String(h.tarifa_triple ?? ""),
+    tarifa_cuadruple: String(h.tarifa_cuadruple ?? ""),
+    tarifa_quintuple: String(h.tarifa_quintuple ?? ""),
+    tarifa_menores: String(h.tarifa_menores ?? ""),
+    pricing_type: h.pricing_type || "persona",
+  };
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 function AgregarPaqueteContent() {
   const searchParams = useSearchParams();
   const r = useRouter();
@@ -38,13 +96,9 @@ function AgregarPaqueteContent() {
   const [subtitulo, setSubtitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [destino, setDestino] = useState("");
-  const [hotel, setHotel] = useState("");
   const [fecha, setFecha] = useState("");
   const [selectedSalidaIds, setSelectedSalidaIds] = useState<string[]>([]);
-  const [nuevaFechaSalida, setNuevaFechaSalida] = useState("");
-  // const [isCreatingSalida, setIsCreatingSalida] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [regimen, setRegimen] = useState("");
   const [excursion, setExcursion] = useState("");
   const [periodo, setPeriodo] = useState("");
   const [precio, setPrecio] = useState("");
@@ -60,23 +114,22 @@ function AgregarPaqueteContent() {
   const [dias, setDias] = useState("");
   const [noches, setNoches] = useState("");
   const [comisionable, setComisionable] = useState(false);
-  const [openHotel, setOpenHotel] = useState(false);
   const [selectedExcursion, setSelectedExcursion] = useState<string[]>([]);
 
-  // Additional Hotel sub-form state
-  const [hotelNoches, setHotelNoches] = useState("");
-  const [hotelFechaIn, setHotelFechaIn] = useState("");
-  const [hotelFechaOut, setHotelFechaOut] = useState("");
-  const [hotelFechaSalidaMas, setHotelFechaSalidaMas] = useState("");
-  const [hotelRegimenId, setHotelRegimenId] = useState("");
-  const [tarifaSingle, setTarifaSingle] = useState("");
-  const [comisionableSingle, setComisionableSingle] = useState(false);
-  const [tarifaDoble, setTarifaDoble] = useState("");
-  const [tarifaTriple, setTarifaTriple] = useState("");
-  const [tarifaCuadruple, setTarifaCuadruple] = useState("");
-  const [tarifaQuintuple, setTarifaQuintuple] = useState("");
-  const [tarifaMenores, setTarifaMenores] = useState("");
-  const [pricingType, setPricingType] = useState("persona");
+  // Multi-hotel entries
+  const [hotelEntries, setHotelEntries] = useState<HotelEntry[]>([emptyHotelEntry()]);
+
+  const updateHotelEntry = (index: number, field: keyof HotelEntry, value: any) => {
+    setHotelEntries(prev => prev.map((e, i) => i === index ? { ...e, [field]: value } : e));
+  };
+
+  const addHotelEntry = () => {
+    setHotelEntries(prev => [...prev, emptyHotelEntry()]);
+  };
+
+  const removeHotelEntry = (index: number) => {
+    setHotelEntries(prev => prev.filter((_, i) => i !== index));
+  };
 
   const loadParameters = async () => {
     if (!user?.iweb_client_id) return;
@@ -98,7 +151,7 @@ function AgregarPaqueteContent() {
       setRegimenes(params.regimenes || []);
       setSalidas(salidasData);
 
-      // If we are editing, populate existing package from context
+      // If we are editing, populate existing package
       if (id) {
         const pkg = pkgsData.find((p: Package) => p.id === id);
         if (pkg) {
@@ -106,8 +159,6 @@ function AgregarPaqueteContent() {
           setSubtitulo(pkg.subtitle || "");
           setDescripcion(pkg.description || "");
           setDestino(pkg.destino || "");
-          setHotel(pkg.hotel || "");
-          if (pkg.hotel) setOpenHotel(true);
           if (pkg.dates && pkg.dates.length > 0) {
             setSelectedSalidaIds(pkg.dates);
             const firstDate = pkg.dates[0];
@@ -130,21 +181,15 @@ function AgregarPaqueteContent() {
           setActive(pkg.active ?? true);
           setWeb(pkg.web ?? true);
           setComisionable(pkg.comisionable ?? false);
-          setHotelNoches(pkg.hotel_noches?.toString() || "");
-          setHotelFechaIn(pkg.hotel_fecha_in || "");
-          setHotelFechaOut(pkg.hotel_fecha_out || "");
-          setHotelFechaSalidaMas(pkg.hotel_fecha_salida_mas || "");
-          setHotelRegimenId(pkg.hotel_regimen_id || "");
-          setTarifaSingle(pkg.tarifa_single?.toString() || "");
-          setComisionableSingle(pkg.comisionable_single ?? false);
-          setTarifaDoble(pkg.tarifa_doble?.toString() || "");
-          setTarifaTriple(pkg.tarifa_triple?.toString() || "");
-          setTarifaCuadruple(pkg.tarifa_cuadruple?.toString() || "");
-          setTarifaQuintuple(pkg.tarifa_quintuple?.toString() || "");
-          setTarifaMenores(pkg.tarifa_menores?.toString() || "");
-          setPricingType(pkg.pricing_type || "persona");
           if (pkg.excursiones) {
             setSelectedExcursion(pkg.excursiones.split(", "));
+          }
+
+          // Populate hotel entries
+          if (pkg.hotels && pkg.hotels.length > 0) {
+            setHotelEntries(pkg.hotels.map(pkgHotelToEntry));
+          } else {
+            setHotelEntries([emptyHotelEntry()]);
           }
         }
       }
@@ -155,35 +200,6 @@ function AgregarPaqueteContent() {
       setLoadingParams(false);
     }
   };
-
-  // const handleAddNuevaSalida = async () => {
-  //   if (!nuevaFechaSalida) {
-  //     toast.error("Por favor selecciona una fecha");
-  //     return;
-  //   }
-  //   if (!user?.iweb_client_id) return;
-  //   try {
-  //     setIsCreatingSalida(true);
-  //     const payload = {
-  //       date_of_out: nuevaFechaSalida,
-  //       destino: destino || "",
-  //       periodo: periodo || "",
-  //       active: true
-  //     };
-  //     const newSalida = await apiClient.createSalida(user.iweb_client_id, payload);
-  //     if (newSalida && newSalida.id) {
-  //       setSalidas((prev) => [...prev, newSalida]);
-  //       setSelectedSalidaIds((prev) => [...prev, newSalida.id]);
-  //       setNuevaFechaSalida("");
-  //       toast.success("Nueva fecha de salida creada y seleccionada");
-  //     }
-  //   } catch (err) {
-  //     console.error(err);
-  //     toast.error("Error al crear la fecha de salida");
-  //   } finally {
-  //     setIsCreatingSalida(false);
-  //   }
-  // };
 
   const imagePreviewUrl = useMemo(() => {
     if (!imageFile) return null;
@@ -234,16 +250,6 @@ function AgregarPaqueteContent() {
     r.back();
   };
 
-  const handleChangeHotel = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    setHotel(val);
-    if (val) {
-      setOpenHotel(true);
-    } else {
-      setOpenHotel(false);
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -257,6 +263,25 @@ function AgregarPaqueteContent() {
     setIsSubmitting(true);
 
     const processSubmit = (imageUrl: string) => {
+      const validHotels = hotelEntries
+        .filter(e => e.hotel_id)
+        .map(e => ({
+          hotel_id: e.hotel_id,
+          hotel_noches: parseInt(e.hotel_noches) || null,
+          hotel_fecha_in: e.hotel_fecha_in || null,
+          hotel_fecha_out: e.hotel_fecha_out || null,
+          hotel_fecha_salida_mas: e.hotel_fecha_salida_mas || null,
+          hotel_regimen_id: e.hotel_regimen_id || null,
+          tarifa_single: parseInt(e.tarifa_single) || null,
+          comisionable_single: e.comisionable_single,
+          tarifa_doble: parseInt(e.tarifa_doble) || null,
+          tarifa_triple: parseInt(e.tarifa_triple) || null,
+          tarifa_cuadruple: parseInt(e.tarifa_cuadruple) || null,
+          tarifa_quintuple: parseInt(e.tarifa_quintuple) || null,
+          tarifa_menores: parseInt(e.tarifa_menores) || null,
+          pricing_type: e.pricing_type,
+        }));
+
       const apiPayload = {
         name: nombre,
         subtitle: subtitulo,
@@ -265,8 +290,6 @@ function AgregarPaqueteContent() {
         gastos: parseInt(gastosAdministrativos || gastosAdmin) || 0,
         adicional: parseInt(adicionalBusCama) || 0,
         destino: destino,
-        hotel: hotel,
-        regimen: regimen,
         excursion: selectedExcursion.join(", ") || excursion,
         periodo: periodo,
         image: imageUrl || (typeof imageFile === "string" ? imageFile : ""),
@@ -279,20 +302,8 @@ function AgregarPaqueteContent() {
         moneda: moneda,
         moneda_gastos: monedaGastosAdmin,
         moneda_adicional: monedaAdicionalBusCama,
-        hotel_noches: parseInt(hotelNoches) || null,
-        hotel_fecha_in: hotelFechaIn || null,
-        hotel_fecha_out: hotelFechaOut || null,
-        hotel_fecha_salida_mas: hotelFechaSalidaMas || null,
-        hotel_regimen_id: hotelRegimenId || null,
-        tarifa_single: parseInt(tarifaSingle) || null,
-        comisionable_single: comisionableSingle,
-        tarifa_doble: parseInt(tarifaDoble) || null,
-        tarifa_triple: parseInt(tarifaTriple) || null,
-        tarifa_cuadruple: parseInt(tarifaCuadruple) || null,
-        tarifa_quintuple: parseInt(tarifaQuintuple) || null,
-        tarifa_menores: parseInt(tarifaMenores) || null,
-        pricing_type: pricingType,
         excursiones: selectedExcursion.join(", "),
+        hotels: validHotels,
       };
 
       if (!user?.iweb_client_id) {
@@ -360,7 +371,6 @@ function AgregarPaqueteContent() {
         </h2>
 
         {/* Destino */}
-
         <div className="flex flex-col gap-1">
           <select
             className="text-gray-500 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -368,14 +378,13 @@ function AgregarPaqueteContent() {
             onChange={(e) => {
               const val = e.target.value;
               setDestino(val);
-              setHotel("");
-              setOpenHotel(false);
+              setHotelEntries([emptyHotelEntry()]);
               setSelectedSalidaIds([]);
               setSelectedExcursion([]);
             }}
             required
           >
-            <option value="" disabled selected>Destino</option>
+            <option value="" disabled>Destino</option>
             {destinos.map((d: Destino) => (
               <option key={d.id} value={d.id}>{d.name}</option>
             ))}
@@ -415,10 +424,9 @@ function AgregarPaqueteContent() {
             required
           />
         </div>
-        {/* Fechas de salida */}
-        <div className="flex flex-col gap-3  bg-[#f8f9fa] border border-gray-300 rounded-xl shadow-md">
 
-          {/* Modal selector de fechas precargadas */}
+        {/* Fechas de salida */}
+        <div className="flex flex-col gap-3 bg-[#f8f9fa] border border-gray-300 rounded-xl shadow-md">
           <ComponentToogleModal
             placeholder="Fechas de salida"
             value={selectedSalidaIds.join(", ")}
@@ -432,6 +440,7 @@ function AgregarPaqueteContent() {
             }))}
           />
         </div>
+
         {/* Periodo */}
         <div className="flex flex-col gap-1">
           <select
@@ -445,6 +454,7 @@ function AgregarPaqueteContent() {
             ))}
           </select>
         </div>
+
         {/* Precio y moneda */}
         <div className="flex gap-2">
           <input type="number" placeholder="Precio" className="text-gray-500 flex-1 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -462,6 +472,7 @@ function AgregarPaqueteContent() {
             <option value="dolares">Dólares</option>
           </select>
         </div>
+
         {/* Gastos administrativos */}
         <div className="flex gap-2">
           <input
@@ -482,6 +493,7 @@ function AgregarPaqueteContent() {
             <option value="dolares">Dólares</option>
           </select>
         </div>
+
         {/* Adicional bus cama/business */}
         <div className="flex gap-2">
           <input
@@ -502,183 +514,186 @@ function AgregarPaqueteContent() {
             <option value="dolares">Dólares</option>
           </select>
         </div>
+
         {/* Comisionable */}
         <div className="flex items-center justify-center gap-2">
           <p className="text-xl">Comisionable</p>
           <input type="checkbox" className="w-4 h-4" checked={comisionable} onChange={(e) => setComisionable(e.target.checked)} />
         </div>
-        {/* Hotel */}
-        <div className="flex flex-col gap-1">
-          <select
-            className="text-gray-500 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
-            value={hotel}
-            onChange={handleChangeHotel}
-          >
-            {!destino ? (
-              <option value="">Hotel</option>
-            ) : hotelesFiltered.length === 0 ? (
-              <option value="" disabled>No hay hoteles precargados con el destino seleccionado.</option>
-            ) : (
-              <option value="" disabled>Seleccionar Hotel</option>
-            )}
-            {hotelesFiltered.map((h: Hotel) => (
-              <option key={h.id} value={h.id}>{h.name}</option>
-            ))}
-          </select>
-          <div
-            className={`grid transition-all duration-500 ease-in-out ${openHotel
-              ? "grid-rows-[1fr] opacity-100 my-2"
-              : "grid-rows-[0fr] opacity-0 my-0 pointer-events-none"
-              }`}
-          >
-            <div className="overflow-hidden">
-              <section className="flex flex-col gap-5 border border-gray-200 rounded-xl p-4 sm:p-6 bg-white shadow-sm w-full">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                  <input
-                    className="text-gray-800 bg-[#f1f1f1] font-medium w-full border border-gray-300 px-4 py-2.5 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    type="text" placeholder="Cantidad de noches"
-                    value={hotelNoches}
-                    onChange={(e) => setHotelNoches(e.target.value)}
-                  />
-                  <DateInput value={hotelFechaIn} onChange={setHotelFechaIn} placeholder="Fecha IN" />
-                  <select
-                    className="text-gray-800 bg-[#f1f1f1] font-medium w-full border border-gray-300 px-4 py-2.5 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    value={hotelRegimenId}
-                    onChange={(e) => setHotelRegimenId(e.target.value)}
-                  >
-                    <option value="">Régimen</option>
-                    {regimenes.map((regimen: Regimen) => (
-                      <option key={regimen.id} value={regimen.id}>{regimen.name}</option>
-                    ))}
-                  </select>
-                  <DateInput value={hotelFechaOut} onChange={setHotelFechaOut} placeholder="Fecha OUT" />
-                </div>
 
-                <div className="flex flex-col  sm:flex-row items-start sm:items-center justify-end gap-2  p-3 rounded-lg">
-                  <span className="text-sm font-semibold text-gray-700">Fecha de salida +</span>
-                  <input
-                    type="text"
-                    value={hotelFechaSalidaMas}
-                    onChange={(e) => setHotelFechaSalidaMas(e.target.value)}
-                    className="text-gray-800 bg-white font-medium border border-gray-300 px-3 py-1.5 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
-                  />
-                </div>
+        {/* ── Hoteles (multi) ──────────────────────────────────────────────── */}
+        {hotelEntries.map((entry, index) => (
+          <div key={index} className="flex flex-col gap-1">
+            {/* Cabecera: badge + botón eliminar */}
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {hotelEntries.length > 1 ? `Hotel ${index + 1}` : "Hotel"}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeHotelEntry(index)}
+                className="text-red-500 text-xs cursor-pointer hover:underline font-medium"
+              >
+                Eliminar
+              </button>
+            </div>
 
-                <div className="w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-                  <table className="w-full text-xs text-left border-collapse min-w-162.5">
-                    <thead className=" text-gray-700 uppercase font-semibold">
-                      <tr className="border-b border-gray-200">
-                        <th className="py-2 px-2 text-center border-r border-gray-200 bg-gray-200/60 font-bold min-w-[17.5]">TIPO</th>
-                        <th className="py-2 px-2 text-center border-r border-gray-200 min-w-[22.5] align-middle">
-                          <span className="block font-semibold">Single</span>
-                          <div className="flex items-center justify-center gap-1 mt-0.5 font-normal lowercase text-[10px] text-gray-500">
-                            <span>50% no comisionable</span>
-                            <input
-                              type="checkbox"
-                              name="comisionable_single"
-                              className="w-3 h-3"
-                              checked={comisionableSingle}
-                              onChange={(e) => setComisionableSingle(e.target.checked)}
-                            />
-                          </div>
-                        </th>
-                        <th className="py-2 px-2 text-center border-r border-gray-200 min-w-18.75 align-middle">Dobles</th>
-                        <th className="py-2 px-2 text-center border-r border-gray-200 min-w-18.75 align-middle">Triples</th>
-                        <th className="py-2 px-2 text-center border-r border-gray-200 min-w-18.75 align-middle">Cuádruples</th>
-                        <th className="py-2 px-2 text-center border-r border-gray-200 min-w-18.75 align-middle">Quíntuples</th>
-                        <th className="py-2 px-2 text-center min-w-18.75 align-middle">Menores</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
-                      <tr>
-                        <td className="py-2 px-2 text-center font-semibold text-[11px] text-gray-600 bg-gray-50 border-r border-gray-200">TARIFA</td>
-                        <td className="p-1">
-                          <input
-                            type="text"
-                            className="w-full text-center py-1 px-1 text-xs rounded focus:bg-white focus:ring-1 focus:ring-primary focus:outline-none font-medium"
-                            placeholder="$0"
-                            value={tarifaSingle}
-                            onChange={(e) => setTarifaSingle(e.target.value)}
-                          />
-                        </td>
-                        <td className="p-1">
-                          <input
-                            type="text"
-                            className="w-full text-center py-1 px-1 text-xs rounded focus:bg-white focus:ring-1 focus:ring-primary focus:outline-none font-medium"
-                            placeholder="$0"
-                            value={tarifaDoble}
-                            onChange={(e) => setTarifaDoble(e.target.value)}
-                          />
-                        </td>
-                        <td className="p-1">
-                          <input
-                            type="text"
-                            className="w-full text-center py-1 px-1 text-xs rounded focus:bg-white focus:ring-1 focus:ring-primary focus:outline-none font-medium"
-                            placeholder="$0"
-                            value={tarifaTriple}
-                            onChange={(e) => setTarifaTriple(e.target.value)}
-                          />
-                        </td>
-                        <td className="p-1">
-                          <input
-                            type="text"
-                            className="w-full text-center py-1 px-1 text-xs rounded focus:bg-white focus:ring-1 focus:ring-primary focus:outline-none font-medium"
-                            placeholder="$0"
-                            value={tarifaCuadruple}
-                            onChange={(e) => setTarifaCuadruple(e.target.value)}
-                          />
-                        </td>
-                        <td className="p-1">
-                          <input
-                            type="text"
-                            className="w-full text-center py-1 px-1 text-xs rounded focus:bg-white focus:ring-1 focus:ring-primary focus:outline-none font-medium"
-                            placeholder="$0"
-                            value={tarifaQuintuple}
-                            onChange={(e) => setTarifaQuintuple(e.target.value)}
-                          />
-                        </td>
-                        <td className="p-1">
-                          <input
-                            type="text"
-                            className="w-full text-center py-1 px-1 text-xs rounded focus:bg-white focus:ring-1 focus:ring-primary focus:outline-none font-medium"
-                            placeholder="$0"
-                            value={tarifaMenores}
-                            onChange={(e) => setTarifaMenores(e.target.value)}
-                          />
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+            {/* Select hotel */}
+            <select
+              className="text-gray-500 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
+              value={entry.hotel_id}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateHotelEntry(index, "hotel_id", val);
+                updateHotelEntry(index, "open", !!val);
+              }}
+            >
+              {!destino ? (
+                <option value="">Hotel</option>
+              ) : hotelesFiltered.length === 0 ? (
+                <option value="" disabled>No hay hoteles precargados con el destino seleccionado.</option>
+              ) : (
+                <option value="" disabled>Seleccionar Hotel</option>
+              )}
+              {hotelesFiltered.map((h: Hotel) => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
+            </select>
 
-                <div className="flex flex-wrap justify-center gap-6 items-center pt-2">
-                  <label htmlFor="persona" className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+            {/* Sub-form expandible */}
+            <div
+              className={`grid transition-all duration-500 ease-in-out ${entry.open
+                ? "grid-rows-[1fr] opacity-100 my-2"
+                : "grid-rows-[0fr] opacity-0 my-0 pointer-events-none"
+                }`}
+            >
+              <div className="overflow-hidden">
+                <section className="flex flex-col gap-5 border border-gray-200 rounded-xl p-4 sm:p-6 bg-white shadow-sm w-full">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
                     <input
-                      type="radio"
-                      name="pricing"
-                      id="persona"
-                      className="w-4 h-4 text-primary focus:ring-primary"
-                      checked={pricingType === "persona"}
-                      onChange={() => setPricingType("persona")}
+                      className="text-gray-800 bg-[#f1f1f1] font-medium w-full border border-gray-300 px-4 py-2.5 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      type="text" placeholder="Cantidad de noches"
+                      value={entry.hotel_noches}
+                      onChange={(e) => updateHotelEntry(index, "hotel_noches", e.target.value)}
                     />
-                    <span>Por persona</span>
-                  </label>
-                  <label htmlFor="habitacion" className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+                    <DateInput value={entry.hotel_fecha_in} onChange={(v) => updateHotelEntry(index, "hotel_fecha_in", v)} placeholder="Fecha IN" />
+                    <select
+                      className="text-gray-800 bg-[#f1f1f1] font-medium w-full border border-gray-300 px-4 py-2.5 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      value={entry.hotel_regimen_id}
+                      onChange={(e) => updateHotelEntry(index, "hotel_regimen_id", e.target.value)}
+                    >
+                      <option value="">Régimen</option>
+                      {regimenes.map((regimen: Regimen) => (
+                        <option key={regimen.id} value={regimen.id}>{regimen.name}</option>
+                      ))}
+                    </select>
+                    <DateInput value={entry.hotel_fecha_out} onChange={(v) => updateHotelEntry(index, "hotel_fecha_out", v)} placeholder="Fecha OUT" />
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-2 p-3 rounded-lg">
+                    <span className="text-sm font-semibold text-gray-700">Fecha de salida +</span>
                     <input
-                      type="radio"
-                      name="pricing"
-                      id="habitacion"
-                      className="w-4 h-4 text-primary focus:ring-primary"
-                      checked={pricingType === "habitacion"}
-                      onChange={() => setPricingType("habitacion")}
+                      type="text"
+                      value={entry.hotel_fecha_salida_mas}
+                      onChange={(e) => updateHotelEntry(index, "hotel_fecha_salida_mas", e.target.value)}
+                      className="text-gray-800 bg-white font-medium border border-gray-300 px-3 py-1.5 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
                     />
-                    <span>Por habitación</span>
-                  </label>
-                </div>
-              </section>
+                  </div>
+
+                  {/* Tabla de tarifas */}
+                  <div className="w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                    <table className="w-full text-xs text-left border-collapse min-w-162.5">
+                      <thead className="text-gray-700 uppercase font-semibold">
+                        <tr className="border-b border-gray-200">
+                          <th className="py-2 px-2 text-center border-r border-gray-200 bg-gray-200/60 font-bold min-w-[17.5]">TIPO</th>
+                          <th className="py-2 px-2 text-center border-r border-gray-200 min-w-[22.5] align-middle">
+                            <span className="block font-semibold">Single</span>
+                            <div className="flex items-center justify-center gap-1 mt-0.5 font-normal lowercase text-[10px] text-gray-500">
+                              <span>50% no comisionable</span>
+                              <input
+                                type="checkbox"
+                                name="comisionable_single"
+                                className="w-3 h-3"
+                                checked={entry.comisionable_single}
+                                onChange={(e) => updateHotelEntry(index, "comisionable_single", e.target.checked)}
+                              />
+                            </div>
+                          </th>
+                          <th className="py-2 px-2 text-center border-r border-gray-200 min-w-18.75 align-middle">Dobles</th>
+                          <th className="py-2 px-2 text-center border-r border-gray-200 min-w-18.75 align-middle">Triples</th>
+                          <th className="py-2 px-2 text-center border-r border-gray-200 min-w-18.75 align-middle">Cuádruples</th>
+                          <th className="py-2 px-2 text-center border-r border-gray-200 min-w-18.75 align-middle">Quíntuples</th>
+                          <th className="py-2 px-2 text-center min-w-18.75 align-middle">Menores</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 bg-white">
+                        <tr>
+                          <td className="py-2 px-2 text-center font-semibold text-[11px] text-gray-600 bg-gray-50 border-r border-gray-200">TARIFA</td>
+                          {[
+                            { field: "tarifa_single", val: entry.tarifa_single },
+                            { field: "tarifa_doble", val: entry.tarifa_doble },
+                            { field: "tarifa_triple", val: entry.tarifa_triple },
+                            { field: "tarifa_cuadruple", val: entry.tarifa_cuadruple },
+                            { field: "tarifa_quintuple", val: entry.tarifa_quintuple },
+                            { field: "tarifa_menores", val: entry.tarifa_menores },
+                          ].map(({ field, val }) => (
+                            <td key={field} className="p-1">
+                              <input
+                                type="text"
+                                className="w-full text-center py-1 px-1 text-xs rounded focus:bg-white focus:ring-1 focus:ring-primary focus:outline-none font-medium"
+                                placeholder="$0"
+                                value={val}
+                                onChange={(e) => updateHotelEntry(index, field as keyof HotelEntry, e.target.value)}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pricing type */}
+                  <div className="flex flex-wrap justify-center gap-6 items-center pt-2">
+                    <label htmlFor={`persona-${index}`} className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+                      <input
+                        type="radio"
+                        name={`pricing-${index}`}
+                        id={`persona-${index}`}
+                        className="w-4 h-4 text-primary focus:ring-primary"
+                        checked={entry.pricing_type === "persona"}
+                        onChange={() => updateHotelEntry(index, "pricing_type", "persona")}
+                      />
+                      <span>Por persona</span>
+                    </label>
+                    <label htmlFor={`habitacion-${index}`} className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+                      <input
+                        type="radio"
+                        name={`pricing-${index}`}
+                        id={`habitacion-${index}`}
+                        className="w-4 h-4 text-primary focus:ring-primary"
+                        checked={entry.pricing_type === "habitacion"}
+                        onChange={() => updateHotelEntry(index, "pricing_type", "habitacion")}
+                      />
+                      <span>Por habitación</span>
+                    </label>
+                  </div>
+                </section>
+              </div>
             </div>
           </div>
-        </div>
+        ))}
+
+        {/* Botón "+" para agregar otro hotel — siempre visible si hay destino */}
+        {destino && (
+          <button
+            type="button"
+            onClick={addHotelEntry}
+            className="flex items-center justify-center gap-2 w-full py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-primary hover:text-primary transition-colors cursor-pointer"
+          >
+            <span className="text-xl font-bold leading-none">+</span>
+            <span className="text-sm font-semibold">Agregar otro hotel</span>
+          </button>
+        )}
 
         {/* Lugares de Carga / Excursiones */}
         {!destino ? (
@@ -698,6 +713,7 @@ function AgregarPaqueteContent() {
             placeholder="Excursiones"
           />
         )}
+
         {/* Imagen del paquete */}
         <div className="flex flex-col gap-2 my-2">
           {imagePreviewUrl ? (
@@ -733,11 +749,13 @@ function AgregarPaqueteContent() {
             </div>
           )}
         </div>
+
         {/* Active y Web */}
         <div className="flex gap-4">
           <ToggleActiveFilters checked={active} onChange={setActive} />
           <ToggleActiveFilters checked={web} onChange={setWeb} label="Mostrar en Web" />
         </div>
+
         <button
           type="submit"
           disabled={isSubmitting}

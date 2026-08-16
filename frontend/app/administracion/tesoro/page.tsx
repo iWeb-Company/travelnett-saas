@@ -15,7 +15,6 @@ import {
   subMonths,
 } from "date-fns";
 import toast from "react-hot-toast";
-import ModalLayout from "@/app/components/ModalLayout";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
@@ -47,23 +46,6 @@ export default function TesoroPage() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [searched, setSearched] = useState(false);
-
-  // Modal states
-  const [isOpenMovimiento, setIsOpenMovimiento] = useState(false);
-  const [isOpenPase, setIsOpenPase] = useState(false);
-
-  // Form states for Ingresar Movimiento
-  const [movCuenta, setMovCuenta] = useState("");
-  const [movTipo, setMovTipo] = useState("ingreso"); // ingreso or egreso
-  const [movMonto, setMovMonto] = useState("");
-  const [movFecha, setMovFecha] = useState("");
-  const [movDetalle, setMovDetalle] = useState("");
-
-  // Form states for Pase de Dinero
-  const [paseOrigen, setPaseOrigen] = useState("");
-  const [paseDestino, setPaseDestino] = useState("");
-  const [paseMonto, setPaseMonto] = useState("");
-  const [paseDetalle, setPaseDetalle] = useState("");
 
   const [cuentas, setCuentas] = useState<CuentaOption[]>([]);
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
@@ -190,105 +172,6 @@ export default function TesoroPage() {
     setSearched(false);
     setMovimientos([]);
     setTotals({ totalIngresos: 0, totalEgresos: 0, saldoTotal: 0 });
-  };
-
-  // Submit handler for Ingresar Movimiento
-  const handleSubmitMovimiento = async () => {
-    if (!user?.iweb_client_id) return;
-    if (!movCuenta || !movMonto || !movFecha || !movDetalle.trim()) {
-      toast.error("Por favor complete todos los campos obligatorios");
-      return;
-    }
-
-    try {
-      await apiClient.createTesoroMovimiento({
-        iweb_client_id: user.iweb_client_id,
-        account_id: movCuenta,
-        movement_type: movTipo,
-        amount: parseFloat(movMonto),
-        date: movFecha,
-        detail: movDetalle.toUpperCase(),
-      });
-
-      toast.success("Movimiento registrado con éxito");
-      setIsOpenMovimiento(false);
-
-      // Clear form
-      setMovCuenta("");
-      setMovMonto("");
-      setMovFecha("");
-      setMovDetalle("");
-
-      // Reload search
-      if (searched && user?.iweb_client_id) {
-        const sDateStr = startDate ? startDate.toISOString().split("T")[0] : undefined;
-        const eDateStr = endDate ? endDate.toISOString().split("T")[0] : undefined;
-        const res = await apiClient.getTesoroMovimientos(user.iweb_client_id, {
-          accountId: cuenta || undefined,
-          startDate: sDateStr,
-          endDate: eDateStr,
-        });
-        setMovimientos(res.movimientos || []);
-        setTotals({
-          totalIngresos: res.total_ingresos || 0,
-          totalEgresos: res.total_egresos || 0,
-          saldoTotal: res.saldo_total || 0,
-        });
-      }
-    } catch {
-      toast.error("Error al registrar el movimiento");
-    }
-  };
-
-  // Submit handler for Pase de Dinero
-  const handleSubmitPase = async () => {
-    if (!user?.iweb_client_id) return;
-    if (!paseOrigen || !paseDestino || !paseMonto || !paseDetalle.trim()) {
-      toast.error("Por favor complete todos los campos");
-      return;
-    }
-    if (paseOrigen === paseDestino) {
-      toast.error("La cuenta origen y destino deben ser diferentes");
-      return;
-    }
-
-    try {
-      await apiClient.createTesoroPase({
-        iweb_client_id: user.iweb_client_id,
-        account_origen_id: paseOrigen,
-        account_destino_id: paseDestino,
-        amount: parseFloat(paseMonto),
-        detail: paseDetalle.toUpperCase(),
-      });
-
-      toast.success("Pase de dinero realizado con éxito");
-      setIsOpenPase(false);
-
-      // Clear form
-      setPaseOrigen("");
-      setPaseDestino("");
-      setPaseMonto("");
-      setPaseDetalle("");
-
-      // Reload search
-      if (searched && user?.iweb_client_id) {
-        const sDateStr = startDate ? startDate.toISOString().split("T")[0] : undefined;
-        const eDateStr = endDate ? endDate.toISOString().split("T")[0] : undefined;
-        const res = await apiClient.getTesoroMovimientos(user.iweb_client_id, {
-          accountId: cuenta || undefined,
-          startDate: sDateStr,
-          endDate: eDateStr,
-        });
-        setMovimientos(res.movimientos || []);
-        setTotals({
-          totalIngresos: res.total_ingresos || 0,
-          totalEgresos: res.total_egresos || 0,
-          saldoTotal: res.saldo_total || 0,
-        });
-      }
-    } catch {
-      toast.error("Error al realizar el pase de dinero");
-    }
   };
 
   if (loading) {
@@ -423,13 +306,13 @@ export default function TesoroPage() {
                         {mov.cuenta}
                       </p>
                       <p className="text-sm">
-                        Fecha: <span className="font-bold text-gray-700">{mov.fecha}</span>
+                        Fecha: <span className="font-bold">{mov.fecha}</span>
                       </p>
                       <p className="text-sm">
-                        Comprobante / Nro: <span className="font-bold text-gray-700">{mov.recibo}</span>
+                        Recibo: <Link href={mov.tipo === 'reserva' ? String(mov.recibo) : ''} target="_blank" className="font-bold hover:underline">{mov.tipo === 'reserva' ? 'Ver' : '-'}</Link>
                       </p>
-                      <p className="text-sm text-gray-600">
-                        Detalle: <span className="font-bold text-gray-800">{mov.detalle}</span>
+                      <p className="text-sm">
+                        {mov.tipo === 'reserva' ? 'Imputado a la reserva: ' : 'Detalle: '} <span className="font-bold">{mov.tipo === 'reserva' ? mov.detalle.split(' ')[2] : mov.detalle}</span>
                       </p>
                     </div>
                     <span
@@ -444,164 +327,6 @@ export default function TesoroPage() {
           </div>
         )}
       </div>
-
-      {/* Modal: Ingresar Movimiento */}
-      {isOpenMovimiento && (
-        <ModalLayout
-          title="Ingresar Movimiento Manual"
-          setModalOpen={() => setIsOpenMovimiento(false)}
-          onSubmit={handleSubmitMovimiento}
-        >
-          <div className="flex flex-col gap-4 text-black">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Cuenta / Caja *</label>
-              <select
-                required
-                value={movCuenta}
-                onChange={(e) => setMovCuenta(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
-              >
-                <option value="">Seleccione cuenta</option>
-                {cuentas.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-bold text-gray-700">Tipo de Movimiento *</label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer font-semibold">
-                  <input
-                    type="radio"
-                    name="movTipo"
-                    value="ingreso"
-                    checked={movTipo === "ingreso"}
-                    onChange={() => setMovTipo("ingreso")}
-                    className="w-4 h-4 accent-primary"
-                  />
-                  Ingreso / Entrada
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer font-semibold">
-                  <input
-                    type="radio"
-                    name="movTipo"
-                    value="egreso"
-                    checked={movTipo === "egreso"}
-                    onChange={() => setMovTipo("egreso")}
-                    className="w-4 h-4 accent-primary"
-                  />
-                  Egreso / Salida
-                </label>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Monto *</label>
-              <input
-                type="number"
-                required
-                min="0.01"
-                step="any"
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
-                placeholder="Ej: 50000"
-                value={movMonto}
-                onChange={(e) => setMovMonto(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Fecha del Movimiento *</label>
-              <input
-                type="date"
-                required
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
-                value={movFecha}
-                onChange={(e) => setMovFecha(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Concepto / Detalle *</label>
-              <input
-                type="text"
-                required
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
-                placeholder="Ej. Pago servicio telefónico, Ajuste caja"
-                value={movDetalle}
-                onChange={(e) => setMovDetalle(e.target.value)}
-              />
-            </div>
-          </div>
-        </ModalLayout>
-      )}
-
-      {/* Modal: Pase de Dinero */}
-      {isOpenPase && (
-        <ModalLayout
-          title="Registrar Pase de Dinero (Transferencia Interna)"
-          setModalOpen={() => setIsOpenPase(false)}
-          onSubmit={handleSubmitPase}
-        >
-          <div className="flex flex-col gap-4 text-black">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Cuenta de Origen *</label>
-              <select
-                required
-                value={paseOrigen}
-                onChange={(e) => setPaseOrigen(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
-              >
-                <option value="">Seleccione origen</option>
-                {cuentas.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Cuenta de Destino *</label>
-              <select
-                required
-                value={paseDestino}
-                onChange={(e) => setPaseDestino(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
-              >
-                <option value="">Seleccione destino</option>
-                {cuentas.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Monto del Pase *</label>
-              <input
-                type="number"
-                required
-                min="0.01"
-                step="any"
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
-                placeholder="Ej: 150000"
-                value={paseMonto}
-                onChange={(e) => setPaseMonto(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-gray-700">Comentario / Motivo *</label>
-              <input
-                type="text"
-                required
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white"
-                placeholder="Ej. Retiro caja chica para depósito bancario"
-                value={paseDetalle}
-                onChange={(e) => setPaseDetalle(e.target.value)}
-              />
-            </div>
-          </div>
-        </ModalLayout>
-      )}
     </Container>
   );
 }

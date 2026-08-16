@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import BOOLEAN, INT, Date, DateTime, Integer, SmallInteger, String, Numeric, Text
+from sqlalchemy import BOOLEAN, INT, Date, DateTime, Integer, SmallInteger, String, Numeric, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.database import Base
@@ -233,6 +233,7 @@ class Salidas(Base):
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
     periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     transport_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    type_bus: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
     coordinador_nombre: Mapped[str | None] = mapped_column(String(255), nullable=True)
     coordinador_telefono: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -262,7 +263,6 @@ class Packages(Base):
     gastos: Mapped[int | None] = mapped_column(Integer, nullable=True)
     adicional: Mapped[int | None] = mapped_column(Integer, nullable=True)
     destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    hotel: Mapped[str | None] = mapped_column(String(255), nullable=True)
     periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     image: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
@@ -271,6 +271,26 @@ class Packages(Base):
     moneda: Mapped[str | None] = mapped_column(String(50), nullable=True, default="pesos")
     moneda_gastos: Mapped[str | None] = mapped_column(String(50), nullable=True, default="pesos")
     moneda_adicional: Mapped[str | None] = mapped_column(String(50), nullable=True, default="pesos")
+    excursiones: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+
+class PackagesDatesOfExit(Base):
+    __tablename__ = "packages_dates_of_exit"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    package_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    salida_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    active: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=True)
+
+
+class PackageHotels(Base):
+    __tablename__ = "package_hotels"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    package_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    hotel_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hotel_noches: Mapped[int | None] = mapped_column(Integer, nullable=True)
     hotel_fecha_in: Mapped[str | None] = mapped_column(String(50), nullable=True)
     hotel_fecha_out: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -284,17 +304,6 @@ class Packages(Base):
     tarifa_quintuple: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tarifa_menores: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pricing_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="persona")
-    excursiones: Mapped[str | None] = mapped_column(String(512), nullable=True)
-
-
-class PackagesDatesOfExit(Base):
-    __tablename__ = "packages_dates_of_exit"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    package_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    salida_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    active: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=True)
 
 
 class Reservas(Base):
@@ -489,4 +498,23 @@ class CardsWeb(Base):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quotes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     recargo: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+
+
+class Cards(Base):
+    __tablename__ = "cards"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True, default=True)
+
+
+class InicioWeb(Base):
+    __tablename__ = "inicio_web"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    banner_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    carrusel_urls: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    portada_footer_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 

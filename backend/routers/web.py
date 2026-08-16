@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from db.database import get_db
-from models.models import Flyers, iWebClient, News, Accounts, FormaDePago, AccountsWeb, CardsWeb, Documentations
+from models.models import Flyers, iWebClient, News, Accounts, FormaDePago, AccountsWeb, CardsWeb, Documentations, InicioWeb
 from routers.tenants import _guess_extension, _save_upload, public_tenant_asset_url, tenant_dir
-from schemas.schemas import FlyerPayload, NewsPayload, AccountPayload, FormaDePagoPayload, AccountsWebPayload, CardsWebPayload, DocumentationPayload, CreateDocumentationRequest, UpdateDocumentationRequest
+from schemas.schemas import FlyerPayload, NewsPayload, AccountPayload, FormaDePagoPayload, AccountsWebPayload, CardsWebPayload, DocumentationPayload, CreateDocumentationRequest, UpdateDocumentationRequest, InicioWebPayload
 
 router = APIRouter(prefix="/web")
 
@@ -581,3 +581,87 @@ async def delete_documentation(doc_id: str, iweb_client_id: str, db: Session = D
     db.delete(existing)
     db.commit()
     return {"detail": "Documentation deleted successfully"}
+
+
+@router.get("/get_inicio", tags=["Web"], response_model=InicioWebPayload)
+async def get_inicio(iweb_client_id: str, db: Session = Depends(get_db)):
+    inicio = db.query(InicioWeb).filter(InicioWeb.iweb_client_id == iweb_client_id).first()
+    if not inicio:
+        return InicioWebPayload(
+            id="",
+            iweb_client_id=iweb_client_id,
+            banner_url=None,
+            carrusel_urls=[],
+            portada_footer_url=None
+        )
+    return inicio
+
+
+@router.post("/update_inicio", tags=["Web"], response_model=InicioWebPayload)
+async def update_inicio(
+    iweb_client_id: str = Query(...),
+    banner_file: UploadFile = File(None),
+    remove_banner: bool = Form(False),
+    carrusel_files: List[UploadFile] = File(None),
+    carrusel_urls_kept: str = Form(None),
+    portada_footer_file: UploadFile = File(None),
+    remove_portada_footer: bool = Form(False),
+    db: Session = Depends(get_db),
+):
+    import json
+    tenant = _get_tenant_or_404(db, iweb_client_id)
+    folder_id = int(tenant.folder_id)
+
+    inicio = db.query(InicioWeb).filter(InicioWeb.iweb_client_id == iweb_client_id).first()
+    if not inicio:
+        inicio = InicioWeb(
+            id=str(uuid.uuid4()),
+            iweb_client_id=iweb_client_id,
+            banner_url=None,
+            carrusel_urls=[],
+            portada_footer_url=None,
+        )
+        db.add(inicio)
+
+    # 1. Banner
+    if remove_banner:
+        inicio.banner_url = None
+    elif banner_file and banner_file.filename:
+        ext = _guess_extension(banner_file.filename or "", banner_file.content_type)
+        filename = f"banner_{uuid.uuid4().hex[:8]}{ext}"
+        _save_upload(banner_file, tenant_dir(folder_id) / "inicio" / filename)
+        inicio.banner_url = public_tenant_asset_url(folder_id, "inicio", filename)
+
+    # 2. Portada Footer
+    if remove_portada_footer:
+        inicio.portada_footer_url = None
+    elif portada_footer_file and portada_footer_file.filename:
+        ext = _guess_extension(portada_footer_file.filename or "", portada_footer_file.content_type)
+        filename = f"portada_footer_{uuid.uuid4().hex[:8]}{ext}"
+        _save_upload(portada_footer_file, tenant_dir(folder_id) / "inicio" / filename)
+        inicio.portada_footer_url = public_tenant_asset_url(folder_id, "inicio", filename)
+
+    # 3. Carrusel
+    kept_urls = []
+    if carrusel_urls_kept:
+        try:
+            kept_urls = json.loads(carrusel_urls_kept)
+        except Exception:
+            kept_urls = []
+    else:
+        kept_urls = inicio.carrusel_urls or []
+
+    new_urls = list(kept_urls)
+    if carrusel_files:
+        for cf in carrusel_files:
+            if cf and cf.filename:
+                ext = _guess_extension(cf.filename or "", cf.content_type)
+                filename = f"carrusel_{uuid.uuid4().hex[:8]}{ext}"
+                _save_upload(cf, tenant_dir(folder_id) / "inicio" / filename)
+                new_urls.append(public_tenant_asset_url(folder_id, "inicio", filename))
+
+    inicio.carrusel_urls = new_urls
+
+    db.commit()
+    db.refresh(inicio)
+    return inicio
