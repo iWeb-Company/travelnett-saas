@@ -129,8 +129,14 @@ export default function PagosPage() {
     }
   };
 
-  // Helper to find package price for a reservation
+  // Helper to find real reservation total price from Liquidaciones or reservation object
   const getReservationPrice = (res: any) => {
+    if (res.total_amount !== undefined && res.total_amount !== null && res.total_amount > 0) {
+      return res.total_amount;
+    }
+    if (res.total_amout !== undefined && res.total_amout !== null && res.total_amout > 0) {
+      return res.total_amout;
+    }
     if (!res.salida_id) return 400000; // fallback
     const pkg = packages.find(p => p.dates?.includes(res.salida_id));
     if (pkg) {
@@ -139,7 +145,7 @@ export default function PagosPage() {
     return 400000; // fallback
   };
 
-  const totalDeLaReserva = selectedReserva ? getReservationPrice(selectedReserva) : 400000;
+  const totalDeLaReserva = selectedReserva ? getReservationPrice(selectedReserva) : '';
 
   // Keep original currency multiplication logic (if USD, multiply by 1000 for total comparison)
   const totalPagos = pagos.reduce((acc, p) => {
@@ -381,8 +387,14 @@ export default function PagosPage() {
     setModalOpenPago(true);
     if (user?.iweb_client_id) {
       try {
-        const pagosList = await apiClient.getPagosReserva(user.iweb_client_id, res.id);
+        const [pagosList, liq] = await Promise.all([
+          apiClient.getPagosReserva(user.iweb_client_id, res.id),
+          apiClient.getLiquidacionByBooking(res.id).catch(() => null)
+        ]);
         setPagos(pagosList);
+        if (liq && liq.total_amout) {
+          setSelectedReserva((prev: any) => prev ? { ...prev, total_amount: liq.total_amout, total_amout: liq.total_amout } : prev);
+        }
       } catch (err) {
         console.error("Error loading pagos for reservation:", err);
       }

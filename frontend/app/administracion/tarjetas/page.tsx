@@ -1,66 +1,119 @@
 "use client";
+
 import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ModalLayout from "@/app/components/ModalLayout";
 import TarjetaCard from "./TarjetaCard";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api";
+import toast from "react-hot-toast";
 
-export default function CuentasPage() {
+interface CardItem {
+  id: string;
+  name: string;
+  status: boolean;
+}
+
+export default function TarjetasPage() {
   const r = useRouter();
+  const { user } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [cards, setCards] = useState<CardItem[]>([]);
   const [openModal, setOpenModal] = useState(false);
-  const [cuentasData, setCuentasData] = useState({
-    titulo: "",
-    numero: "",
-    titular: "",
-    cuit: "",
-    cbu: "",
-    alias: "",
-  });
-  const cuentas = [
-    {
-      id: 1,
-      banco: "BANCO GALICIA",
-      tipo: "Visa",
-      numero: "21091211",
-      titular: "AMADEO GABRIEL DEMARCO",
-      cuit: "20-22194061-0",
-      cbu: "10101001010101001",
-      alias: "lamamadetoto",
-    },
-    {
-      id: 2,
-      banco: "BANCO GALICIA",
-      tipo: "MasterCard",
-      numero: "21091211",
-      titular: "AMADEO GABRIEL DEMARCO",
-      cuit: "20-22194061-0",
-      cbu: "10101001010101001",
-      alias: "lamamadetoto",
-    },
-    {
-      id: 3,
-      banco: "BANCO GALICIA",
-      tipo: "Visa Debito",
-      numero: "21091211",
-      titular: "AMADEO GABRIEL DEMARCO",
-      cuit: "20-22194061-0",
-      cbu: "10101001010101001",
-      alias: "lamamadetoto",
-    },
-    {
-      id: 4,
-      banco: "BANCO GALICIA",
-      tipo: "American Express",
-      numero: "21091211",
-      titular: "AMADEO GABRIEL DEMARCO",
-      cuit: "20-22194061-0",
-      cbu: "10101001010101001",
-      alias: "lamamadetoto",
-    },
-  ];
+  const [nombreTarjeta, setNombreTarjeta] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchCards = async () => {
+    if (!user?.iweb_client_id) return;
+    try {
+      setLoading(true);
+      const data = await apiClient.getCards(user.iweb_client_id);
+      setCards(data || []);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al cargar las tarjetas");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.iweb_client_id) {
+      fetchCards();
+    }
+  }, [user?.iweb_client_id]);
+
+  const handleCreateCard = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!user?.iweb_client_id) return;
+    if (!nombreTarjeta.trim()) {
+      toast.error("Por favor ingrese el nombre de la tarjeta");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const newCard = await apiClient.createCard(user.iweb_client_id, {
+        name: nombreTarjeta.trim(),
+        status: true,
+      });
+      setCards((prev) => [...prev, newCard]);
+      setNombreTarjeta("");
+      setOpenModal(false);
+      toast.success("Tarjeta agregada con éxito");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al agregar la tarjeta");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    if (!user?.iweb_client_id) return;
+    const newStatus = !currentStatus;
+
+    // Optimistic update
+    setCards((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, status: newStatus } : c))
+    );
+
+    try {
+      await apiClient.updateCard(user.iweb_client_id, id, { status: newStatus });
+      toast.success(`Tarjeta ${newStatus ? "activada" : "desactivada"}`);
+    } catch (err) {
+      console.error(err);
+      // Revert on error
+      setCards((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status: currentStatus } : c))
+      );
+      toast.error("Error al cambiar el estado de la tarjeta");
+    }
+  };
+
+  const handleDeleteCard = async (id: string) => {
+    if (!user?.iweb_client_id) return;
+    if (!window.confirm("¿Está seguro de eliminar esta tarjeta?")) return;
+
+    // Optimistic update
+    const previousCards = [...cards];
+    setCards((prev) => prev.filter((c) => c.id !== id));
+
+    try {
+      await apiClient.deleteCard(user.iweb_client_id, id);
+      toast.success("Tarjeta eliminada con éxito");
+    } catch (err) {
+      console.error(err);
+      setCards(previousCards);
+      toast.error("Error al eliminar la tarjeta");
+    }
+  };
+
   return (
     <Container>
       <ToggleSalidas />
@@ -70,15 +123,16 @@ export default function CuentasPage() {
       </Link>
       <button
         onClick={() => r.push("/administracion")}
-        className="flex items-center my-3 justify-start gap-3">
+        className="flex items-center my-3 justify-start gap-3 cursor-pointer">
         <ArrowLeft color="#6005F7" />
         <h2 className="font-semibold text-secondary hover:underline">
           Volver al Panel
         </h2>
       </button>
+
       <button
         onClick={() => setOpenModal(true)}
-        className="flex items-center gap-2  text-primary font-medium py-7 justify-center md:mx-auto rounded-lg">
+        className="flex items-center gap-2 text-primary font-medium py-7 justify-center md:mx-auto rounded-lg cursor-pointer hover:opacity-80 transition-opacity">
         <svg
           width="22"
           height="22"
@@ -94,14 +148,38 @@ export default function CuentasPage() {
         </svg>
         Agregar Tarjeta
       </button>
-      <section className="flex flex-col w-full justify-center items-center gap-4">
-        {cuentas.map((cuenta) => (
-          <TarjetaCard key={cuenta.id} tarjeta={cuenta} />
-        ))}
-      </section>
+
+      {/* Skeleton loader / Render cards */}
+      {loading ? (
+        <div className="flex flex-col w-full justify-center items-center gap-4">
+          {[1, 2, 3].map((n) => (
+            <div
+              key={n}
+              className="animate-pulse bg-gray-300 h-10 w-full max-w-[440px] rounded-lg"
+            />
+          ))}
+        </div>
+      ) : cards.length === 0 ? (
+        <p className="text-center text-gray-500 font-medium py-8">
+          No hay tarjetas registradas.
+        </p>
+      ) : (
+        <section className="flex flex-col w-full justify-center items-center gap-4">
+          {cards.map((tarjeta) => (
+            <TarjetaCard
+              key={tarjeta.id}
+              tarjeta={tarjeta}
+              onToggleStatus={handleToggleStatus}
+              onDelete={handleDeleteCard}
+            />
+          ))}
+        </section>
+      )}
+
       {openModal && (
         <ModalLayout
           setModalOpen={setOpenModal}
+          onSubmit={() => handleCreateCard()}
           svg={
             <svg
               width="19"
@@ -118,15 +196,15 @@ export default function CuentasPage() {
             </svg>
           }
           title="Agregar Tarjeta">
-          <form className="flex flex-col gap-4">
+          <form onSubmit={handleCreateCard} className="flex flex-col gap-4">
             <input
               type="text"
               placeholder="Nombre de la Tarjeta"
-              value={cuentasData.titulo}
-              onChange={(e) =>
-                setCuentasData({ ...cuentasData, titulo: e.target.value })
-              }
+              value={nombreTarjeta}
+              onChange={(e) => setNombreTarjeta(e.target.value)}
               className="w-full shadow-lg shadow-black/30 bg-white rounded-sm p-2 pr-4 text-black/90 font-medium focus:outline-none"
+              autoFocus
+              required
             />
           </form>
         </ModalLayout>

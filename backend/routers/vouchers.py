@@ -1,17 +1,87 @@
 import uuid
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from db.database import get_db
 from models.models import (
     Vouchers, Reservas, Passengers, Salidas, Packages,
-    PackagesDatesOfExit, Destinos, LugaresCarga, SalidasLugaresCarga,
-    Hotels, Regimenes, ReservationPassengers
+    PackagesDatesOfExit, PackageHotels, Destinos, LugaresCarga, SalidasLugaresCarga,
+    Hotels, Regimenes, ReservationPassengers, TransportCompany
 )
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
 router = APIRouter(prefix="/vouchers", tags=["Vouchers CRUD"])
+
+def format_single_room_item(item_str: str) -> str:
+    if not item_str or not isinstance(item_str, str):
+        return "Doble Matrimonial Estándar"
+    
+    clean = item_str.strip().lower()
+    
+    cama = "Doble"
+    if "depto_x5" in clean or "depto_5" in clean or "departamento_x5" in clean:
+        cama = "Departamento x5"
+    elif "depto" in clean or "departamento" in clean or "dep" in clean:
+        cama = "Departamento"
+    elif "quintuple" in clean or "qtl" in clean:
+        cama = "Quíntuple"
+    elif "cuadruple" in clean or "cpl" in clean or "qpl" in clean:
+        cama = "Cuádruple"
+    elif "triple" in clean or "tpl" in clean:
+        cama = "Triple"
+    elif "doble" in clean or "dbl" in clean:
+        cama = "Doble"
+    elif "single" in clean or "simple" in clean or "sgl" in clean:
+        cama = "Single"
+
+    dist = ""
+    if "matrimonial" in clean or "mat" in clean:
+        dist = "Matrimonial"
+    elif "twin" in clean or "twn" in clean or "individual" in clean or "ind" in clean:
+        dist = "Individual"
+    elif cama == "Single":
+        dist = "Individual"
+    else:
+        dist = "Matrimonial"
+
+    tipo = ""
+    if "superior" in clean or clean.endswith("_sup") or "_sup_" in clean:
+        tipo = "Superior"
+    elif "suite" in clean or clean.endswith("_sui") or "_sui_" in clean:
+        tipo = "Suite"
+    elif "estandar" in clean or "standard" in clean or clean.endswith("_std") or "_std_" in clean:
+        tipo = "Estándar"
+
+    parts = [cama]
+    if dist and dist.lower() != cama.lower():
+        parts.append(dist)
+    if tipo:
+        parts.append(tipo)
+    
+    return " ".join(parts)
+
+def format_room_type_label(raw_room_type: str | None) -> str:
+    if not raw_room_type:
+        return "Doble Matrimonial Estándar"
+    
+    items = []
+    trimmed = str(raw_room_type).strip()
+    if trimmed.startswith("["):
+        try:
+            parsed = json.loads(trimmed)
+            if isinstance(parsed, list):
+                items = [str(x) for x in parsed]
+        except Exception:
+            items = [trimmed]
+    elif "," in trimmed:
+        items = [x.strip() for x in trimmed.split(",") if x.strip()]
+    else:
+        items = [trimmed]
+
+    formatted_items = [format_single_room_item(it) for it in items if it]
+    return " + ".join(formatted_items) if formatted_items else "Doble Matrimonial Estándar"
 
 class VoucherGenerateRequest(BaseModel):
     reserva_id: str
@@ -47,7 +117,6 @@ class VoucherResponseSchema(BaseModel):
 
 @router.get("/get_voucher/{reserva_id}", response_model=VoucherResponseSchema)
 async def get_voucher(reserva_id: str, iweb_client_id: str, db: Session = Depends(get_db)):
-    # Siempre forzar la regeneración para que tenga los datos más actualizados (horarios, hotel, coordinador, etc.)
     db.query(Vouchers).filter(
         Vouchers.reserva_id == reserva_id,
         Vouchers.iweb_client_id == iweb_client_id
@@ -62,8 +131,6 @@ async def generate_voucher_endpoint(
     iweb_client_id: str,
     db: Session = Depends(get_db)
 ):
-    # Forzar la regeneración / generación del voucher
-    # Borrar voucher anterior si existe
     db.query(Vouchers).filter(
         Vouchers.reserva_id == body.reserva_id,
         Vouchers.iweb_client_id == iweb_client_id
@@ -73,7 +140,6 @@ async def generate_voucher_endpoint(
     return voucher
 
 async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Session) -> Vouchers:
-    # 1. Fetch Reserva
     reserva = db.query(Reservas).filter(
         Reservas.id == reserva_id,
         Reservas.iweb_client_id == iweb_client_id
@@ -81,12 +147,10 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
         
-    # 2. Fetch Passengers de la reserva
     rp_list = db.query(ReservationPassengers).filter(
         ReservationPassengers.reserva_id == reserva.id
     ).all()
         
-    # Resolver pasajeros
     pax_objs = []
     pax_names = []
     titular_name = "Sin pasajeros"
@@ -109,9 +173,7 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         
     passengers_names_str = ", ".join(pax_names) if pax_names else "Sin pasajeros asignados"
     
-    # 3. Resolve Salida
     salida_id = reserva.salida_id
-    # Fallback: resolver salida_id desde el package si salida_id es nulo
     if (not salida_id or salida_id.strip() in ("", "undefined", "null", "none")) and reserva.package_id:
         rel = db.query(PackagesDatesOfExit).filter(
             PackagesDatesOfExit.package_id == reserva.package_id,
@@ -128,9 +190,7 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
             Salidas.iweb_client_id == iweb_client_id
         ).first()
         
-    # 4. Resolve Package
     package_id = reserva.package_id
-    # Fallback: resolver package_id desde la salida
     if (not package_id or package_id.strip() in ("", "undefined", "null", "none")) and salida_id:
         rel = db.query(PackagesDatesOfExit).filter(
             PackagesDatesOfExit.salida_id == salida_id,
@@ -147,11 +207,9 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
             Packages.iweb_client_id == iweb_client_id
         ).first()
         
-    # 5. Resolve Destino Name
     destino_name = ""
     dest_id = (salida.destino if salida else None) or (package.destino if package else None)
     if dest_id:
-        # dest_id puede ser un UUID o el nombre
         dest_obj = db.query(Destinos).filter(
             Destinos.id == dest_id,
             Destinos.iweb_client_id == iweb_client_id
@@ -159,9 +217,8 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         if dest_obj:
             destino_name = dest_obj.name
         else:
-            destino_name = dest_id  # fallback si es string directo
+            destino_name = dest_id
 
-    # 6. Resolve Lugar y Horario de carga
     lugar_carga_name = ""
     horario_carga_val = ""
     if reserva.lugar_carga_id:
@@ -172,7 +229,6 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         if lc:
             lugar_carga_name = f"{lc.name} - {lc.address}" if lc.address else lc.name
             
-        # Horario desde salidas_lugares_carga
         if salida_id:
             rel_lc = db.query(SalidasLugaresCarga).filter(
                 SalidasLugaresCarga.salida_id == salida_id,
@@ -186,9 +242,17 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
                     if idx < len(h_vals):
                         horario_carga_val = h_vals[idx]
 
-    # 7. Resolve Hotel
+    # Resolver hotel_id: reserva → salida → primer package_hotel
     hotel_name = ""
-    hotel_id = reserva.hotel_id or (salida.hotel_id if salida else None) or (package.hotel if package else None)
+    hotel_id = reserva.hotel_id or (salida.hotel_id if salida else None)
+    if not hotel_id and package:
+        ph_fallback = db.query(PackageHotels).filter(
+            PackageHotels.package_id == package.id,
+            PackageHotels.iweb_client_id == iweb_client_id
+        ).first()
+        if ph_fallback:
+            hotel_id = ph_fallback.hotel_id
+
     if hotel_id:
         hotel_obj = db.query(Hotels).filter(
             Hotels.id == hotel_id,
@@ -197,12 +261,28 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         if hotel_obj:
             hotel_name = hotel_obj.name
         else:
-            # Fallback si hotel_id es el nombre del hotel directamente
             hotel_name = hotel_id
 
-    # 8. Resolve Régimen
+    # Resolver PackageHotel que corresponde al hotel de esta reserva
+    matching_ph = None
+    if package:
+        matching_ph = db.query(PackageHotels).filter(
+            PackageHotels.package_id == package.id,
+            PackageHotels.iweb_client_id == iweb_client_id,
+            PackageHotels.hotel_id == hotel_id
+        ).first()
+        if not matching_ph:
+            matching_ph = db.query(PackageHotels).filter(
+                PackageHotels.package_id == package.id,
+                PackageHotels.iweb_client_id == iweb_client_id
+            ).first()
+
     regimen_name = ""
-    reg_id = reserva.regimen_id or (salida.regimen_id if salida else None) or (package.hotel_regimen_id if package else None)
+    reg_id = (
+        reserva.regimen_id
+        or (salida.regimen_id if salida else None)
+        or (matching_ph.hotel_regimen_id if matching_ph else None)
+    )
     if reg_id:
         reg_obj = db.query(Regimenes).filter(
             Regimenes.id == reg_id,
@@ -213,18 +293,27 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         else:
             regimen_name = reg_id
 
-    # 9. Transporte y Butacas
+    empresa_transporte_name = ""
+    tc_id = salida.transport_company if salida else None
+    if tc_id:
+        tc_obj = db.query(TransportCompany).filter(
+            TransportCompany.id == tc_id,
+            TransportCompany.iweb_client_id == iweb_client_id
+        ).first()
+        if tc_obj:
+            empresa_transporte_name = tc_obj.name
+        else:
+            empresa_transporte_name = tc_id
+
     tipo_transporte = (salida.type if salida else "bus") or "bus"
     tipo_butaca = "Semicama"
     if rp_list:
         first_rp = rp_list[0]
         tipo_butaca = first_rp.butaca_type or "Semicama"
-    
-    # 10. Días y Noches
-    noches_val = package.hotel_noches if (package and hasattr(package, 'hotel_noches')) else None
+
+    noches_val = matching_ph.hotel_noches if matching_ph else None
     dias_val = (noches_val + 1) if (noches_val is not None) else None
 
-    # Formatear Fecha de Salida
     fecha_salida_str = ""
     if salida and salida.date_of_out:
         try:
@@ -234,7 +323,8 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         except Exception:
             fecha_salida_str = str(salida.date_of_out)
 
-    # Crear Snapshot
+    room_type_formatted = format_room_type_label(reserva.room_type)
+
     voucher = Vouchers(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
@@ -250,11 +340,11 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         tipo_butaca=tipo_butaca,
         lugar_carga=lugar_carga_name,
         horario_carga=horario_carga_val,
-        empresa_transporte=salida.transport_company if salida else "",
+        empresa_transporte=empresa_transporte_name,
         coordinador_nombre=salida.coordinador_nombre if salida else "",
         coordinador_telefono=salida.coordinador_telefono if salida else "",
         hotel_name=hotel_name,
-        room_type=reserva.room_type,
+        room_type=room_type_formatted,
         passengers_names=passengers_names_str,
         regimen_name=regimen_name,
         dias=dias_val,

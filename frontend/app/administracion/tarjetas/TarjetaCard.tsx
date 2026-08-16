@@ -1,18 +1,38 @@
 import ToggleActiveFilters from "@/app/components/ToggleActiveFilters";
 
-export default function TarjetaCard({ tarjeta }: { tarjeta: any }) {
+interface TarjetaCardProps {
+  tarjeta: {
+    id: string;
+    name?: string;
+    status?: boolean;
+  };
+  onToggleStatus: (id: string, currentStatus: boolean) => void;
+  onDelete: (id: string) => void;
+}
+
+export default function TarjetaCard({ tarjeta, onToggleStatus, onDelete }: TarjetaCardProps) {
+  const isActive = tarjeta.status ?? true;
+
   return (
     <div className={`flex items-start justify-center w-full mx-auto`}>
       <div className="flex gap-2">
         {/* Header azul clickeable */}
         <div className="bg-[#5782F7] text-white justify-between items-center px-4 md:px-5 font-medium text-sm md:text-base py-1 flex gap-2 select-none transition-all duration-300 rounded-lg">
-          <p className="tracking-wider md:w-150 w-50">{tarjeta.tipo}</p>
+          <p className="tracking-wider md:w-150 w-50">{tarjeta.name || "Sin nombre"}</p>
           {/* Toggle Activo */}
-          <ToggleActiveFilters color="text-white" />
+          <ToggleActiveFilters
+            checked={isActive}
+            onChange={() => onToggleStatus(tarjeta.id, isActive)}
+            color="text-white"
+          />
         </div>
 
         {/* Botón eliminar fuera de la card */}
-        <button className="text-primary hover:text-red-500 transition-colors">
+        <button
+          onClick={() => onDelete(tarjeta.id)}
+          className="text-primary hover:text-red-500 transition-colors cursor-pointer"
+          title="Eliminar tarjeta"
+        >
           <svg
             className="md:w-8 w-5"
             viewBox="0 0 38 38"

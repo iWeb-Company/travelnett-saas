@@ -123,6 +123,7 @@ async def get_salidas(iweb_client_id: str, db: Session = Depends(get_db)):
                 active=s.active,
                 periodo=s.periodo,
                 transport_company=s.transport_company,
+                type_bus=s.type_bus,
                 destino=s.destino,
                 coordinador_nombre=s.coordinador_nombre,
                 coordinador_telefono=s.coordinador_telefono,
@@ -216,6 +217,7 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
         active=s.active,
         periodo=s.periodo,
         transport_company=s.transport_company,
+        type_bus=s.type_bus,
         destino=s.destino,
         coordinador_nombre=s.coordinador_nombre,
         coordinador_telefono=s.coordinador_telefono,
@@ -247,6 +249,7 @@ async def create_salida(
         active=body.active,
         periodo=body.periodo,
         transport_company=body.transport_company,
+        type_bus=body.type_bus,
         destino=body.destino,
         passengers=body.passengers,
         semicama=body.semicama,
@@ -300,6 +303,7 @@ async def create_salida(
         active=new_salida.active,
         periodo=new_salida.periodo,
         transport_company=new_salida.transport_company,
+        type_bus=new_salida.type_bus,
         destino=new_salida.destino,
         coordinador_nombre=new_salida.coordinador_nombre,
         coordinador_telefono=new_salida.coordinador_telefono,
@@ -338,6 +342,8 @@ async def update_salida(
         s.periodo = body.periodo
     if body.transport_company is not None:
         s.transport_company = body.transport_company
+    if body.type_bus is not None:
+        s.type_bus = body.type_bus
     if body.destino is not None:
         s.destino = body.destino
     if body.passengers is not None:
@@ -416,6 +422,7 @@ async def update_salida(
         active=s.active,
         periodo=s.periodo,
         transport_company=s.transport_company,
+        type_bus=s.type_bus,
         destino=s.destino,
         coordinador_nombre=s.coordinador_nombre,
         coordinador_telefono=s.coordinador_telefono,

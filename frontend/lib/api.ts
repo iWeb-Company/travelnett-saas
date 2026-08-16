@@ -918,6 +918,45 @@ export const apiClient = {
     if (!response.ok) throw new Error('Failed to delete card web');
   },
 
+  async getCards(iwebClientId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/cards/get_cards?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+      cache: 'no-store'
+    });
+    if (!response.ok) throw new Error('Failed to fetch cards');
+    return response.json();
+  },
+
+  async createCard(iwebClientId: string, payload: { name: string; status?: boolean }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/cards/create_card?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error('Failed to create card');
+    return response.json();
+  },
+
+  async updateCard(iwebClientId: string, id: string, payload: { name?: string; status?: boolean }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/cards/update_card/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error('Failed to update card');
+    return response.json();
+  },
+
+  async deleteCard(iwebClientId: string, id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/cards/delete_card/${id}?iweb_client_id=${iwebClientId}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    });
+    if (!response.ok) throw new Error('Failed to delete card');
+  },
+
   async getDashboardSummary(iwebClientId: string): Promise<{
     proxima_salida: string;
     reservas_hoy: number;
@@ -969,6 +1008,25 @@ export const apiClient = {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to delete documentation');
+  },
+
+  async getInicioWeb(iwebClientId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/get_inicio?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+      cache: 'no-store'
+    });
+    if (!response.ok) throw new Error('Failed to fetch inicio web');
+    return response.json();
+  },
+
+  async updateInicioWeb(iwebClientId: string, formData: FormData): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/web/update_inicio?iweb_client_id=${iwebClientId}`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Failed to update inicio web');
+    return response.json();
   },
 };
 

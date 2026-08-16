@@ -11,9 +11,7 @@ import { Loader } from "@/app/components/Loader";
 import { Trash } from "lucide-react";
 import DateInput from "@/app/components/DateComponent";
 import toast from "react-hot-toast";
-import { parseRoomItem, formatRoomType } from "@/lib/formatRooms";
-import { table } from "console";
-import ComponentToogleModal from "@/app/components/ComponentToogleModal";
+import { parseRoomItem } from "@/lib/formatRooms";
 import ModalLayout from "@/app/components/ModalLayout";
 
 interface GastoNoComm {
@@ -179,22 +177,36 @@ export default function ReservaIdPage() {
 
   // Rooms helpers
   const handleAddRoom = () => {
-    setNewRoomCama("doble");
+    setNewRoomCama("DBL");
     setNewRoomDistribucion("matrimonial");
     setNewRoomTipo("estandar");
     setOpenAddRoomModal(true);
   };
 
   const handleAddRoomSubmit = () => {
-    let camaDistCode = "DBL_MAT";
-    if (newRoomCama === "single") camaDistCode = "SGL";
-    else if (newRoomCama === "triple") camaDistCode = "triple_individual";
-    else if (newRoomCama === "cuadruple") camaDistCode = "cuadruple_individual";
-    else if (newRoomCama === "doble") {
-      camaDistCode = newRoomDistribucion === "matrimonial" ? "DBL_MAT" : "doble_individual";
-    }
-    const tipoCodeMap: Record<string, string> = { estandar: "STD", superior: "SUP", suite: "SUI" };
-    const newRoomCode = `${camaDistCode}_${tipoCodeMap[newRoomTipo] || "STD"}`;
+    const camaMap: Record<string, string> = {
+      SGL: "single", single: "single",
+      DBL: "doble", doble: "doble",
+      TPL: "triple", triple: "triple",
+      CPL: "cuadruple", cuadruple: "cuadruple",
+      QTL: "quintuple", quintuple: "quintuple",
+      DEP: "depto_x5", depto_x5: "depto_x5",
+    };
+    const distMap: Record<string, string> = {
+      matrimonial: "matrimonial", MAT: "matrimonial",
+      twin: "individual", individual: "individual", IND: "individual", TWN: "individual",
+    };
+    const tipoMap: Record<string, string> = {
+      estandar: "estandar", STD: "estandar",
+      superior: "superior", SUP: "superior",
+      suite: "suite", SUI: "suite",
+    };
+
+    const camaKey = camaMap[newRoomCama] || "doble";
+    const distKey = camaKey === "single" ? "individual" : (distMap[newRoomDistribucion] || "matrimonial");
+    const tipoKey = tipoMap[newRoomTipo] || "estandar";
+
+    const newRoomCode = `${camaKey}_${distKey}_${tipoKey}`;
     setRooms((prev) => [...prev, newRoomCode]);
     setOpenAddRoomModal(false);
   };
@@ -315,7 +327,7 @@ export default function ReservaIdPage() {
 
   const handleOpenSetRoomTypeModal = (idx: number) => {
     setTargetRoomIdx(idx);
-    const roomStr = rooms[idx] || "DBL_MAT_STD";
+    const roomStr = rooms[idx] || "doble_matrimonial_estandar";
     const detail = parseRoomItem(roomStr);
 
     if (detail.camaCode === "SGL") setModalCamaValue("single");
@@ -332,20 +344,22 @@ export default function ReservaIdPage() {
 
   const handleSubmitRoomType = () => {
     if (targetRoomIdx !== null) {
-      let camaDistCode = "DBL_MAT";
-      if (modalCamaValue === "single") camaDistCode = "SGL";
-      else if (modalCamaValue === "doble") camaDistCode = modalDistribucionValue === "matrimonial" ? "DBL_MAT" : "doble_individual";
-      else if (modalCamaValue === "triple") camaDistCode = "triple_individual";
-      else if (modalCamaValue === "cuadruple") camaDistCode = "cuadruple_individual";
-      else if (modalCamaValue === "quintuple") camaDistCode = "quintuple_individual";
-      else if (modalCamaValue === "depto_x5") camaDistCode = "depto_x5_individual";
-
-      const currentRoom = rooms[targetRoomIdx] || "DBL_MAT_STD";
+      const currentRoom = rooms[targetRoomIdx] || "doble_matrimonial_estandar";
       const detail = parseRoomItem(currentRoom);
-      const tipoHabKey = getTipoHabitacionKey(detail);
-      const tipoCodeMap: Record<string, string> = { estandar: "STD", superior: "SUP", suite: "SUI" };
-      const newFullCode = `${camaDistCode}_${tipoCodeMap[tipoHabKey] || "STD"}`;
 
+      const camaMap: Record<string, string> = {
+        single: "single", doble: "doble", triple: "triple",
+        cuadruple: "cuadruple", quintuple: "quintuple", depto_x5: "depto_x5",
+      };
+      const distMap: Record<string, string> = {
+        matrimonial: "matrimonial", twin: "individual", individual: "individual",
+      };
+
+      const camaKey = camaMap[modalCamaValue] || "doble";
+      const distKey = camaKey === "single" ? "individual" : (distMap[modalDistribucionValue] || "matrimonial");
+      const tipoKey = getTipoHabitacionKey(detail);
+
+      const newFullCode = `${camaKey}_${distKey}_${tipoKey}`;
       setRooms((prev) => {
         const copy = [...prev];
         copy[targetRoomIdx] = newFullCode;
@@ -358,16 +372,15 @@ export default function ReservaIdPage() {
   const getCamaDistribucionKey = (detail: any): string => {
     const c = detail.camaCode;
     const d = detail.distribucionCode;
-    if (c === "DEP") return "Depto x5 Individual";
-    if (c === "QTL") return "Quintuple Individual";
+    const distText = d === "MAT" ? "Matrimonial" : "Individual";
+
     if (c === "SGL") return "Single";
-    if (c === "TPL") return "Triple Individual";
-    if (c === "CPL") return "Cuádruple Individual";
-    if (c === "DBL") {
-      if (d === "MAT") return "Doble Matrimonial";
-      return "Doble Individual";
-    }
-    return "Doble Matrimonial";
+    if (c === "DBL") return `Doble ${distText}`;
+    if (c === "TPL") return `Triple ${distText}`;
+    if (c === "CPL") return `Cuádruple ${distText}`;
+    if (c === "QTL") return `Quíntuple ${distText}`;
+    if (c === "DEP") return `Depto x5 ${distText}`;
+    return `${detail.cama || "Doble"} ${detail.distribucion || "Matrimonial"}`;
   };
 
   const getTipoHabitacionKey = (detail: any): string => {
@@ -379,11 +392,17 @@ export default function ReservaIdPage() {
   };
 
   const handleCamaDistribucionChange = (idx: number, newCamaDist: string) => {
-    const currentRoom = rooms[idx] || "DBL_MAT_STD";
+    const currentRoom = rooms[idx] || "doble_matrimonial_estandar";
     const detail = parseRoomItem(currentRoom);
-    const tipoHabKey = getTipoHabitacionKey(detail);
-    const tipoCodeMap: Record<string, string> = { estandar: "STD", superior: "SUP", suite: "SUI" };
-    const newFullCode = `${newCamaDist}_${tipoCodeMap[tipoHabKey] || "STD"}`;
+
+    const camaMap: Record<string, string> = {
+      SGL: "single", DBL: "doble", TPL: "triple", CPL: "cuadruple", QTL: "quintuple", DEP: "depto_x5",
+    };
+    const camaKey = camaMap[detail.camaCode] || "doble";
+    const distKey = detail.distribucionCode === "MAT" ? "matrimonial" : "individual";
+    const tipoKey = getTipoHabitacionKey(detail);
+
+    const newFullCode = `${camaKey}_${distKey}_${tipoKey}`;
     setRooms((prev) => {
       const copy = [...prev];
       copy[idx] = newFullCode;
@@ -392,11 +411,17 @@ export default function ReservaIdPage() {
   };
 
   const handleTipoHabitacionChange = (idx: number, newTipoHab: string) => {
-    const currentRoom = rooms[idx] || "DBL_MAT_STD";
+    const currentRoom = rooms[idx] || "doble_matrimonial_estandar";
     const detail = parseRoomItem(currentRoom);
-    const camaDistKey = getCamaDistribucionKey(detail);
-    const tipoCodeMap: Record<string, string> = { estandar: "STD", superior: "SUP", suite: "SUI" };
-    const newFullCode = `${camaDistKey}_${tipoCodeMap[newTipoHab] || "STD"}`;
+
+    const camaMap: Record<string, string> = {
+      SGL: "single", DBL: "doble", TPL: "triple", CPL: "cuadruple", QTL: "quintuple", DEP: "depto_x5",
+    };
+    const camaKey = camaMap[detail.camaCode] || "doble";
+    const distKey = detail.distribucionCode === "MAT" ? "matrimonial" : "individual";
+    const tipoKey = newTipoHab.toLowerCase().includes("superior") || newTipoHab === "SUP" ? "superior" : (newTipoHab.toLowerCase().includes("suite") || newTipoHab === "SUI" ? "suite" : "estandar");
+
+    const newFullCode = `${camaKey}_${distKey}_${tipoKey}`;
     setRooms((prev) => {
       const copy = [...prev];
       copy[idx] = newFullCode;
@@ -917,12 +942,22 @@ export default function ReservaIdPage() {
                       onChange={(e) => setNewRoomCama(e.target.value)}
                       className="bg-gray-600 border border-gray-500 rounded-lg p-1.5 w-full text-center cursor-pointer text-white font-medium"
                     >
-                      <option value="single">Single</option>
-                      <option value="doble">Doble</option>
-                      <option value="triple">Triple</option>
-                      <option value="cuadruple">Cuádruple</option>
-                      <option value="quintuple">Quíntuple</option>
-                      <option value="depto_x5">Depto x5</option>
+                      {/* if (c === "DEP") return "Depto x5 Individual";
+    if (c === "QTL") return "Quintuple Individual";
+    if (c === "SGL") return "Single";
+    if (c === "TPL") return "Triple Individual";
+    if (c === "CPL") return "Cuádruple Individual";
+    if (c === "DBL") {
+      if (d === "MAT") return "Doble Matrimonial";
+      return "Doble Individual";
+    }
+    return "Doble Matrimonial"; */}
+                      <option value="SGL">Single</option>
+                      <option value="DBL">Doble</option>
+                      <option value="TPL">Triple</option>
+                      <option value="CPL">Cuádruple</option>
+                      <option value="QTL">Quíntuple</option>
+                      <option value="DEP">Depto x5</option>
                     </select>
                   </th>
                   <th className="px-1">

@@ -127,16 +127,23 @@ function Paso2Content() {
   const fechaSalidaText = salidaInfo?.date_of_out || paqueteInfo?.name || "Fecha a confirmar";
   const siglaText = destinoObj?.sigla || "DEST";
 
-  // Filter hotels by destination matching either ID or Name (case-insensitive)
-  const filteredHotels = destinoId
-    ? hotels.filter((h) => {
+  // Filter hotels:
+  //   - If a package is selected → only show hotels configured in that package
+  //   - Otherwise → filter by destination
+  const filteredHotels = (() => {
+    if (paqueteInfo && paqueteInfo.hotels && paqueteInfo.hotels.length > 0) {
+      const packageHotelIds = new Set(paqueteInfo.hotels.map((ph: any) => ph.hotel_id).filter(Boolean));
+      return hotels.filter((h) => packageHotelIds.has(h.id));
+    }
+    if (!destinoId) return hotels;
+    return hotels.filter((h) => {
       if (!h.destino) return false;
       const hDest = String(h.destino).trim().toLowerCase();
       const targetId = String(destinoId).trim().toLowerCase();
       const targetName = String(destinoNombre).trim().toLowerCase();
       return hDest === targetId || hDest === targetName;
-    })
-    : hotels;
+    });
+  })();
 
   return (
     <Container>

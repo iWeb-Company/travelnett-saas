@@ -398,6 +398,7 @@ class SalidaResponse(BaseModel):
     active: Optional[bool] = None
     periodo: Optional[str] = None
     transport_company: Optional[str] = None
+    type_bus: Optional[str] = None
     destino: Optional[str] = None
     coordinador_nombre: Optional[str] = None
     coordinador_telefono: Optional[str] = None
@@ -422,6 +423,7 @@ class SalidaCreateRequest(BaseModel):
     active: Optional[bool] = True
     periodo: Optional[str] = None
     transport_company: Optional[str] = None
+    type_bus: Optional[str] = None
     destino: Optional[str] = None
     passengers: Optional[int] = None
     semicama: Optional[int] = None
@@ -440,6 +442,7 @@ class SalidaUpdateRequest(BaseModel):
     active: Optional[bool] = None
     periodo: Optional[str] = None
     transport_company: Optional[str] = None
+    type_bus: Optional[str] = None
     destino: Optional[str] = None
     passengers: Optional[int] = None
     semicama: Optional[int] = None
@@ -452,26 +455,8 @@ class SalidaUpdateRequest(BaseModel):
     regimen_id: Optional[str] = None
 
 
-class PackageResponse(BaseModel):
-    id: str
-    iweb_client_id: str
-    name: Optional[str] = None
-    subtitle: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[int] = None
-    gastos: Optional[int] = None
-    adicional: Optional[int] = None
-    destino: Optional[str] = None
-    hotel: Optional[str] = None
-    periodo: Optional[str] = None
-    image: Optional[str] = None
-    active: Optional[bool] = None
-    web: Optional[bool] = None
-    dates: list[str] = []
-    comisionable: Optional[bool] = False
-    moneda: Optional[str] = "pesos"
-    moneda_gastos: Optional[str] = "pesos"
-    moneda_adicional: Optional[str] = "pesos"
+class PackageHotelPayload(BaseModel):
+    hotel_id: Optional[str] = None
     hotel_noches: Optional[int] = None
     hotel_fecha_in: Optional[str] = None
     hotel_fecha_out: Optional[str] = None
@@ -485,7 +470,38 @@ class PackageResponse(BaseModel):
     tarifa_quintuple: Optional[int] = None
     tarifa_menores: Optional[int] = None
     pricing_type: Optional[str] = "persona"
+
+
+class PackageHotelResponse(PackageHotelPayload):
+    id: str
+    package_id: str
+    iweb_client_id: str
+
+    class Config:
+        from_attributes = True
+
+
+class PackageResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str] = None
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[int] = None
+    gastos: Optional[int] = None
+    adicional: Optional[int] = None
+    destino: Optional[str] = None
+    periodo: Optional[str] = None
+    image: Optional[str] = None
+    active: Optional[bool] = None
+    web: Optional[bool] = None
+    dates: list[str] = []
+    comisionable: Optional[bool] = False
+    moneda: Optional[str] = "pesos"
+    moneda_gastos: Optional[str] = "pesos"
+    moneda_adicional: Optional[str] = "pesos"
     excursiones: Optional[str] = None
+    hotels: list[PackageHotelResponse] = []
 
     class Config:
         from_attributes = True
@@ -499,7 +515,6 @@ class PackageCreateRequest(BaseModel):
     gastos: Optional[int] = None
     adicional: Optional[int] = None
     destino: Optional[str] = None
-    hotel: Optional[str] = None
     periodo: Optional[str] = None
     image: Optional[str] = None
     active: Optional[bool] = True
@@ -509,20 +524,8 @@ class PackageCreateRequest(BaseModel):
     moneda: Optional[str] = "pesos"
     moneda_gastos: Optional[str] = "pesos"
     moneda_adicional: Optional[str] = "pesos"
-    hotel_noches: Optional[int] = None
-    hotel_fecha_in: Optional[str] = None
-    hotel_fecha_out: Optional[str] = None
-    hotel_fecha_salida_mas: Optional[str] = None
-    hotel_regimen_id: Optional[str] = None
-    tarifa_single: Optional[int] = None
-    comisionable_single: Optional[bool] = False
-    tarifa_doble: Optional[int] = None
-    tarifa_triple: Optional[int] = None
-    tarifa_cuadruple: Optional[int] = None
-    tarifa_quintuple: Optional[int] = None
-    tarifa_menores: Optional[int] = None
-    pricing_type: Optional[str] = "persona"
     excursiones: Optional[str] = None
+    hotels: list[PackageHotelPayload] = []
 
 
 class PackageUpdateRequest(BaseModel):
@@ -533,7 +536,6 @@ class PackageUpdateRequest(BaseModel):
     gastos: Optional[int] = None
     adicional: Optional[int] = None
     destino: Optional[str] = None
-    hotel: Optional[str] = None
     periodo: Optional[str] = None
     image: Optional[str] = None
     active: Optional[bool] = None
@@ -543,20 +545,8 @@ class PackageUpdateRequest(BaseModel):
     moneda: Optional[str] = None
     moneda_gastos: Optional[str] = None
     moneda_adicional: Optional[str] = None
-    hotel_noches: Optional[int] = None
-    hotel_fecha_in: Optional[str] = None
-    hotel_fecha_out: Optional[str] = None
-    hotel_fecha_salida_mas: Optional[str] = None
-    hotel_regimen_id: Optional[str] = None
-    tarifa_single: Optional[int] = None
-    comisionable_single: Optional[bool] = None
-    tarifa_doble: Optional[int] = None
-    tarifa_triple: Optional[int] = None
-    tarifa_cuadruple: Optional[int] = None
-    tarifa_quintuple: Optional[int] = None
-    tarifa_menores: Optional[int] = None
-    pricing_type: Optional[str] = None
     excursiones: Optional[str] = None
+    hotels: Optional[list[PackageHotelPayload]] = None
 
 
 class ReservaResponse(BaseModel):
@@ -1313,21 +1303,6 @@ class UpdatePermissionRequest(BaseModel):
 
 # Schemas for web management
 
-class FlyerPayload(BaseModel):
-    id: str
-    iweb_client_id: str
-    name: Optional[str] = None
-    url: Optional[str] = None
-
-class CreateFlyerRequest(BaseModel):
-    name: Optional[str] = None
-    url: Optional[str] = None
-    
-class UpdateFlyerRequest(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    url: Optional[str] = None
-
 class NewsPayload(BaseModel):
     id: str
     iweb_client_id: str
@@ -1369,3 +1344,34 @@ class AccountUpdateRequest(BaseModel):
     cbu_cvu: Optional[int] = None
     alias: Optional[str] = None
     active: Optional[bool] = None
+
+
+class CardResponse(BaseModel):
+    id: str
+    iweb_client_id: str
+    name: Optional[str] = None
+    status: Optional[bool] = True
+
+    class Config:
+        from_attributes = True
+
+
+class CardCreateRequest(BaseModel):
+    name: str
+    status: Optional[bool] = True
+
+
+class CardUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    status: Optional[bool] = None
+
+
+class InicioWebPayload(BaseModel):
+    id: str
+    iweb_client_id: str
+    banner_url: Optional[str] = None
+    carrusel_urls: Optional[list[str]] = []
+    portada_footer_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True

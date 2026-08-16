@@ -13,6 +13,7 @@ import Copy from "@/app/components/icons/salidas/Copy";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Salidas from "@/app/components/icons/home/Salidas";
 import Hotel from "@/app/components/icons/salidas/Hotel";
+import { formatRoomType } from "@/lib/formatRooms";
 
 export default function VoucherPage() {
   const params = useParams();
@@ -328,7 +329,7 @@ export default function VoucherPage() {
                     Tipo de Habitacion
                   </p>
                   <p className="text-black text-xl font-bold mt-0.5">
-                    {voucherData.room_type || "-"}
+                    {formatRoomType(voucherData.room_type) || "-"}
                   </p>
                 </div>
               </div>

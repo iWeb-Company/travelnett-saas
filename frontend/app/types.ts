@@ -270,26 +270,11 @@ export interface Documentation {
     body?: string;
 }
 
-export interface Package {
+export interface PackageHotel {
     id?: string;
-    iweb_client_id: string;
-    name: string;
-    subtitle: string;
-    description: string;
-    destino?: string;
-    dates: PackageDateOfExit[];
-    periodo?: string;
-    price: number;
-    gastos?: number | null;
-    adicional?: number | null;
-    hotel?: string;
-    image: string;
-    active: boolean;
-    web?: boolean;
-    comisionable?: boolean;
-    moneda?: string;
-    moneda_gastos?: string;
-    moneda_adicional?: string;
+    iweb_client_id?: string;
+    package_id?: string;
+    hotel_id?: string;
     hotel_noches?: number | null;
     hotel_fecha_in?: string | null;
     hotel_fecha_out?: string | null;
@@ -303,7 +288,29 @@ export interface Package {
     tarifa_quintuple?: number | null;
     tarifa_menores?: number | null;
     pricing_type?: string;
+}
+
+export interface Package {
+    id?: string;
+    iweb_client_id: string;
+    name: string;
+    subtitle: string;
+    description: string;
+    destino?: string;
+    dates: PackageDateOfExit[];
+    periodo?: string;
+    price: number;
+    gastos?: number | null;
+    adicional?: number | null;
+    image: string;
+    active: boolean;
+    web?: boolean;
+    comisionable?: boolean;
+    moneda?: string;
+    moneda_gastos?: string;
+    moneda_adicional?: string;
     excursiones?: string | null;
+    hotels?: PackageHotel[];
 }
 
 export interface PackageDateOfExit {
@@ -395,6 +402,7 @@ export interface Salida {
     active?: boolean;
     periodo?: string | null;
     transport_company?: string | null;
+    type_bus?: string | null;
     destino?: string | null;
     coordinador_nombre?: string | null;
     coordinador_telefono?: string | null;

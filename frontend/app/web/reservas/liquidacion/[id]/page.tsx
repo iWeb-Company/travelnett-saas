@@ -125,10 +125,15 @@ export default function VoucherPage() {
         }
     };
 
-    const hotelObj = allHotels.find((h: any) => h.id === (reservaData?.hotel_id || packageData?.hotel || salidaData?.hotel_id));
-    const resolvedHotelName = hotelObj?.name || reservaData?.hotel_nombre || packageData?.hotel || "A confirmar";
+    // Resolve hotel from reserva → first package_hotel → salida
+    const packageHotelMatch = packageData?.hotels?.find((ph: any) => ph.hotel_id === reservaData?.hotel_id)
+        || packageData?.hotels?.[0];
+    const resolvedHotelId = reservaData?.hotel_id || packageHotelMatch?.hotel_id || salidaData?.hotel_id;
+    const hotelObj = allHotels.find((h: any) => h.id === resolvedHotelId);
+    const resolvedHotelName = hotelObj?.name || reservaData?.hotel_nombre || "A confirmar";
 
-    const regimenObj = allRegimenes.find((r: any) => r.id === (reservaData?.regimen_id || packageData?.hotel_regimen_id || salidaData?.regimen_id));
+    const resolvedRegimenId = reservaData?.regimen_id || packageHotelMatch?.hotel_regimen_id || salidaData?.regimen_id;
+    const regimenObj = allRegimenes.find((r: any) => r.id === resolvedRegimenId);
     const resolvedRegimenName = regimenObj?.name || reservaData?.regimen_nombre || "A confirmar";
 
     const transportObj = transportCompanies.find((tc: any) => tc.id === salidaData?.transport_company || tc.name === salidaData?.transport_company);
@@ -360,7 +365,7 @@ export default function VoucherPage() {
                                     </div>
                                     <div className="flex flex-col text-xl gap-2">
                                         <p className="font-semibold">Fecha de regreso</p>
-                                        <p className="">{packageData?.hotel_fecha_out ?? 'A confirmar'}</p>
+                                        <p className="">{packageHotelMatch?.hotel_fecha_out ?? 'A confirmar'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -380,11 +385,11 @@ export default function VoucherPage() {
                             </div><div className="flex w-full border-t border-gray-500 justify-around p-5">
                                 <div className="flex flex-col text-xl gap-2">
                                     <p className="font-semibold">Fecha de ingreso</p>
-                                    <p className="">{packageData?.hotel_fecha_in ?? 'A confirmar'}</p>
+                                    <p className="">{packageHotelMatch?.hotel_fecha_in ?? 'A confirmar'}</p>
                                 </div>
                                 <div className="flex flex-col text-xl gap-2">
                                     <p className="font-semibold">Fecha de salida</p>
-                                    <p className="">{packageData?.hotel_fecha_out ?? 'A confirmar'}</p>
+                                    <p className="">{packageHotelMatch?.hotel_fecha_out ?? 'A confirmar'}</p>
                                 </div>
                             </div><div className="flex w-full border-t border-gray-500 justify-around p-5">
                                 <div className="flex flex-col text-xl gap-2 max-w-md">
@@ -394,7 +399,7 @@ export default function VoucherPage() {
                                 </div>
                                 <div className="flex flex-col text-xl gap-2">
                                     <p className="font-semibold">Cantidad de noches</p>
-                                    <p className="">{packageData?.hotel_noches ?? 'A confirmar'}</p>
+                                    <p className="">{packageHotelMatch?.hotel_noches ?? 'A confirmar'}</p>
                                 </div>
                             </div>
                         </div>

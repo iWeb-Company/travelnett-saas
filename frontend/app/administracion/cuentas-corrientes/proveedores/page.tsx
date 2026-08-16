@@ -12,7 +12,7 @@ import toast from "react-hot-toast";
 import DateInput from "@/app/components/DateComponent";
 import ModalLayout from "@/app/components/ModalLayout";
 import Administracion from "@/app/components/icons/home/Administracion";
-import { Hotel, TransportCompany } from "@/app/types";
+import { Account, Hotel, TransportCompany } from "@/app/types";
 
 interface FormDataType {
   type: 'consumo' | 'pago';
@@ -47,7 +47,7 @@ export default function CuentasCorrientesProveedoresPage() {
   const [submitting, setSubmitting] = useState(false);
   const [hoteles, setHoteles] = useState<Hotel[]>([]);
   const [transportes, setTransportes] = useState<TransportCompany[]>([]);
-  const [cuentas, setCuentas] = useState<any[]>([]);
+  const [cuentas, setCuentas] = useState<Account[]>([]);
   const [movimientos, setMovimientos] = useState<MovimientoRow[]>([]);
   const [searched, setSearched] = useState(false);
 
@@ -523,7 +523,7 @@ export default function CuentasCorrientesProveedoresPage() {
                     <option value="">Seleccionar una cuenta</option>
                     {cuentas.map((cuenta) => (
                       <option className="text-black" key={cuenta.id} value={cuenta.id}>
-                        {cuenta.name}
+                        {cuenta.account_title}
                       </option>
                     ))}
                   </select>
