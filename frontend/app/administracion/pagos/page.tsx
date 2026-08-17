@@ -53,6 +53,9 @@ export default function PagosPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [modalPaseDinero, setModalPaseDinero] = useState(false);
 
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
+
   // Selected receipt for electronic receipt popup
   const [selectedPago, setSelectedPago] = useState<Pago | null>(null);
 
@@ -93,6 +96,7 @@ export default function PagosPage() {
     if (loadedRef.current === user.iweb_client_id) return;
     loadedRef.current = user.iweb_client_id;
     try {
+      setLoadingClients(true);
       const [resList, clientsList, accountsList, packagesList] = await Promise.all([
         apiClient.getReservas(user.iweb_client_id),
         apiClient.getParameters("get_clients", user.iweb_client_id),
@@ -105,6 +109,8 @@ export default function PagosPage() {
       setPackages(packagesList);
     } catch (err) {
       console.error("Error loading initial data in payments page:", err);
+    } finally {
+      setLoadingClients(false);
     }
   };
 
@@ -385,6 +391,7 @@ export default function PagosPage() {
   const handleOpenPagoModal = async (res: any) => {
     setSelectedReserva(res);
     setModalOpenPago(true);
+    setModalLoading(true);
     if (user?.iweb_client_id) {
       try {
         const [pagosList, liq] = await Promise.all([
@@ -397,7 +404,11 @@ export default function PagosPage() {
         }
       } catch (err) {
         console.error("Error loading pagos for reservation:", err);
+      } finally {
+        setModalLoading(false);
       }
+    } else {
+      setModalLoading(false);
     }
   };
 
@@ -569,17 +580,21 @@ export default function PagosPage() {
             onChange={(e) => setReservaBusqueda(e.target.value)}
             className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2.5 px-3 text-black/80 font-medium  focus:outline-none focus:ring-2 focus:ring-primary bg-white"
           />
-          <select
-            value={clienteSelect}
-            onChange={(e) => setClienteSelect(e.target.value)}
-            className="w-full border border-black shadow-md text-black/80 shadow-black/40 rounded-sm py-2.5 px-3  font-medium  focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-            <option value="">Filtrar por Cliente</option>
-            {realClients.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.complete_name || c.name_system}
-              </option>
-            ))}
-          </select>
+          {loadingClients ? (
+            <div className="w-full h-11 bg-gray-200 animate-pulse rounded-sm border border-black shadow-md"></div>
+          ) : (
+            <select
+              value={clienteSelect}
+              onChange={(e) => setClienteSelect(e.target.value)}
+              className="w-full border border-black shadow-md text-black/80 shadow-black/40 rounded-sm py-2.5 px-3  font-medium  focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+              <option value="">Filtrar por Cliente</option>
+              {realClients.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.complete_name || c.name_system}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="submit"
             className="w-full bg-primary md:text-lg text-white shadow-lg shadow-black/60 font-medium py-2.5 rounded-md hover:bg-blue-700 transition-colors">
@@ -771,8 +786,28 @@ export default function PagosPage() {
               />
             </svg>
           }>
-          {/* Resumen de la reserva */}
-          <section className="flex justify-between gap-2">
+          {modalLoading ? (
+            <div className="flex flex-col gap-6 py-4 px-2 animate-pulse">
+              <div className="flex justify-between items-center bg-gray-200 h-16 rounded-xl p-4">
+                <div className="h-4 bg-gray-300 rounded w-1/3"></div>
+                <div className="h-6 bg-gray-300 rounded w-1/4"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="h-28 bg-gray-200 rounded-xl p-4 flex flex-col justify-between">
+                  <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+                  <div className="h-8 bg-gray-300 rounded w-1/3"></div>
+                </div>
+                <div className="h-28 bg-gray-200 rounded-xl p-4 flex flex-col justify-between">
+                  <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+                  <div className="h-8 bg-gray-300 rounded w-1/3"></div>
+                </div>
+              </div>
+              <div className="h-40 bg-gray-200 rounded-xl"></div>
+            </div>
+          ) : (
+            <div>
+              {/* Resumen de la reserva */}
+              <section className="flex justify-between gap-2">
             <div className="text-black flex-1 text-sm md:text-base">
               <div className="flex justify-between items-center mb-1">
                 <span className="font-bold text-gray-700">Total de la reserva</span>
@@ -1104,6 +1139,8 @@ export default function PagosPage() {
               ))}
             </tbody>
           </table>
+            </div>
+          )}
         </ModalLayout>
       )}
 

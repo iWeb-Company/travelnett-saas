@@ -15,6 +15,7 @@ import { Client } from "@/app/types";
 interface SaldoRow {
   fecha: string;
   reserva: string;
+  reserva_id: string;
   cliente: string;
   client_id: string;
   detalle: string;
@@ -229,7 +230,7 @@ export default function SaldosPage() {
                     movimientos.map((mov, i) => (
                       <tr key={i} className="hover:bg-gray-50/50 border-b border-black">
                         <td className="py-3 px-4 border border-black">{mov.fecha}</td>
-                        <td className="py-3 px-4 border border-black text-black">{mov.reserva}</td>
+                        <td className="py-3 px-4 border border-black text-black"><Link className="hover:underline text-primary" href={`/web/reservas/modificar-reserva/${mov.reserva_id}`}>{mov.reserva}</Link></td>
                         <td className="py-3 px-4 border border-black font-bold text-gray-800">{mov.cliente}</td>
                         <td className="py-3 px-4 border border-black">{mov.detalle}</td>
                         <td className="py-3 px-4 border border-black text-right text-gray-800">{formatMonto(mov.neto)}</td>

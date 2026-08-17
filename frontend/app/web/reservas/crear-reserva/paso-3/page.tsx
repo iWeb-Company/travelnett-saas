@@ -12,6 +12,7 @@ import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import DateInput from "@/app/components/DateComponent";
 import AddVioleta from "@/app/components/icons/AddVioleta";
+import { constants } from "buffer";
 
 interface RoomPassenger {
   dni: string;
@@ -200,7 +201,7 @@ function Paso3Content() {
     };
     setRoomPassengers(updated);
 
-    if (field === "dni" && value.trim().length >= 7) {
+    if (field === "dni" && value.trim().length >= 8) {
       handleDniBlur(roomIdx, paxIdx, value);
     }
   };
@@ -419,6 +420,7 @@ function Paso3Content() {
         passengers: passengersPayload,
         commission: clientCommPct,
         liberados: bloqueoData.cantLiberados || 0,
+        type: tipoReserva === "bloqueo" ? "bloqueo_grupo" : "tradicional",
       });
 
       // Calculate and save Liquidacion with total_amount, total_commission, and gastos
@@ -462,7 +464,7 @@ function Paso3Content() {
               }
             }
           } else {
-            let totalPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length || 1;
+            const totalPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length || 1;
             montoComisionable = defaultPrice * totalPax;
           }
         } else {

@@ -121,12 +121,12 @@ export function parseRoomItem(roomStr: string): RoomTypeDetails {
   } else if (lowerRaw.includes("triple") || lowerRaw.includes("tpl")) {
     cama = "Triple";
     camaCode = "TPL";
+  } else if (lowerRaw.includes("single") || lowerRaw.includes("simple") || lowerRaw.includes("sgl") || lowerRaw.startsWith("individual")) {
+    cama = "Single";
+    camaCode = "SGL";
   } else if (lowerRaw.includes("doble") || lowerRaw.includes("dbl")) {
     cama = "Doble";
     camaCode = "DBL";
-  } else if (lowerRaw.includes("single") || lowerRaw.includes("simple") || lowerRaw.includes("sgl")) {
-    cama = "Single";
-    camaCode = "SGL";
   }
 
   // 2. Check Distribución
@@ -136,10 +136,7 @@ export function parseRoomItem(roomStr: string): RoomTypeDetails {
   } else if (lowerRaw.includes("twin") || lowerRaw.includes("twn")) {
     distribucion = "Twin";
     distribucionCode = "TWN";
-  } else if (lowerRaw.includes("individual") || lowerRaw.includes("ind")) {
-    distribucion = "Individual";
-    distribucionCode = "IND";
-  } else if (camaCode === "SGL") {
+  } else if (lowerRaw.includes("individual") || lowerRaw.includes("ind") || camaCode === "SGL") {
     distribucion = "Individual";
     distribucionCode = "IND";
   }
@@ -158,7 +155,7 @@ export function parseRoomItem(roomStr: string): RoomTypeDetails {
 
   // Label construction e.g. "Departamento x5 Individual Estándar"
   const labelParts = [cama];
-  if (distribucion && distribucion.toLowerCase() !== cama.toLowerCase()) {
+  if (distribucion && distribucion.toLowerCase() !== cama.toLowerCase() && !(camaCode === "SGL" && distribucionCode === "IND")) {
     labelParts.push(distribucion);
   }
   if (tipoHabitacion) {
@@ -177,6 +174,27 @@ export function parseRoomItem(roomStr: string): RoomTypeDetails {
     tipoHabitacionCode,
     label,
   };
+}
+
+/**
+ * Returns estimated capacity for a given parsed room type.
+ */
+export function getRoomCapacity(parsed: RoomTypeDetails): number {
+  switch (parsed.camaCode) {
+    case "SGL":
+      return 1;
+    case "DBL":
+      return 2;
+    case "TPL":
+      return 3;
+    case "CPL":
+      return 4;
+    case "QTL":
+    case "DEP":
+      return 5;
+    default:
+      return 2;
+  }
 }
 
 /**

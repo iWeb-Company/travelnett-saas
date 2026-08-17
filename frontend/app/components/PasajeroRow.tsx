@@ -21,6 +21,7 @@ interface PasajeroRowProps {
   hotel: string;
   bus_number?: string | null;
   butaca_type?: string | null;
+  isGroup?: boolean;
 }
 
 export default function PasajeroRow({
@@ -90,7 +91,7 @@ export default function PasajeroRow({
           }).catch(() => null)
         );
       }
-      if (pasajero.reserva_id) {
+      if (pasajero.isGroup && pasajero.reserva_id) {
         promises.push(
           apiClient.updateReserva(user.iweb_client_id, pasajero.reserva_id, {
             lugar_carga_id: selectedLugarCarga || null,

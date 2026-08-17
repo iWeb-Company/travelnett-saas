@@ -186,10 +186,14 @@ export default function SalidasIDPage() {
       : [r];
 
     // Check if this reservation is a group/bloqueo reservation
+    const resType = (r.type || "").toLowerCase();
     const isBloqueoReserva =
-      (r.observations || "").toLowerCase().includes("bloqueo") ||
-      (r.codigo_reserva || "").toLowerCase().includes("bloqueo") ||
-      (paxs.length > 1 && paxs.every((p: any) => !p.name && (!p.last_name || p.nombre_completo === "Desconocido")));
+      resType === "bloqueo_grupo" ||
+      resType === "bloqueo" ||
+      resType === "grupo" ||
+      (resType !== "tradicional" &&
+        ((r.observations || "").toLowerCase().includes("bloqueo") ||
+         (r.codigo_reserva || "").toLowerCase().includes("bloqueo")));
 
     if (isBloqueoReserva && paxs.length > 1) {
       // Group reservation into a single consolidated row
