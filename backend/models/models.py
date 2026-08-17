@@ -325,6 +325,7 @@ class Reservas(Base):
     package_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     commission: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     liberados: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="tradicional")
 
 
 class ReservationPassengers(Base):

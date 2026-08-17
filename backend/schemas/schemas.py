@@ -565,6 +565,7 @@ class ReservaResponse(BaseModel):
     rooming_id: Optional[str] = None
     room_type: Optional[str] = None
     active: Optional[bool] = None
+    type: Optional[str] = "tradicional"
 
     class Config:
         from_attributes = True

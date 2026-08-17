@@ -55,6 +55,7 @@ class ReservaCreatePayload(BaseModel):
     observations: Optional[str] = None
     commission: Optional[float] = None
     liberados: Optional[int] = 0
+    type: Optional[str] = "tradicional"
     
     # Nuevo campo
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
@@ -80,6 +81,7 @@ class ReservaUpdatePayload(BaseModel):
     package_id: Optional[str] = None
     commission: Optional[float] = None
     liberados: Optional[int] = None
+    type: Optional[str] = None
     
     # Nuevo campo para actualizar pasajeros
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
@@ -112,6 +114,7 @@ class ReservaDetailedResponse(BaseModel):
     observations: Optional[str] = None
     commission: Optional[float] = None
     liberados: Optional[int] = 0
+    type: Optional[str] = "tradicional"
     
     # Compatibilidad virtual para frontend tradicional
     passenger_id: Optional[str] = None
@@ -377,6 +380,7 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
                 observations=r.observations,
                 commission=float(r.commission) if r.commission is not None else None,
                 liberados=r.liberados or 0,
+                type=r.type or "tradicional",
                 passenger_id=comp_passenger_id,
                 nombre_completo=comp_nombre_completo,
                 telefono=comp_telefono,
@@ -465,6 +469,7 @@ async def create_reserva(
         observations=body.observations,
         commission=comm_val,
         liberados=body.liberados or 0,
+        type=body.type or "tradicional",
     )
     db.add(new_res)
     
@@ -679,6 +684,8 @@ async def update_reserva(
         r.commission = body.commission
     if body.liberados is not None:
         r.liberados = body.liberados
+    if body.type is not None:
+        r.type = body.type
         
     # Si viene passengers, actualizamos la intermedia
     if body.passengers is not None:

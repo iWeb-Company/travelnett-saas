@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
 
-import { parseRoomItem } from "@/lib/formatRooms";
+import { parseRoomItem, parseRoomTypes, getRoomCapacity } from "@/lib/formatRooms";
 
 export default function RoomingPage() {
   const router = useRouter();
@@ -24,14 +24,15 @@ export default function RoomingPage() {
     const fetchReservas = async () => {
       if (!user?.iweb_client_id || !id) return;
       try {
-        const data = await apiClient.getReservas(user.iweb_client_id, id).catch(() => []);
+        const data = await apiClient.getReservas(user.iweb_client_id, id);
         setReservas(data);
       } catch (err) {
-        console.error(err);
+        console.error("Error fetching rooming reservas:", err);
       } finally {
         setLoading(false);
       }
     };
+
     fetchReservas();
   }, [user?.iweb_client_id, id]);
 
@@ -47,40 +48,68 @@ export default function RoomingPage() {
     );
   }
 
-  // Group passengers by rooming_id
-  const roomsGrouped: Record<string, { id: string; type: string; pasajeros: string[] }> = {};
+  // Extract and group rooms for the departure
+  const roomsList: Array<{ id: string; type: string; pasajeros: string[] }> = [];
   let totalPaxSum = 0;
+  let roomCounter = 1;
 
   reservas.forEach((r) => {
     const paxs = r.reservation_passengers && r.reservation_passengers.length > 0
       ? r.reservation_passengers
       : [r];
 
-    const rId = r.rooming_id || `sin-asignar-${r.id}`;
-    if (!roomsGrouped[rId]) {
-      roomsGrouped[rId] = {
-        id: rId,
-        type: r.room_type || "doble_individual",
-        pasajeros: [],
-      };
-    }
+    const paxNames: string[] = paxs.map((pax: any) => pax.nombre_completo || r.nombre_completo || "Desconocido");
+    totalPaxSum += paxNames.length;
 
-    paxs.forEach((pax: any) => {
-      roomsGrouped[rId].pasajeros.push(pax.nombre_completo || r.nombre_completo || "Desconocido");
-      totalPaxSum++;
+    // Parse rooms configured for this reservation
+    const roomDetailsList = parseRoomTypes(r.room_type);
+    const roomsToCreate = roomDetailsList.length > 0 ? roomDetailsList : [parseRoomItem("doble_matrimonial_estandar")];
+
+    let paxIndex = 0;
+    roomsToCreate.forEach((roomDetail, idx) => {
+      const isLastRoom = idx === roomsToCreate.length - 1;
+      const capacity = getRoomCapacity(roomDetail);
+
+      const assignedPax = isLastRoom
+        ? paxNames.slice(paxIndex)
+        : paxNames.slice(paxIndex, paxIndex + capacity);
+
+      paxIndex += assignedPax.length;
+
+      const roomIdLabel = r.rooming_id
+        ? (roomsToCreate.length > 1 ? `${r.rooming_id} (${idx + 1})` : r.rooming_id)
+        : `${r.codigo_reserva || "Res"}-H${roomCounter++}`;
+
+      if (assignedPax.length > 0) {
+        roomsList.push({
+          id: roomIdLabel,
+          type: roomDetail.raw || "doble_matrimonial_estandar",
+          pasajeros: assignedPax,
+        });
+      }
     });
-  });
 
-  const roomsList = Object.values(roomsGrouped);
+    if (paxIndex < paxNames.length) {
+      roomsList.push({
+        id: `${r.codigo_reserva || "Res"}-H${roomCounter++}`,
+        type: "doble_matrimonial_estandar",
+        pasajeros: paxNames.slice(paxIndex),
+      });
+    }
+  });
 
   // Filter rooms by category using parseRoomItem
   const matrimonialRooms = roomsList.filter(r => {
     const parsed = parseRoomItem(r.type);
     return parsed.camaCode === "DBL" && parsed.distribucionCode === "MAT";
   });
-  const individualRooms = roomsList.filter(r => {
+  const dobleIndividualRooms = roomsList.filter(r => {
     const parsed = parseRoomItem(r.type);
-    return parsed.camaCode === "SGL" || (parsed.camaCode === "DBL" && parsed.distribucionCode === "IND");
+    return parsed.camaCode === "DBL" && (parsed.distribucionCode === "IND" || parsed.distribucionCode === "TWN");
+  });
+  const singleRooms = roomsList.filter(r => {
+    const parsed = parseRoomItem(r.type);
+    return parsed.camaCode === "SGL";
   });
   const tripleRooms = roomsList.filter(r => {
     const parsed = parseRoomItem(r.type);
@@ -93,8 +122,8 @@ export default function RoomingPage() {
   const otherRooms = roomsList.filter(r => {
     const parsed = parseRoomItem(r.type);
     const isMatched = (parsed.camaCode === "DBL" && parsed.distribucionCode === "MAT") ||
+      (parsed.camaCode === "DBL" && (parsed.distribucionCode === "IND" || parsed.distribucionCode === "TWN")) ||
       parsed.camaCode === "SGL" ||
-      (parsed.camaCode === "DBL" && parsed.distribucionCode === "IND") ||
       parsed.camaCode === "TPL" ||
       parsed.camaCode === "CPL";
     return !isMatched;
@@ -109,7 +138,8 @@ export default function RoomingPage() {
   };
 
   const matrimonialStats = getStatsForList(matrimonialRooms);
-  const individualStats = getStatsForList(individualRooms);
+  const dobleIndividualStats = getStatsForList(dobleIndividualRooms);
+  const singleStats = getStatsForList(singleRooms);
   const tripleStats = getStatsForList(tripleRooms);
   const cuadrupleStats = getStatsForList(cuadrupleRooms);
 
@@ -118,12 +148,21 @@ export default function RoomingPage() {
 
   const totalHabs = roomsList.length;
 
+  const GRID_TITLES: Record<string, string> = {
+    doble_matrimonial: "Habitaciones Dobles Matrimoniales",
+    doble_individual: "Habitaciones Dobles Individuales",
+    single_individual: "Habitaciones Singles / Individuales",
+    triple_individual: "Habitaciones Triples",
+    cuadruple_individual: "Habitaciones CuÁdruples",
+    otras_habitaciones: "Otras Habitaciones",
+  };
+
   const renderRoomGrid = (rooms: any[], label: string) => {
     if (rooms.length === 0) return null;
     return (
       <div className="mb-6">
-        <h2 className="md:text-center text-black font-semibold text-lg my-4 capitalize">
-          Habitaciones {label.replace("_", " ")}
+        <h2 className="md:text-center text-black font-semibold text-lg my-4">
+          {GRID_TITLES[label] || `Habitaciones ${label.replace(/_/g, " ")}`}
         </h2>
         <section className="flex flex-wrap items-center justify-center gap-4">
           {rooms.map((room) => (
@@ -137,7 +176,7 @@ export default function RoomingPage() {
                 ))}
               </div>
               <div className="bg-primary text-white text-center py-1.5 rounded-b-xl px-4">
-                <p className="text-xs font-semibold capitalize">{label.replace("_", " ")} ({room.id.startsWith("sin-asignar-") ? "S/A" : room.id})</p>
+                <p className="text-xs font-semibold capitalize">{parseRoomItem(room.type).label} ({room.id.startsWith("sin-asignar-") ? "S/A" : room.id})</p>
               </div>
             </section>
           ))}
@@ -173,7 +212,8 @@ export default function RoomingPage() {
       ) : (
         <>
           {renderRoomGrid(matrimonialRooms, "doble_matrimonial")}
-          {renderRoomGrid(individualRooms, "doble_individual")}
+          {renderRoomGrid(dobleIndividualRooms, "doble_individual")}
+          {renderRoomGrid(singleRooms, "single_individual")}
           {renderRoomGrid(tripleRooms, "triple_individual")}
           {renderRoomGrid(cuadrupleRooms, "cuadruple_individual")}
           {renderRoomGrid(otherRooms, "otras_habitaciones")}
@@ -200,17 +240,25 @@ export default function RoomingPage() {
                     </div>
                   )}
 
-                  {individualStats.rooms > 0 && (
+                  {dobleIndividualStats.rooms > 0 && (
                     <div className="grid grid-cols-3 bg-white">
                       <div className="py-4 border-r border-border">DOBLES INDIVIDUALES</div>
-                      <div className="py-4 border-r border-border">{individualStats.rooms}</div>
-                      <div className="py-4">{individualStats.pax}</div>
+                      <div className="py-4 border-r border-border">{dobleIndividualStats.rooms}</div>
+                      <div className="py-4">{dobleIndividualStats.pax}</div>
+                    </div>
+                  )}
+
+                  {singleStats.rooms > 0 && (
+                    <div className="grid grid-cols-3 bg-white">
+                      <div className="py-4 border-r border-border">SINGLES / INDIVIDUALES</div>
+                      <div className="py-4 border-r border-border">{singleStats.rooms}</div>
+                      <div className="py-4">{singleStats.pax}</div>
                     </div>
                   )}
 
                   {tripleStats.rooms > 0 && (
                     <div className="grid grid-cols-3 bg-white">
-                      <div className="py-4 border-r border-border">TRIPLES INDIVIDUALES</div>
+                      <div className="py-4 border-r border-border">TRIPLES</div>
                       <div className="py-4 border-r border-border">{tripleStats.rooms}</div>
                       <div className="py-4">{tripleStats.pax}</div>
                     </div>
@@ -218,7 +266,31 @@ export default function RoomingPage() {
 
                   {cuadrupleStats.rooms > 0 && (
                     <div className="grid grid-cols-3 bg-white">
-                      <div className="py-4 border-r border-border">CUÁDRUPLES INDIVIDUALES</div>
+                      <div className="py-4 border-r border-border">CUÁDRUPLES</div>
+                      <div className="py-4 border-r border-border">{cuadrupleStats.rooms}</div>
+                      <div className="py-4">{cuadrupleStats.pax}</div>
+                    </div>
+                  )}
+
+                  {hasOthers && (
+                    <div className="grid grid-cols-3 bg-white">
+                      <div className="py-4 border-r border-border">OTRAS HABITACIONES</div>
+                      <div className="py-4 border-r border-border">{otherStats.rooms}</div>
+                      <div className="py-4">{otherStats.pax}</div>
+                    </div>
+                  )}
+
+                  {tripleStats.rooms > 0 && (
+                    <div className="grid grid-cols-3 bg-white">
+                      <div className="py-4 border-r border-border">TRIPLES</div>
+                      <div className="py-4 border-r border-border">{tripleStats.rooms}</div>
+                      <div className="py-4">{tripleStats.pax}</div>
+                    </div>
+                  )}
+
+                  {cuadrupleStats.rooms > 0 && (
+                    <div className="grid grid-cols-3 bg-white">
+                      <div className="py-4 border-r border-border">CUÁDRUPLES</div>
                       <div className="py-4 border-r border-border">{cuadrupleStats.rooms}</div>
                       <div className="py-4">{cuadrupleStats.pax}</div>
                     </div>

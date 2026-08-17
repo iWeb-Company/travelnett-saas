@@ -374,6 +374,7 @@ export interface Reserva {
     observations?: string | null;
     commission?: number | null;
     liberados?: number | null;
+    type?: 'tradicional' | 'bloqueo_grupo' | string;
 
     // Virtuales/compatibilidad legacy
     passenger_id?: string | null;
