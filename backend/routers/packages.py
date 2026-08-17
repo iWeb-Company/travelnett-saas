@@ -64,10 +64,28 @@ def _build_package_response(
     )
 
 
-@router.get("/get_packages", response_model=list[PackageResponse])
-async def get_packages(iweb_client_id: str, db: Session = Depends(get_db)):
-    pkgs = db.query(Packages).filter(Packages.iweb_client_id == iweb_client_id).all()
+import math
+from typing import Optional, Any
+from fastapi import Query
+
+@router.get("/get_packages", response_model=Any)
+async def get_packages(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Packages).filter(Packages.iweb_client_id == iweb_client_id)
+    total = q.count() if page is not None else 0
+
+    if page is not None:
+        pkgs = q.offset((page - 1) * limit).limit(limit).all()
+    else:
+        pkgs = q.all()
+
     if not pkgs:
+        if page is not None:
+            return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
         return []
 
     pkg_ids = [p.id for p in pkgs]
@@ -96,7 +114,7 @@ async def get_packages(iweb_client_id: str, db: Session = Depends(get_db)):
             hotels_by_pkg[ph.package_id] = []
         hotels_by_pkg[ph.package_id].append(_build_hotel_response(ph))
 
-    return [
+    res_list = [
         _build_package_response(
             p,
             dates_by_pkg.get(p.id, []),
@@ -104,6 +122,17 @@ async def get_packages(iweb_client_id: str, db: Session = Depends(get_db)):
         )
         for p in pkgs
     ]
+
+    if page is not None:
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": res_list,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return res_list
 
 
 @router.get("/get_package/{id}", response_model=PackageResponse)

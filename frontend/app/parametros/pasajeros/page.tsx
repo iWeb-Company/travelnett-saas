@@ -2,6 +2,7 @@
 import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
+import Pagination from "@/app/components/Pagination";
 import { Passengers } from "@/app/types";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -35,6 +36,12 @@ export default function PasajerosPage() {
 
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(filteredPassengers.length / pageSize);
+  const paginatedPassengers = filteredPassengers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const fetchPassengers = async (filters?: { nombre?: string; last_name?: string; dni?: string; reserva?: string }) => {
     setIsSearching(true);
@@ -192,7 +199,7 @@ export default function PasajerosPage() {
 
             <tbody className="divide-y divide-black divide-x text-black bg-white">
               {filteredPassengers.length > 0 ? (
-                filteredPassengers.map((pasajero: any, index) => (
+                paginatedPassengers.map((pasajero: any, index) => (
                   <tr key={pasajero.id || index}>
                     <td className="px-4 py-2 text-center">{pasajero.dni}</td>
                     <td className="px-4 py-2 text-center">{pasajero.reserva || "-"}</td>
@@ -210,6 +217,14 @@ export default function PasajerosPage() {
               )}
             </tbody>
           </table>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredPassengers.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
         </div>
       ) : null}
 

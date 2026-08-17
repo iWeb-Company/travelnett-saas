@@ -2,6 +2,7 @@
 import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ModalLayout from "@/app/components/ModalLayout";
+import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -77,6 +78,12 @@ export default function ClientesPage() {
     const name = e.name_system || "";
     return name.toLowerCase().includes(search.toLowerCase());
   });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(clientesFiltered.length / pageSize);
+  const paginatedClientes = clientesFiltered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleClickPut = (cliente: Client) => {
     setClientesData({
@@ -311,7 +318,7 @@ export default function ClientesPage() {
               Sin resultados
             </li>
           ) : (
-            clientesFiltered.map((cliente) => (
+            paginatedClientes.map((cliente) => (
               <li
                 key={cliente.id}
                 className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50">
@@ -358,6 +365,14 @@ export default function ClientesPage() {
             ))
           )}
         </ul>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={clientesFiltered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">

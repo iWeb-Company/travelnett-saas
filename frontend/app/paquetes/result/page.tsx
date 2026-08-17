@@ -6,6 +6,7 @@ import ArrowUpDown from "@/app/components/icons/ArrowUpDown";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
+import Pagination from "@/app/components/Pagination";
 import { Suspense, useState, useEffect, useRef } from "react";
 import PaquetesCard from "../PaquetesCard";
 import { useAuth } from "@/context/AuthContext";
@@ -142,6 +143,12 @@ function ResultContent() {
     return sortAsc ? dateA - dateB : dateB - dateA;
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(sorted.length / pageSize);
+  const paginatedSorted = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const handleDelete = async (id: string) => {
     if (!user?.iweb_client_id) return;
     if (window.confirm("¿Está seguro de eliminar este paquete?")) {
@@ -216,7 +223,7 @@ function ResultContent() {
           {sorted.length === 0 ? (
             <p className="text-center text-gray-500 py-10">No se encontraron paquetes que coincidan con los criterios.</p>
           ) : (
-            sorted.map((pkg) => {
+            paginatedSorted.map((pkg) => {
               // pkg.destino may be stored as a name OR an id — search both ways
               const destObj = destinos.find((d: any) => d.id === pkg.destino || (d.name || d.nombre) === pkg.destino);
               // pkg.periodo may be stored as an id OR a name — search both ways
@@ -284,6 +291,14 @@ function ResultContent() {
             })
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={sorted.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </section>
     </Container>
   );

@@ -1,4 +1,5 @@
 "use client";
+import Pagination from "@/app/components/Pagination";
 import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import AddVioleta from "@/app/components/icons/AddVioleta";
@@ -62,7 +63,7 @@ function ResultContent() {
       setSalidasList(salList || []);
 
       // Map reservations
-      let list = (resList || []).map((r: any) => {
+      const list = (resList || []).map((r: any) => {
         const pasajerosMap = r.reservation_passengers && r.reservation_passengers.length > 0
           ? r.reservation_passengers.map((rp: any) => ({
             nombre: rp.nombre_completo || "Desconocido",
@@ -189,6 +190,12 @@ function ResultContent() {
     });
   }, [rawReservas, filterNumero, filterCliente, filterPaquete, selectedSalidaFilter, filterRango, onlyActive]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(filteredReservas.length / pageSize);
+  const paginatedReservas = filteredReservas.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   if (loadingList) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -218,24 +225,9 @@ function ResultContent() {
         </h2>
       </section>
 
-      <section className="flex flex-col max-w-5xl mx-auto gap-5">
-        <div className="flex flex-wrap items-center justify-end gap-4">
-          <ToggleActiveFilters
-            checked={onlyActive}
-            onChange={(val) => setOnlyActive(val)}
-          />
-          <select
-            value={selectedSalidaFilter}
-            onChange={(e) => setSelectedSalidaFilter(e.target.value)}
-            className="flex items-center my-2 font-semibold justify-end gap-1 border border-gray-400 rounded-lg px-2 py-1 bg-white cursor-pointer">
-            <option value="" className="text-black">Filtrar por salida (Todas)</option>
-            {uniqueSalidas.map((s) => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
-          </select>
-        </div>
+      <section className="flex flex-col w-full max-w-7xl xl:mx-auto gap-5">
         <div className="flex flex-col w-full gap-10">
-          {filteredReservas.map((reserva) => (
+          {paginatedReservas.map((reserva) => (
             <ReservasCard key={reserva.id} reserva={reserva} onRefresh={fetchReservas} />
           ))}
           {filteredReservas.length === 0 && (
@@ -244,6 +236,14 @@ function ResultContent() {
             </p>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredReservas.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </section>
 
 

@@ -110,6 +110,8 @@ async def delete_pago(pago_id: str, iweb_client_id: str = Query(...), db: Sessio
     return {"detail": "Payment deleted successfully"}
 
 
+import math
+
 @router.get("/get_saldos_clientes", tags=["Pagos"])
 async def get_saldos_clientes(
     iweb_client_id: str = Query(...),
@@ -118,6 +120,8 @@ async def get_saldos_clientes(
     fecha_crea_hasta: Optional[str] = Query(None),
     fecha_in_desde: Optional[str] = Query(None),
     fecha_in_hasta: Optional[str] = Query(None),
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
     db: Session = Depends(get_db)
 ):
     from sqlalchemy import func
@@ -131,6 +135,8 @@ async def get_saldos_clientes(
     reservas = q.all()
 
     if not reservas:
+        if page is not None:
+            return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
         return []
 
     res_ids = [r.id for r in reservas]
@@ -254,5 +260,19 @@ async def get_saldos_clientes(
             "cobros": round(cobros),
             "saldo": round(saldo),
         })
+
+    total_items = len(result)
+    if page is not None:
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_result = result[start_idx:end_idx]
+        total_pages = math.ceil(total_items / limit) if total_items > 0 else 1
+        return {
+            "items": paginated_result,
+            "total": total_items,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
 
     return result

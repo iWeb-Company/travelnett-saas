@@ -476,8 +476,12 @@ export const apiClient = {
 
   // PACKAGES
 
-  async getPackages(iwebClientId: string): Promise<any[]> {
-    const response = await fetch(`${API_BASE_URL}/packages/get_packages?iweb_client_id=${iwebClientId}`, {
+  async getPackages(iwebClientId: string, page?: number, limit = 5): Promise<any> {
+    let url = `${API_BASE_URL}/packages/get_packages?iweb_client_id=${iwebClientId}`;
+    if (page !== undefined) {
+      url += `&page=${page}&limit=${limit}`;
+    }
+    const response = await fetch(url, {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to get packages');

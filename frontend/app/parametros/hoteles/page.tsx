@@ -3,6 +3,7 @@ import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import { Loader } from "@/app/components/Loader";
 import ModalLayout from "@/app/components/ModalLayout";
+import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Hotel } from "@/app/types";
 import { apiClient } from "@/lib/api";
@@ -31,6 +32,12 @@ export default function HotelesPage() {
     images: [],
   });
   const [destinos, setDestinos] = useState<any[]>([]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(hoteles.length / pageSize);
+  const paginatedHoteles = hoteles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   useEffect(() => {
     const loadDestinos = async () => {
@@ -297,7 +304,7 @@ export default function HotelesPage() {
               <span>No se encontraron resultados</span>
             </li>
           ) : (
-            hoteles.map((hotel) => (
+            paginatedHoteles.map((hotel) => (
               <li
                 key={hotel.id}
                 className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
@@ -347,6 +354,14 @@ export default function HotelesPage() {
             ))
           )}
         </ul>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={hoteles.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">

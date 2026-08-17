@@ -142,18 +142,42 @@ def delete_cuenta_corriente_provider(id: str, db: Session = Depends(get_db)):
 
 # GET ALL
 
-@router.get("/getCuentasCorrientesClients", response_model=list[cuentasCorrientsClientsResponse], tags=["Cuentas Corrientes Clients"])
-def get_all_cuentas_corrientes_clients(iweb_client_id: str, db: Session = Depends(get_db)):
+@router.get("/getCuentasCorrientesClients", response_model=Any, tags=["Cuentas Corrientes Clients"])
+def get_all_cuentas_corrientes_clients(iweb_client_id: str, page: Optional[int] = Query(None, ge=1), limit: int = Query(5, ge=1), db: Session = Depends(get_db)):
     try:
-        return db.query(cuentasCorrientsClients).filter(cuentasCorrientsClients.iweb_client_id == iweb_client_id).all()
+        q = db.query(cuentasCorrientsClients).filter(cuentasCorrientsClients.iweb_client_id == iweb_client_id)
+        if page is not None:
+            total = q.count()
+            items = q.offset((page - 1) * limit).limit(limit).all()
+            total_pages = math.ceil(total / limit) if total > 0 else 1
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": total_pages
+            }
+        return q.all()
     except Exception as e: 
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/getCuentasCorrientesProviders", response_model=list[cuentasCorrientsProvidersResponse], tags=["Cuentas Corrientes Providers"])
-def get_all_cuentas_corrientes_providers(iweb_client_id: str, db: Session = Depends(get_db)):
+@router.get("/getCuentasCorrientesProviders", response_model=Any, tags=["Cuentas Corrientes Providers"])
+def get_all_cuentas_corrientes_providers(iweb_client_id: str, page: Optional[int] = Query(None, ge=1), limit: int = Query(5, ge=1), db: Session = Depends(get_db)):
     try:
-        return db.query(cuentasCorrientesProviders).filter(cuentasCorrientesProviders.iweb_client_id == iweb_client_id).all()
+        q = db.query(cuentasCorrientesProviders).filter(cuentasCorrientesProviders.iweb_client_id == iweb_client_id)
+        if page is not None:
+            total = q.count()
+            items = q.offset((page - 1) * limit).limit(limit).all()
+            total_pages = math.ceil(total / limit) if total > 0 else 1
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": total_pages
+            }
+        return q.all()
     except Exception as e: 
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))

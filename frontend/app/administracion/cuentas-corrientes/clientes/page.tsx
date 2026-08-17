@@ -4,6 +4,7 @@ import Container from "@/app/components/Container";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Excel from "@/app/components/icons/salidas/Excel";
+import Pagination from "@/app/components/Pagination";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -44,6 +45,12 @@ export default function CuentasCorrientesClientesPage() {
   const [selectedCliente, setSelectedCliente] = useState("");
   const [searched, setSearched] = useState(false);
   const [movimientos, setMovimientos] = useState<MovimientoCliente[]>([]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(movimientos.length / pageSize);
+  const paginatedMovimientos = movimientos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Date filters
   const [fechaCreaDesde, setFechaCreaDesde] = useState("");
@@ -301,7 +308,7 @@ export default function CuentasCorrientesClientesPage() {
                       </td>
                     </tr>
                   ) : (
-                    movimientos.map((mov, i) => (
+                    paginatedMovimientos.map((mov, i) => (
                       <tr key={i} className="hover:bg-gray-50/50 divide-y divide-black">
                         <td className="py-3 px-4 border-r border-black">{mov.fecha || "-"}</td>
                         <td className="py-3 px-4 border-r border-black font-bold">
@@ -326,6 +333,15 @@ export default function CuentasCorrientesClientesPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={movimientos.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
+
             <button onClick={handleExportExcel} className="font-semibold mx-auto text-black flex items-center justify-center gap-2 text-sm md:text-base pb-2 mb-3 hover:underline">
               Exportar <Excel />
             </button>

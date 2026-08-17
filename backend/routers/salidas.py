@@ -1,4 +1,6 @@
 import uuid
+import math
+from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -14,10 +16,24 @@ from schemas.schemas import (
 router = APIRouter(prefix="/salidas", tags=["Salidas CRUD"])
 
 
-@router.get("/get_salidas", response_model=list[SalidaResponse])
-async def get_salidas(iweb_client_id: str, db: Session = Depends(get_db)):
-    salidas = db.query(Salidas).filter(Salidas.iweb_client_id == iweb_client_id).all()
+@router.get("/get_salidas", response_model=Any)
+async def get_salidas(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    salidas_query = db.query(Salidas).filter(Salidas.iweb_client_id == iweb_client_id)
+    
+    if page is not None:
+        total = salidas_query.count()
+        salidas = salidas_query.offset((page - 1) * limit).limit(limit).all()
+    else:
+        salidas = salidas_query.all()
+        
     if not salidas:
+        if page is not None:
+            return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
         return []
 
     salida_ids = [s.id for s in salidas]
@@ -138,6 +154,16 @@ async def get_salidas(iweb_client_id: str, db: Session = Depends(get_db)):
                 cama_reservadas=cama_res_qty
             )
         )
+
+    if page is not None:
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": [item.model_dump() if hasattr(item, "model_dump") else item.dict() for item in response],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
     return response
 
 
