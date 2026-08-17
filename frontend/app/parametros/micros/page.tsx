@@ -3,6 +3,7 @@ import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import { Loader } from "@/app/components/Loader";
 import ModalLayout from "@/app/components/ModalLayout";
+import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Micro } from "@/app/types";
 import { apiClient } from "@/lib/api";
@@ -28,6 +29,12 @@ export default function MicrosPage() {
     cant_pano: "",
     observaciones: "",
   });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(micros.length / pageSize);
+  const paginatedMicros = micros.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const getMicros = async () => {
     if (!user?.iweb_client_id) return;
@@ -190,7 +197,7 @@ export default function MicrosPage() {
               <span>No se encontraron resultados</span>
             </li>
           ) : (
-            micros.map((micro) => (
+            paginatedMicros.map((micro) => (
               <li
                 key={micro.id}
                 className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
@@ -241,6 +248,14 @@ export default function MicrosPage() {
             ))
           )}
         </ul>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={micros.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">

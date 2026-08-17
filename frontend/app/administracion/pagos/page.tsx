@@ -4,6 +4,7 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Excel from "@/app/components/icons/salidas/Excel";
 import ModalLayout from "@/app/components/ModalLayout";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
+import Pagination from "@/app/components/Pagination";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
@@ -55,6 +56,12 @@ export default function PagosPage() {
 
   const [loadingClients, setLoadingClients] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(filteredReservas.length / pageSize);
+  const paginatedReservas = filteredReservas.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Selected receipt for electronic receipt popup
   const [selectedPago, setSelectedPago] = useState<Pago | null>(null);
@@ -612,7 +619,7 @@ export default function PagosPage() {
               <p className="text-center text-gray-500 font-medium my-2">No se encontraron reservas.</p>
             ) : (
               <div className="flex flex-col gap-3">
-                {filteredReservas.map((res) => (
+                {paginatedReservas.map((res) => (
                   <div key={res.id} className="w-full font-semibold flex border gap-5 divide-x divide-black border-black shadow-md shadow-black/40 rounded-sm px-3 text-black/80 bg-white items-center">
                     <p className="py-2.5 pr-5 w-25 pl-2 text-primary">{res.codigo_reserva || "S/D"}</p>
                     <div className="flex-1 flex justify-between items-center py-2.5 pl-4 text-start">
@@ -638,6 +645,13 @@ export default function PagosPage() {
                 ))}
               </div>
             )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredReservas.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           </>
         )}
       </div>

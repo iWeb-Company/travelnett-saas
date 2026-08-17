@@ -1,6 +1,7 @@
 import uuid
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+import math
+from typing import Optional, List, Any
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
@@ -143,9 +144,14 @@ class ReservaDetailedResponse(BaseModel):
         from_attributes = True
 
 
-
-@router.get("/get_reservas", response_model=list[ReservaDetailedResponse])
-async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db: Session = Depends(get_db)):
+@router.get("/get_reservas", response_model=Any)
+async def get_reservas(
+    iweb_client_id: str,
+    salida_id: Optional[str] = None,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
     norm_client = iweb_client_id.strip().lower()
 
     # ── 1. Reservas ─────────────────────────────────────────────────────────
@@ -154,8 +160,17 @@ async def get_reservas(iweb_client_id: str, salida_id: Optional[str] = None, db:
     )
     if salida_id and salida_id.strip() not in ("", "undefined", "null", "none", "None"):
         query = query.filter(Reservas.salida_id == salida_id.strip().lower())
-    res_list = query.order_by(Reservas.id.desc()).all()
+    
+    total = query.count() if page is not None else 0
+
+    if page is not None:
+        res_list = query.order_by(Reservas.id.desc()).offset((page - 1) * limit).limit(limit).all()
+    else:
+        res_list = query.order_by(Reservas.id.desc()).all()
+
     if not res_list:
+        if page is not None:
+            return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
         return []
 
     res_ids     = [r.id for r in res_list]
@@ -851,6 +866,18 @@ async def update_reserva(
         destino=salida_dest_name,
         fecha=salida_date
     )
+    response.append(res_detail)
+
+    if page is not None:
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": [item.model_dump() if hasattr(item, "model_dump") else item.dict() for item in response],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return response
 
 
 @router.get("/get_reserva/{id}", response_model=ReservaDetailedResponse)

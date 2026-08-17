@@ -478,14 +478,47 @@ async def create_bus_types(
 
 # --- Get ---
 
-@router.get("/get_transport_companies", tags=["Get Endpoints Parameters"])
-async def get_transport_companies(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(TransportCompany).filter(TransportCompany.iweb_client_id == iweb_client_id).all()
+import math
+from typing import Optional, List, Any
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
+
+@router.get("/get_transport_companies", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_transport_companies(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(TransportCompany).filter(TransportCompany.iweb_client_id == iweb_client_id)
+    if page is not None:
+        total = q.count()
+        items = q.offset((page - 1) * limit).limit(limit).all()
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": jsonable_encoder(items),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return jsonable_encoder(q.all())
 
 
-@router.get("/get_hotels", tags=["Get Endpoints Parameters"])
-async def get_hotels(iweb_client_id: str, db: Session = Depends(get_db)):
-    hotels = db.query(Hotels).filter(Hotels.iweb_client_id == iweb_client_id).all()
+@router.get("/get_hotels", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_hotels(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Hotels).filter(Hotels.iweb_client_id == iweb_client_id)
+    total = q.count() if page is not None else 0
+    if page is not None:
+        hotels = q.offset((page - 1) * limit).limit(limit).all()
+    else:
+        hotels = q.all()
+
     hotel_ids = [hotel.id for hotel in hotels]
     images = []
     if hotel_ids:
@@ -495,36 +528,126 @@ async def get_hotels(iweb_client_id: str, db: Session = Depends(get_db)):
     for image in images:
         images_by_hotel.setdefault(image.hotel_id, []).append(image)
 
-    return [_hotel_payload(hotel, images_by_hotel.get(hotel.id, [])) for hotel in hotels]
+    payloads = [_hotel_payload(hotel, images_by_hotel.get(hotel.id, [])) for hotel in hotels]
+
+    if page is not None:
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": payloads,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return payloads
 
 
-@router.get("/get_excursions", tags=["Get Endpoints Parameters"])
-async def get_excursions(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(Excursions).filter(Excursions.iweb_client_id == iweb_client_id).all()
+@router.get("/get_excursions", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_excursions(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Excursions).filter(Excursions.iweb_client_id == iweb_client_id)
+    if page is not None:
+        total = q.count()
+        items = q.offset((page - 1) * limit).limit(limit).all()
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": jsonable_encoder(items),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return jsonable_encoder(q.all())
 
 
-@router.get("/get_periods", tags=["Get Endpoints Parameters"])
-async def get_periods(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(Periods).filter(Periods.iweb_client_id == iweb_client_id).all()
+@router.get("/get_periods", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_periods(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Periods).filter(Periods.iweb_client_id == iweb_client_id)
+    if page is not None:
+        total = q.count()
+        items = q.offset((page - 1) * limit).limit(limit).all()
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": jsonable_encoder(items),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return jsonable_encoder(q.all())
 
 
-@router.get("/get_destinos", tags=["Get Endpoints Parameters"])
-async def get_destinos(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(Destinos).filter(Destinos.iweb_client_id == iweb_client_id).all()
+@router.get("/get_destinos", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_destinos(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Destinos).filter(Destinos.iweb_client_id == iweb_client_id)
+    if page is not None:
+        total = q.count()
+        items = q.offset((page - 1) * limit).limit(limit).all()
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": jsonable_encoder(items),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return jsonable_encoder(q.all())
 
 
-@router.get("/get_lugares_carga", tags=["Get Endpoints Parameters"])
-async def get_lugares_carga(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(LugaresCarga).filter(LugaresCarga.iweb_client_id == iweb_client_id).all()
+@router.get("/get_lugares_carga", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_lugares_carga(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(LugaresCarga).filter(LugaresCarga.iweb_client_id == iweb_client_id)
+    if page is not None:
+        total = q.count()
+        items = q.offset((page - 1) * limit).limit(limit).all()
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": jsonable_encoder(items),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return jsonable_encoder(q.all())
 
 
 @router.get("/get_clients_type", tags=["Get Endpoints Parameters"])
 async def get_clients_type(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(ClientsType).filter(ClientsType.iweb_client_id == iweb_client_id).all()
+    return jsonable_encoder(db.query(ClientsType).filter(ClientsType.iweb_client_id == iweb_client_id).all())
 
-@router.get("/get_clients", tags=["Get Endpoints Parameters"])
-async def get_clients(iweb_client_id: str, db: Session = Depends(get_db)):
-    results = db.query(Clients).filter(Clients.iweb_client_id == iweb_client_id).all()
+@router.get("/get_clients", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_clients(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Clients).filter(Clients.iweb_client_id == iweb_client_id)
+    total = q.count() if page is not None else 0
+    if page is not None:
+        results = q.offset((page - 1) * limit).limit(limit).all()
+    else:
+        results = q.all()
+
     mapped_results = []
     for r in results:
         mapped_results.append({
@@ -543,12 +666,39 @@ async def get_clients(iweb_client_id: str, db: Session = Depends(get_db)):
             "commission": r.commission,
             "created_at": str(r.created_at) if r.created_at else None,
         })
+
+    if page is not None:
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": mapped_results,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
     return mapped_results
 
 
-@router.get("/get_regimenes", tags=["Get Endpoints Parameters"])
-async def get_regimenes(iweb_client_id: str, db: Session = Depends(get_db)):
-    return db.query(Regimenes).filter(Regimenes.iweb_client_id == iweb_client_id).all()
+@router.get("/get_regimenes", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_regimenes(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(Regimenes).filter(Regimenes.iweb_client_id == iweb_client_id)
+    if page is not None:
+        total = q.count()
+        items = q.offset((page - 1) * limit).limit(limit).all()
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": jsonable_encoder(items),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    return jsonable_encoder(q.all())
 
 
 @router.get("/get_all_parameters", tags=["Get Endpoints Parameters"])
@@ -567,42 +717,45 @@ async def get_all_parameters(iweb_client_id: str, db: Session = Depends(get_db))
     regimenes = db.query(Regimenes).filter(Regimenes.iweb_client_id == iweb_client_id).all()
 
     return {
-        "destinos": destinos,
+        "destinos": jsonable_encoder(destinos),
         "hotels": hotels,
-        "excursions": excursions,
-        "periods": periods,
-        "regimenes": regimenes
+        "excursions": jsonable_encoder(excursions),
+        "periods": jsonable_encoder(periods),
+        "regimenes": jsonable_encoder(regimenes),
     }
 
 
-@router.get("/get_passengers", tags=["Get Endpoints Parameters"])
+@router.get("/get_passengers", response_model=Any, tags=["Get Endpoints Parameters"])
 async def get_passengers(
     iweb_client_id: str,
     name: Optional[str] = Query(None),
     last_name: Optional[str] = Query(None),
     dni: Optional[str] = Query(None),
     reservation_number: Optional[str] = Query(None),
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
     db: Session = Depends(get_db),
 ):
     query = db.query(Passengers).filter(
         func.lower(Passengers.iweb_client_id) == func.lower(iweb_client_id.strip())
     )
     
-    # Check if we should filter by reservation_number
-    if reservation_number and reservation_number.strip():
-        # Find reservations matching codigo_reserva
+    if isinstance(reservation_number, str) and reservation_number.strip():
+        r_num = reservation_number.strip()
         reservas = db.query(Reservas).filter(
             func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip()),
-            Reservas.codigo_reserva.ilike(f"%{reservation_number.strip()}%")
+            Reservas.codigo_reserva.ilike(f"%{r_num}%")
         ).all()
         if not reservas:
+            if page is not None:
+                return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
             return []
         res_ids = [r.id for r in reservas]
         rps = db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id.in_(res_ids)).all()
         p_ids_res = {rp.pasajero_id for rp in rps if rp.pasajero_id}
         query = query.filter(Passengers.id.in_(list(p_ids_res)))
         
-    if name and name.strip():
+    if isinstance(name, str) and name.strip():
         n_term = name.strip()
         query = query.filter(
             or_(
@@ -613,7 +766,7 @@ async def get_passengers(
             )
         )
         
-    if last_name and last_name.strip():
+    if isinstance(last_name, str) and last_name.strip():
         l_term = last_name.strip()
         query = query.filter(
             or_(
@@ -623,7 +776,7 @@ async def get_passengers(
             )
         )
         
-    if dni is not None and str(dni).strip():
+    if dni is not None and isinstance(dni, (str, int)) and str(dni).strip():
         clean_dni = str(dni).strip().replace(".", "").replace("-", "")
         if clean_dni.isdigit():
             query = query.filter(
@@ -635,14 +788,20 @@ async def get_passengers(
         else:
             query = query.filter(func.cast(Passengers.dni, String).ilike(f"%{clean_dni}%"))
         
-    passengers = query.all()
+    total = query.count() if page is not None else 0
+    if page is not None:
+        passengers = query.offset((page - 1) * limit).limit(limit).all()
+    else:
+        passengers = query.all()
+
     if not passengers:
+        if page is not None:
+            return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
         return []
 
     p_ids = [p.id for p in passengers]
     norm_client = iweb_client_id.strip().lower()
 
-    # Batch: ReservationPassengers (tabla intermedia)
     rps = db.query(ReservationPassengers).filter(
         ReservationPassengers.pasajero_id.in_(p_ids)
     ).all()
@@ -676,12 +835,33 @@ async def get_passengers(
             "phone": p.phone,
             "reserva": res_by_pax.get(p.id, "-")
         })
+
+    if page is not None:
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": result,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
     return result
 
 
-@router.get("/get_bus_types", tags=["Get Endpoints Parameters"])
-async def get_bus_types(iweb_client_id: str, db: Session = Depends(get_db)):
-    results = db.query(BusTypes).filter(BusTypes.iweb_client_id == iweb_client_id).all()
+@router.get("/get_bus_types", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_bus_types(
+    iweb_client_id: str,
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
+    db: Session = Depends(get_db)
+):
+    q = db.query(BusTypes).filter(BusTypes.iweb_client_id == iweb_client_id)
+    total = q.count() if page is not None else 0
+    if page is not None:
+        results = q.offset((page - 1) * limit).limit(limit).all()
+    else:
+        results = q.all()
+
     mapped_results = []
     for r in results:
         mapped_results.append({
@@ -692,12 +872,21 @@ async def get_bus_types(iweb_client_id: str, db: Session = Depends(get_db)):
             "cama_quantity": r.cama_quantity,
             "panoramicos_quantity": r.panoramicos_quantity,
             "description": r.description,
-            # Frontend compatibility fields:
             "cant_semi": r.semicama_quantity if r.semicama_quantity is not None else 0,
             "cant_cama": r.cama_quantity if r.cama_quantity is not None else 0,
             "cant_pano": r.panoramicos_quantity if r.panoramicos_quantity is not None else 0,
             "observaciones": r.description or ""
         })
+
+    if page is not None:
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": mapped_results,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
     return mapped_results
 
 

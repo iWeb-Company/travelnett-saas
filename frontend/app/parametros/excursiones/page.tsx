@@ -3,6 +3,7 @@ import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import { Loader } from "@/app/components/Loader";
 import ModalLayout from "@/app/components/ModalLayout";
+import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Excursion } from "@/app/types";
 import { apiClient } from "@/lib/api";
@@ -27,6 +28,12 @@ export default function ExcursionesPage() {
     description: "",
     destino: "",
   });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(excursiones.length / pageSize);
+  const paginatedExcursiones = excursiones.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const getData = async () => {
     const clientId = user?.iweb_client_id;
@@ -198,7 +205,7 @@ export default function ExcursionesPage() {
               <span>No se encontraron resultados</span>
             </li>
           ) : (
-            excursiones.map((excursion) => (
+            paginatedExcursiones.map((excursion) => (
               <li
                 key={excursion.id}
                 className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
@@ -248,6 +255,14 @@ export default function ExcursionesPage() {
             ))
           )}
         </ul>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={excursiones.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">

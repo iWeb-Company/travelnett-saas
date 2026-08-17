@@ -268,7 +268,7 @@ export default function InicioWebPage() {
             ))}
 
             {carruselNewFiles.map((file, idx) => (
-              <div key={`new-${idx}`} className="relative w-36 h-36 rounded-xl overflow-hidden border border-blue-400 border-2 shadow-md group">
+              <div key={`new-${idx}`} className="relative w-36 h-36 rounded-xl overflow-hidden border-blue-400 border-2 shadow-md group">
                 <MediaDisplay url={URL.createObjectURL(file)} />
                 <button
                   type="button"

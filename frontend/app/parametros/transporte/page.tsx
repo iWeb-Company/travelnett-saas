@@ -3,6 +3,7 @@ import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import { Loader } from "@/app/components/Loader";
 import ModalLayout from "@/app/components/ModalLayout";
+import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { TransportCompany } from "@/app/types";
 import { apiClient } from "@/lib/api";
@@ -24,6 +25,12 @@ export default function TransportePage() {
   const [tipo, setTipo] = useState<TipoTransporte>(null);
   const [search, setSearch] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(empresas.length / pageSize);
+  const paginatedEmpresas = empresas.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const [busData, setBusData] = useState<TransportCompany>({
     id: "",
     iweb_client_id: "",
@@ -242,7 +249,7 @@ export default function TransportePage() {
                   Sin resultados
                 </li>
               ) : (
-                empresas.map((empresa) => (
+                paginatedEmpresas.map((empresa) => (
                   <li
                     key={empresa.id}
                     className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
@@ -291,8 +298,17 @@ export default function TransportePage() {
                       </button>
                     </div>
                   </li>
-                )))}
+                ))
+              )}
             </ul>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={empresas.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </>
       )}

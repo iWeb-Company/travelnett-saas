@@ -46,6 +46,8 @@ async def get_tesoro_movimientos(
     account_id: Optional[str] = Query(None),
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
+    page: Optional[int] = Query(None, ge=1),
+    limit: int = Query(5, ge=1),
     db: Session = Depends(get_db)
 ):
     try:
@@ -215,8 +217,26 @@ async def get_tesoro_movimientos(
         total_egresos = sum(m["monto"] for m in filtered_movs if m["monto"] < 0)
         saldo_total = total_ingresos + total_egresos
 
+        total_items = len(filtered_movs)
+        if page is not None:
+            start_idx = (page - 1) * limit
+            end_idx = start_idx + limit
+            movs_page = filtered_movs[start_idx:end_idx]
+            total_pages = math.ceil(total_items / limit) if total_items > 0 else 1
+            return {
+                "movimientos": movs_page,
+                "total": total_items,
+                "page": page,
+                "limit": limit,
+                "total_pages": total_pages,
+                "total_ingresos": round(total_ingresos, 2),
+                "total_egresos": round(total_egresos, 2),
+                "saldo_total": round(saldo_total, 2)
+            }
+
         return {
             "movimientos": filtered_movs,
+            "total": total_items,
             "total_ingresos": round(total_ingresos, 2),
             "total_egresos": round(total_egresos, 2),
             "saldo_total": round(saldo_total, 2)

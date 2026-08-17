@@ -3,6 +3,7 @@ import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import { Loader } from "@/app/components/Loader";
 import ModalLayout from "@/app/components/ModalLayout";
+import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { LoadingPlace } from "@/app/types";
 import { apiClient } from "@/lib/api";
@@ -98,6 +99,12 @@ export default function CargasPage() {
       const name = e.name || e.nombre || "";
       return name.toLowerCase().includes(search.toLowerCase());
     });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(lugaresFiltrados.length / pageSize);
+  const paginatedLugares = lugaresFiltrados.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   if (loading) {
     return (
@@ -228,7 +235,7 @@ export default function CargasPage() {
                   <span>No se encontraron resultados</span>
                 </li>
               ) : (
-                lugaresFiltrados.map((lugar) => (
+                paginatedLugares.map((lugar) => (
                   <li
                     key={lugar.id}
                     className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
@@ -279,6 +286,14 @@ export default function CargasPage() {
                 ))
               )}
             </ul>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={lugaresFiltrados.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </>
       )}

@@ -4,6 +4,7 @@ import Container from "@/app/components/Container";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Excel from "@/app/components/icons/salidas/Excel";
+import Pagination from "@/app/components/Pagination";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -34,6 +35,12 @@ export default function SaldosPage() {
   const [selectedCliente, setSelectedCliente] = useState("");
   const [searched, setSearched] = useState(false);
   const [movimientos, setMovimientos] = useState<SaldoRow[]>([]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(movimientos.length / pageSize);
+  const paginatedMovimientos = movimientos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const loadClientes = async () => {
     if (!user?.iweb_client_id) return;
@@ -227,7 +234,7 @@ export default function SaldosPage() {
                       </td>
                     </tr>
                   ) : (
-                    movimientos.map((mov, i) => (
+                    paginatedMovimientos.map((mov, i) => (
                       <tr key={i} className="hover:bg-gray-50/50 border-b border-black">
                         <td className="py-3 px-4 border border-black">{mov.fecha}</td>
                         <td className="py-3 px-4 border border-black text-black"><Link className="hover:underline text-primary" href={`/web/reservas/modificar-reserva/${mov.reserva_id}`}>{mov.reserva}</Link></td>
@@ -244,6 +251,14 @@ export default function SaldosPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={movimientos.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </section>

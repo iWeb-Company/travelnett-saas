@@ -1,7 +1,8 @@
 "use client";
 import Container from "@/app/components/Container";
-import ArrowLeft from "@/app/components/icons/ArrowLeft";
+import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
+import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -49,6 +50,11 @@ export default function TesoroPage() {
 
   const [cuentas, setCuentas] = useState<CuentaOption[]>([]);
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(movimientos.length / pageSize);
+  const paginatedMovimientos = movimientos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const [totals, setTotals] = useState({
     totalIngresos: 0,
     totalEgresos: 0,
@@ -296,7 +302,7 @@ export default function TesoroPage() {
                 No hay movimientos registrados para los filtros seleccionados.
               </div>
             ) : (
-              movimientos.map((mov) => (
+              paginatedMovimientos.map((mov) => (
                 <div
                   key={mov.id}
                   className="border border-black rounded-md p-4 bg-white hover:shadow-md transition-shadow">
@@ -324,6 +330,14 @@ export default function TesoroPage() {
                 </div>
               ))
             )}
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={movimientos.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </div>

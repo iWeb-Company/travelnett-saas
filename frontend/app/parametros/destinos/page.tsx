@@ -3,6 +3,7 @@ import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import { Loader } from "@/app/components/Loader";
 import ModalLayout from "@/app/components/ModalLayout";
+import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import { Destino } from "@/app/types";
 import { apiClient } from "@/lib/api";
@@ -25,6 +26,12 @@ export default function DestinosPage() {
     name: "",
     sigla: "",
   });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(destinos.length / pageSize);
+  const paginatedDestinos = destinos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const getDestinos = async () => {
     setIsUpdating(true);
@@ -185,7 +192,7 @@ export default function DestinosPage() {
               <span>No se encontraron resultados</span>
             </li>
           ) : (
-            destinos.map((destino) => (
+            paginatedDestinos.map((destino) => (
               <li
                 key={destino.id}
                 className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
@@ -235,6 +242,14 @@ export default function DestinosPage() {
             ))
           )}
         </ul>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={destinos.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">

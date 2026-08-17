@@ -4,6 +4,7 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import AddVioleta from "@/app/components/icons/AddVioleta";
 import ArrowUpDown from "@/app/components/icons/ArrowUpDown";
 import SalidaCard from "@/app/components/SalidaCard";
+import Pagination from "@/app/components/Pagination";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
@@ -88,6 +89,12 @@ function ResultContent() {
     return sortAsc ? da - db : db - da;
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(sorted.length / pageSize);
+  const paginatedSalidas = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const handleDelete = async (id: string | number) => {
     if (!user?.iweb_client_id) return;
     if (window.confirm("¿Está seguro de eliminar esta salida?")) {
@@ -139,7 +146,7 @@ function ResultContent() {
           {sorted.length === 0 ? (
             <p className="text-center text-gray-500 py-10">No se encontraron salidas que coincidan con los criterios.</p>
           ) : (
-            sorted.map((salida) => {
+            paginatedSalidas.map((salida) => {
               const destObj = destinos.find((d) => d.id === salida.destino);
               const destName = destObj?.name || destObj?.nombre || "Desconocido";
               const fechaFormateada = salida.date_of_out ? new Date(salida.date_of_out).toLocaleDateString() : "-";
@@ -159,6 +166,14 @@ function ResultContent() {
             })
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={sorted.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </section>
     </Container>
   );

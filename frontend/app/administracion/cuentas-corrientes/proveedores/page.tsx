@@ -4,6 +4,7 @@ import Container from "@/app/components/Container";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Excel from "@/app/components/icons/salidas/Excel";
+import Pagination from "@/app/components/Pagination";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -267,6 +268,12 @@ export default function CuentasCorrientesProveedoresPage() {
     return true;
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  const totalPages = Math.ceil(filteredMovimientos.length / pageSize);
+  const paginatedMovimientos = filteredMovimientos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const totalConsumos = filteredMovimientos
     .filter((m) => m.type === 'consumo')
     .reduce((acc, m) => acc + (m.amount || 0), 0);
@@ -392,7 +399,7 @@ export default function CuentasCorrientesProveedoresPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredMovimientos.map((mov, i) => (
+                    paginatedMovimientos.map((mov, i) => (
                       <tr key={mov.id || i} className="divide-x divide-black">
                         <td className="py-3 px-4">
                           {mov.date ? new Date(mov.date + "T00:00:00").toLocaleDateString("es-AR") : "-"}
@@ -410,6 +417,15 @@ export default function CuentasCorrientesProveedoresPage() {
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredMovimientos.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
+
             <button onClick={handleExportExcel} className="py-2 px-4 rounded-lg font-medium w-full flex items-center justify-center gap-2">
               Exportar <Excel />
             </button>
