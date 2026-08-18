@@ -128,7 +128,12 @@ export default function TransportePage() {
                     className="border border-gray-400 shadow-md text-gray-700 font-semibold shadow-gray-400 w-full rounded p-2 bg-white cursor-pointer"
                 >
                     <option value="">Seleccionar empresa</option>
-                    {transportCompanies && transportCompanies.map((company) => (
+                    {(salida?.type
+                        ? transportCompanies.filter(
+                            (c) => !c.type || c.type.toLowerCase() === salida.type?.toLowerCase()
+                          )
+                        : transportCompanies
+                    ).map((company) => (
                         <option key={company.id || company.name} value={company.id || company.name}>
                             {company.name}
                         </option>

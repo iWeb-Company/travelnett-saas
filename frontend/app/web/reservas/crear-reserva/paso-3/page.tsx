@@ -21,6 +21,7 @@ interface RoomPassenger {
   fechaNacimiento: string;
   puntoAscenso: string;
   tipoPax: string;
+  tipoButaca?: string;
   isInfoa?: boolean;
 }
 
@@ -152,6 +153,7 @@ function Paso3Content() {
         fechaNacimiento: "",
         puntoAscenso: "",
         tipoPax: "ADL",
+        tipoButaca: "semicama",
         isInfoa: false
       }));
     });
@@ -201,9 +203,6 @@ function Paso3Content() {
     };
     setRoomPassengers(updated);
 
-    if (field === "dni" && value.trim().length >= 8) {
-      handleDniBlur(roomIdx, paxIdx, value);
-    }
   };
 
   // Add INFOA passenger specifically to a room
@@ -218,6 +217,7 @@ function Paso3Content() {
         fechaNacimiento: "",
         puntoAscenso: "",
         tipoPax: "INF",
+        tipoButaca: "semicama",
         isInfoa: true
       }
     ];
@@ -263,6 +263,36 @@ function Paso3Content() {
       }
     } else {
       // Validation for Tradicional mode
+      if (salidaInfo) {
+        let reqCama = 0;
+        let reqSemicama = 0;
+        for (let rIdx = 0; rIdx < roomPassengers.length; rIdx++) {
+          for (let pIdx = 0; pIdx < roomPassengers[rIdx].length; pIdx++) {
+            const p = roomPassengers[rIdx][pIdx];
+            if (!p.isInfoa) {
+              const bType = (p.tipoButaca || "").toLowerCase();
+              if (bType === "cama") {
+                reqCama++;
+              } else {
+                reqSemicama++;
+              }
+            }
+          }
+        }
+
+        const availableSemicama = salidaInfo.semicama_disponibles ?? salidaInfo.semicama ?? 999;
+        const availableCama = salidaInfo.cama_disponibles ?? salidaInfo.cama ?? 999;
+
+        if (reqSemicama > availableSemicama) {
+          toast.error(`No hay suficientes asientos Semicama disponibles en la salida. Disponibles: ${availableSemicama}`);
+          return;
+        }
+        if (reqCama > availableCama) {
+          toast.error(`No hay suficientes asientos Cama disponibles en la salida. Disponibles: ${availableCama}`);
+          return;
+        }
+      }
+
       for (let rIdx = 0; rIdx < roomPassengers.length; rIdx++) {
         for (let pIdx = 0; pIdx < roomPassengers[rIdx].length; pIdx++) {
           const p = roomPassengers[rIdx][pIdx];
@@ -371,8 +401,9 @@ function Paso3Content() {
               pasajero_id: passengerId,
               pasajero_type: p.tipoPax || (p.isInfoa ? "INF" : "ADL"),
               butaca_number: null,
-              butaca_type: null,
-              lugar_carga_id: p.puntoAscenso || null
+              butaca_type: p.tipoButaca || "semicama",
+              lugar_carga_id: p.puntoAscenso || null,
+              room_index: rIdx
             });
 
             allPassengersList.push({
@@ -429,8 +460,14 @@ function Paso3Content() {
         let gastosReserva = 0;
         let montoComisionable = 0;
 
+        const totalNonInfantPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length || 1;
+        const totalCamaPax = passengersPayload.filter((p: any) => (p.butaca_type || "").toLowerCase() === "cama").length;
+
         if (paqueteInfo) {
-          gastosReserva = Number(paqueteInfo.gastos) || 0;
+          const unitGastos = Number(paqueteInfo.gastos) || 0;
+          const unitAdicional = Number(paqueteInfo.adicional) || 0;
+          gastosReserva = unitGastos * totalNonInfantPax;
+          const adicionalCama = unitAdicional * totalCamaPax;
           const isPorHabitacion = (paqueteInfo.pricing_type || "").toLowerCase().includes("habitacion");
           const defaultPrice = Number(paqueteInfo.price) || 0;
 
@@ -464,19 +501,22 @@ function Paso3Content() {
               }
             }
           } else {
-            const totalPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length || 1;
-            montoComisionable = defaultPrice * totalPax;
+            montoComisionable = defaultPrice * totalNonInfantPax;
+          }
+
+          if (paqueteInfo.comisionable) {
+            montoComisionable += adicionalCama;
           }
         } else {
           precioPaquete = Number(bloqueoData.precioPaquete) || 0;
-          gastosReserva = Number(bloqueoData.gastosReserva) || 0;
+          gastosReserva = (Number(bloqueoData.gastosReserva) || 0) * totalNonInfantPax;
           let totalPax = 0;
           if (tipoReserva === "bloqueo") {
             const rawSeats = (Number(bloqueoData.cantSemicama) || 0) + (Number(bloqueoData.cantCama) || 0);
             totalPax = Math.max(0, rawSeats - (Number(bloqueoData.cantLiberados) || 0));
           }
           if (totalPax === 0 && tipoReserva !== "bloqueo") {
-            totalPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length;
+            totalPax = totalNonInfantPax;
           }
           if (totalPax === 0 && passengersPayload.length > 0 && tipoReserva !== "bloqueo") {
             totalPax = passengersPayload.length;
@@ -484,7 +524,7 @@ function Paso3Content() {
           montoComisionable = precioPaquete * totalPax;
         }
 
-        const totalBruto = montoComisionable + gastosReserva;
+        const totalBruto = montoComisionable + gastosReserva + (paqueteInfo?.comisionable ? 0 : ((Number(paqueteInfo?.adicional) || 0) * totalCamaPax));
 
         const commAmount = (montoComisionable * clientCommPct) / 100;
 
@@ -760,6 +800,20 @@ function Paso3Content() {
                               {lugaresCarga.map((l: any) => (
                                 <option key={l.id} value={l.id}>{l.name || l.nombre || l.lugar}</option>
                               ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Tipo de Butaca (Solo para no-INFOA) */}
+                        {!passenger.isInfoa && (
+                          <div className="flex flex-col gap-1">
+                            <select
+                              className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                              value={passenger.tipoButaca || "semicama"}
+                              onChange={(e) => handlePassengerChange(rIdx, pIdx, "tipoButaca", e.target.value)}
+                            >
+                              <option value="semicama">Semicama</option>
+                              <option value="cama">Cama</option>
                             </select>
                           </div>
                         )}

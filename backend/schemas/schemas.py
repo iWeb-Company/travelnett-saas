@@ -700,7 +700,7 @@ class GastoNoCommissionResponse(BaseModel):
     liquidacion_id: Optional[str] = None
     name: Optional[str] = None
     amount: Optional[float] = None
-    iweb_client_id: str
+    iweb_client_id: Optional[str] = None
 
     class Config:
         from_attributes = True

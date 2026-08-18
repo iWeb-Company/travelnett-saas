@@ -265,7 +265,7 @@ export default function LoginPage() {
           />
         </svg>
           Si no podes iniciar sesión comunicate con nosotros</li>
-        <Link href="" className="flex items-center justify-start gap-2">
+        <Link target='_blank' href="https://wa.me/5491167877298" className="flex items-center justify-start gap-2">
           <Wpp />
           <p>Whatsapp</p>
         </Link>

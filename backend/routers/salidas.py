@@ -23,27 +23,31 @@ async def get_salidas(
     limit: int = Query(5, ge=1),
     db: Session = Depends(get_db)
 ):
-    salidas_query = db.query(Salidas).filter(Salidas.iweb_client_id == iweb_client_id)
-    
-    if page is not None:
+    norm_client = iweb_client_id.strip().lower()
+    salidas_query = db.query(Salidas).filter(func.lower(Salidas.iweb_client_id) == norm_client)
+
+    is_paged = isinstance(page, int) and page >= 1
+
+    if is_paged:
         total = salidas_query.count()
         salidas = salidas_query.offset((page - 1) * limit).limit(limit).all()
     else:
         salidas = salidas_query.all()
-        
+        total = len(salidas)
+
     if not salidas:
-        if page is not None:
+        if is_paged:
             return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
         return []
 
-    salida_ids = [s.id for s in salidas]
+    salida_ids_lower = [s.id.strip().lower() for s in salidas if s.id]
 
     # Batch 1: All SalidasLugaresCarga
     all_slc = db.query(SalidasLugaresCarga).filter(
-        SalidasLugaresCarga.iweb_client_id == iweb_client_id,
-        SalidasLugaresCarga.salida_id.in_(salida_ids)
+        func.lower(SalidasLugaresCarga.iweb_client_id) == norm_client,
+        func.lower(SalidasLugaresCarga.salida_id).in_(salida_ids_lower)
     ).all()
-    slc_map = {rel.salida_id: rel for rel in all_slc}
+    slc_map = {rel.salida_id.strip().lower(): rel for rel in all_slc if rel.salida_id}
 
     # Batch 2: All LugaresCarga
     all_carga_ids = set()
@@ -52,46 +56,43 @@ async def get_salidas(
             for cid in rel.cargas.split(","):
                 if cid.strip():
                     all_carga_ids.add(cid.strip())
-    
+
     places_map = {}
     if all_carga_ids:
         places = db.query(LugaresCarga).filter(
-            LugaresCarga.iweb_client_id == iweb_client_id,
+            func.lower(LugaresCarga.iweb_client_id) == norm_client,
             LugaresCarga.id.in_(list(all_carga_ids))
         ).all()
         places_map = {p.id: p for p in places}
 
     # Batch 3: All active Reservas
     all_reservas = db.query(Reservas).filter(
-        Reservas.iweb_client_id == iweb_client_id,
-        Reservas.salida_id.in_(salida_ids),
-        Reservas.active == True
+        func.lower(Reservas.iweb_client_id) == norm_client,
+        func.lower(Reservas.salida_id).in_(salida_ids_lower),
+        (Reservas.active == True) | (Reservas.active.is_(None))
     ).all()
 
-    res_by_salida: dict[str, list[str]] = {}
+    res_by_salida: dict = {}
     reserva_ids = []
     for r in all_reservas:
         if r.salida_id:
             s_key = r.salida_id.strip().lower()
-            if s_key not in res_by_salida:
-                res_by_salida[s_key] = []
-            res_by_salida[s_key].append(r.id)
+            res_by_salida.setdefault(s_key, []).append(r.id)
             reserva_ids.append(r.id)
 
     # Batch 4: All ReservationPassengers
-    rp_by_reserva: dict[str, list[ReservationPassengers]] = {}
+    rp_by_reserva: dict = {}
     if reserva_ids:
         all_rps = db.query(ReservationPassengers).filter(
             ReservationPassengers.reserva_id.in_(reserva_ids)
         ).all()
         for rp in all_rps:
-            if rp.reserva_id not in rp_by_reserva:
-                rp_by_reserva[rp.reserva_id] = []
-            rp_by_reserva[rp.reserva_id].append(rp)
+            rp_by_reserva.setdefault(rp.reserva_id, []).append(rp)
 
     response = []
     for s in salidas:
-        rel = slc_map.get(s.id)
+        s_key = s.id.strip().lower()
+        rel = slc_map.get(s_key)
         cargas_resolved = []
         if rel and rel.cargas:
             carga_ids = [cid.strip() for cid in rel.cargas.split(",") if cid.strip()]
@@ -113,7 +114,6 @@ async def get_salidas(
         cama_res_qty = 0
         total_passengers = 0
 
-        s_key = s.id.strip().lower()
         active_res_ids = res_by_salida.get(s_key, [])
         for r_id in active_res_ids:
             rp_list = rp_by_reserva.get(r_id, [])
@@ -145,7 +145,7 @@ async def get_salidas(
                 coordinador_telefono=s.coordinador_telefono,
                 hotel_id=s.hotel_id,
                 regimen_id=s.regimen_id,
-                passengers=s.passengers or 0,
+                passengers=total_passengers,
                 semicama=s.semicama or 0,
                 cama=s.cama or 0,
                 semicama_disponibles=dispo_semicama,
@@ -155,7 +155,7 @@ async def get_salidas(
             )
         )
 
-    if page is not None:
+    if is_paged:
         total_pages = math.ceil(total / limit) if total > 0 else 1
         return {
             "items": [item.model_dump() if hasattr(item, "model_dump") else item.dict() for item in response],

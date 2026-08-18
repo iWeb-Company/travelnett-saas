@@ -156,11 +156,13 @@ export default function Paso1Page() {
             1. Paquete / Salida
           </div>
           <div className="flex-1 bg-[#A8B8F0] text-white text-center py-3 font-semibold text-sm md:text-base">
-            2. Habitación
+            {tipoReserva === "bloqueo" ? "2. Habitaciones / Datos" : "2. Habitación"}
           </div>
-          <div className="flex-1 bg-[#A8B8F0] text-white text-center py-3 font-semibold text-sm md:text-base">
-            3. Datos
-          </div>
+          {tipoReserva === "tradicional" && (
+            <div className="flex-1 bg-[#A8B8F0] text-white text-center py-3 font-semibold text-sm md:text-base">
+              3. Datos
+            </div>
+          )}
         </div>
 
         {/* Form */}

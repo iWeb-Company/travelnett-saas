@@ -2,7 +2,7 @@ import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from db.database import get_db
 from models.models import Liquidaciones, GastosNoCommission, Reservas, Packages, PackageHotels, Clients, ReservationPassengers
 from schemas.schemas import (
@@ -36,11 +36,18 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
     pkg_adicional = float(pkg.adicional or 0) if pkg else 0.0
     is_comisionable = bool(pkg.comisionable) if pkg else False
 
+    rooms_list = []
+    if res_obj.room_type:
+        import json
+        try:
+            rooms_list = json.loads(res_obj.room_type) if isinstance(res_obj.room_type, str) and res_obj.room_type.startswith("[") else ([res_obj.room_type] if isinstance(res_obj.room_type, str) else res_obj.room_type)
+        except Exception:
+            rooms_list = [str(res_obj.room_type)]
+
     # 1. Total Base Comisionable de Paquete según pricing_type y tipo de habitación
     pax_total = 0.0
     single_no_comisionable = 0.0   # monto 50% no comisionable por comisionable_single
     if pkg and res_obj.room_type:
-        import json
         # Resolver el PackageHotel que corresponde al hotel de la reserva
         matching_ph = None
         if res_obj.hotel_id:
@@ -56,37 +63,54 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
         pricing_type = matching_ph.pricing_type if matching_ph else "persona"
         is_por_habitacion = "habitacion" in (pricing_type or "").lower()
         comisionable_single = bool(matching_ph.comisionable_single) if matching_ph else False
-        rooms_list = []
-        try:
-            rooms_list = json.loads(res_obj.room_type) if isinstance(res_obj.room_type, str) else res_obj.room_type
-        except Exception:
-            rooms_list = [str(res_obj.room_type)]
 
         if isinstance(rooms_list, list) and len(rooms_list) > 0:
-            for rm_str in rooms_list:
+            for room_idx, rm_str in enumerate(rooms_list):
                 rm_lower = str(rm_str).lower()
                 capacity = 1
                 tariff = pkg_price
                 is_single_room = False
 
-                if "doble" in rm_lower or "2" in rm_lower:
+                if rm_lower.startswith("dbl") or "doble" in rm_lower:
                     capacity = 2
                     tariff = float(matching_ph.tarifa_doble) if (matching_ph and matching_ph.tarifa_doble is not None) else pkg_price
-                elif "triple" in rm_lower or "3" in rm_lower:
+                elif rm_lower.startswith("tpl") or "triple" in rm_lower:
                     capacity = 3
                     tariff = float(matching_ph.tarifa_triple) if (matching_ph and matching_ph.tarifa_triple is not None) else pkg_price
-                elif "cuadruple" in rm_lower or "4" in rm_lower:
+                elif rm_lower.startswith("cpl") or "cuadruple" in rm_lower:
                     capacity = 4
                     tariff = float(matching_ph.tarifa_cuadruple) if (matching_ph and matching_ph.tarifa_cuadruple is not None) else pkg_price
-                elif "quintuple" in rm_lower or "5" in rm_lower:
+                elif rm_lower.startswith("qtl") or rm_lower.startswith("dep") or "quintuple" in rm_lower or "depto" in rm_lower:
                     capacity = 5
                     tariff = float(matching_ph.tarifa_quintuple) if (matching_ph and matching_ph.tarifa_quintuple is not None) else pkg_price
-                elif "single" in rm_lower or "individual" in rm_lower or "1" in rm_lower:
+                elif rm_lower.startswith("sgl") or "single" in rm_lower:
                     capacity = 1
                     tariff = float(matching_ph.tarifa_single) if (matching_ph and matching_ph.tarifa_single is not None) else pkg_price
                     is_single_room = True
 
-                room_subtotal = tariff if is_por_habitacion else tariff * capacity
+                if is_por_habitacion:
+                    room_subtotal = tariff
+                else:
+                    room_paxs = [r for r in rps if (r.room_index if r.room_index is not None else 0) == room_idx]
+                    if not room_paxs and len(rps) > 0:
+                        start_i = sum(2 if ("doble" in str(rooms_list[k]).lower() or str(rooms_list[k]).lower().startswith("dbl")) else (3 if "triple" in str(rooms_list[k]).lower() else (4 if "cuadruple" in str(rooms_list[k]).lower() else (5 if ("quintuple" in str(rooms_list[k]).lower() or "depto" in str(rooms_list[k]).lower()) else 1))) for k in range(room_idx))
+                        room_paxs = rps[start_i : start_i + capacity]
+
+                    room_subtotal = 0.0
+                    for slot_i in range(capacity):
+                        pax = room_paxs[slot_i] if slot_i < len(room_paxs) else None
+                        ptype = (pax.pasajero_type if pax and pax.pasajero_type else "ADL").upper()
+
+                        if ptype == "CHD":
+                            if matching_ph and matching_ph.tarifa_menores is not None and float(matching_ph.tarifa_menores) > 0:
+                                room_subtotal += float(matching_ph.tarifa_menores)
+                            else:
+                                room_subtotal += tariff * 0.8  # Fallback 20% desc si no hay tarifa_menores explícita
+                        elif ptype == "INF":
+                            room_subtotal += 0.0  # Infantes no pagan tarifa de habitación
+                        else:
+                            room_subtotal += tariff
+
                 pax_total += room_subtotal
 
                 # Si comisionable_single=True y es habitación single,
@@ -107,10 +131,35 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
         else:
             pax_total = pkg_price
 
-    # 2. Base Comisionable: pax_total + (pkg_adicional si es_comisionable) − parte no comisionable del single
+    # 2. Conteo de pasajeros para gastos y adicional cama
+    total_room_capacity = 0
+    if rooms_list and isinstance(rooms_list, list):
+        for rm in rooms_list:
+            rm_lower = str(rm).lower()
+            if rm_lower.startswith("dbl") or "doble" in rm_lower:
+                total_room_capacity += 2
+            elif rm_lower.startswith("tpl") or "triple" in rm_lower:
+                total_room_capacity += 3
+            elif rm_lower.startswith("cpl") or "cuadruple" in rm_lower:
+                total_room_capacity += 4
+            elif rm_lower.startswith("qtl") or rm_lower.startswith("dep") or "quintuple" in rm_lower or "depto" in rm_lower:
+                total_room_capacity += 5
+            elif rm_lower.startswith("sgl") or "single" in rm_lower:
+                total_room_capacity += 1
+            else:
+                total_room_capacity += 2
+
+    real_pax_count = len([r for r in rps if (r.pasajero_type or "ADL").upper() != "INF"]) if rps else 0
+    num_pax = max(real_pax_count, total_room_capacity) if total_room_capacity > 0 else (real_pax_count or 1)
+    num_cama = len([r for r in rps if (r.butaca_type or "").lower() == "cama"]) if rps else 0
+
+    total_gastos = pkg_gastos * num_pax
+    total_adicional_cama = pkg_adicional * num_cama
+
+    # Base Comisionable: pax_total + (total_adicional_cama si es_comisionable) − parte no comisionable del single
     monto_comisionable = pax_total - single_no_comisionable
     if is_comisionable:
-        monto_comisionable += pkg_adicional
+        monto_comisionable += total_adicional_cama
 
     # 3. Comisión del Cliente
     client_comm_pct = 0.0
@@ -121,15 +170,15 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
 
     comm_amount = (monto_comisionable * client_comm_pct) / 100.0
 
-    # 4. Total Bruto (pax_total + pkg_gastos + pkg_adicional)
-    total_bruto = pax_total + pkg_gastos + pkg_adicional
+    # 4. Total Bruto (pax_total + total_gastos + total_adicional_cama)
+    total_bruto = pax_total + total_gastos + total_adicional_cama
 
     return {
         "res_obj": res_obj,
         "pkg_price": pkg_price,
         "pax_total": pax_total,
-        "pkg_gastos": pkg_gastos,
-        "pkg_adicional": pkg_adicional,
+        "pkg_gastos": total_gastos,
+        "pkg_adicional": total_adicional_cama,
         "is_comisionable": is_comisionable,
         "monto_comisionable": monto_comisionable,
         "single_no_comisionable": single_no_comisionable,
@@ -142,8 +191,26 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
 @router.post("/create_liquidacion", response_model=LiquidacionResponse)
 async def create_liquidacion(payload: LiquidacionCreateRequest, db: Session = Depends(get_db)):
     try:
-        clean_b_id = payload.booking_id.strip().lower()
-        existing = db.query(Liquidaciones).filter(func.lower(Liquidaciones.booking_id) == clean_b_id).first()
+        norm_client = payload.iweb_client_id.strip().lower()
+        raw_b_id = payload.booking_id.strip() if payload.booking_id else ""
+
+        # Try matching booking by id first, then by codigo_reserva
+        res_obj = db.query(Reservas).filter(
+            func.lower(Reservas.iweb_client_id) == norm_client,
+            or_(
+                func.lower(Reservas.id) == raw_b_id.lower(),
+                func.lower(Reservas.codigo_reserva) == raw_b_id.lower()
+            )
+        ).first() if raw_b_id else None
+
+        resolved_booking_id = res_obj.id if res_obj else raw_b_id
+
+        if not res_obj:
+            raise HTTPException(status_code=404, detail=f"No se encontró la reserva con ID o código '{raw_b_id}'")
+
+        existing = db.query(Liquidaciones).filter(
+            func.lower(Liquidaciones.booking_id) == resolved_booking_id.lower()
+        ).first()
 
         if existing:
             liquidacion = existing
@@ -151,17 +218,19 @@ async def create_liquidacion(payload: LiquidacionCreateRequest, db: Session = De
             liquidacion.total_commission = payload.total_commission
             liquidacion.commission = payload.commission
             liq_id = existing.id
+            db.flush()
         else:
             liq_id = str(uuid.uuid4())
             liquidacion = Liquidaciones(
                 id=liq_id,
                 iweb_client_id=payload.iweb_client_id,
-                booking_id=payload.booking_id,
+                booking_id=resolved_booking_id,
                 total_amout=payload.total_amout,
                 total_commission=payload.total_commission,
                 commission=payload.commission
             )
             db.add(liquidacion)
+            db.flush()
 
         if payload.gastos:
             for g in payload.gastos:
@@ -322,45 +391,67 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
 
     # Registrar o sincronizar GastosNoCommission derivados del paquete
     existing_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
-    existing_names = [g.name for g in existing_gastos]
-    has_admin_gasto = any(n in ["Gastos administrativos", "Gastos de Reserva"] for n in existing_names)
     added_gasto = False
 
-    # Gastos administrativos del paquete si no existen
-    if calc["pkg_gastos"] > 0 and not has_admin_gasto:
-        g_adm = GastosNoCommission(
-            id=str(uuid.uuid4()),
-            liquidacion_id=liq.id,
-            name="Gastos administrativos",
-            amount=calc["pkg_gastos"],
-            iweb_client_id=liq.iweb_client_id
-        )
-        db.add(g_adm)
+    # Gastos de reserva / administrativos del paquete: eliminar duplicados si existieren
+    admin_gastos_list = [g for g in existing_gastos if g.name in ["Gastos administrativos", "Gastos de Reserva", "Gastos de reserva"]]
+    if len(admin_gastos_list) > 1:
+        for extra_g in admin_gastos_list[1:]:
+            db.delete(extra_g)
+            if extra_g in existing_gastos:
+                existing_gastos.remove(extra_g)
         added_gasto = True
 
-    # Adicional no comisionable del paquete si no es comisionable y no existe
-    if not calc["is_comisionable"] and calc["pkg_adicional"] > 0 and "Adicional paquete (no comisionable)" not in existing_names:
-        g_add = GastosNoCommission(
-            id=str(uuid.uuid4()),
-            liquidacion_id=liq.id,
-            name="Adicional paquete (no comisionable)",
-            amount=calc["pkg_adicional"],
-            iweb_client_id=liq.iweb_client_id
-        )
-        db.add(g_add)
-        added_gasto = True
+    if res_obj and res_obj.package_id:
+        admin_gasto = admin_gastos_list[0] if admin_gastos_list else None
+        if admin_gasto:
+            if admin_gasto.amount != calc["pkg_gastos"]:
+                admin_gasto.amount = calc["pkg_gastos"]
+                added_gasto = True
+        elif calc["pkg_gastos"] > 0:
+            g_adm = GastosNoCommission(
+                id=str(uuid.uuid4()),
+                liquidacion_id=liq.id,
+                name="Gastos de reserva",
+                amount=calc["pkg_gastos"],
+                iweb_client_id=liq.iweb_client_id
+            )
+            db.add(g_adm)
+            added_gasto = True
 
-    # 50% no comisionable por comisionable_single en habitación single
-    if calc.get("single_no_comisionable", 0) > 0 and "50% No Comisionable Habitación Single" not in existing_names:
-        g_single = GastosNoCommission(
-            id=str(uuid.uuid4()),
-            liquidacion_id=liq.id,
-            name="50% No Comisionable Habitación Single",
-            amount=calc["single_no_comisionable"],
-            iweb_client_id=liq.iweb_client_id
-        )
-        db.add(g_single)
-        added_gasto = True
+        # Adicional no comisionable del paquete si no es comisionable
+        add_gasto = next((g for g in existing_gastos if g.name == "Adicional cama (no comisionable)"), None)
+        if add_gasto:
+            if not calc["is_comisionable"] and add_gasto.amount != calc["pkg_adicional"]:
+                add_gasto.amount = calc["pkg_adicional"]
+                added_gasto = True
+        elif not calc["is_comisionable"] and calc["pkg_adicional"] > 0:
+            g_add = GastosNoCommission(
+                id=str(uuid.uuid4()),
+                liquidacion_id=liq.id,
+                name="Adicional cama (no comisionable)",
+                amount=calc["pkg_adicional"],
+                iweb_client_id=liq.iweb_client_id
+            )
+            db.add(g_add)
+            added_gasto = True
+
+        # 50% no comisionable por comisionable_single en habitación single
+        single_gasto = next((g for g in existing_gastos if g.name == "50% No Comisionable Habitación Single"), None)
+        if single_gasto:
+            if single_gasto.amount != calc.get("single_no_comisionable", 0):
+                single_gasto.amount = calc.get("single_no_comisionable", 0)
+                added_gasto = True
+        elif calc.get("single_no_comisionable", 0) > 0:
+            g_single = GastosNoCommission(
+                id=str(uuid.uuid4()),
+                liquidacion_id=liq.id,
+                name="50% No Comisionable Habitación Single",
+                amount=calc["single_no_comisionable"],
+                iweb_client_id=liq.iweb_client_id
+            )
+            db.add(g_single)
+            added_gasto = True
 
     if added_gasto:
         db.commit()
@@ -369,7 +460,7 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     all_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
     sum_extra_gastos = sum(
         g.amount or 0 for g in all_gastos 
-        if g.name not in ["Gastos administrativos", "Adicional paquete (no comisionable)", "50% No Comisionable Habitación Single"]
+        if g.name not in ["Gastos administrativos", "Gastos de Reserva", "Gastos de reserva", "Adicional cama (no comisionable)", "50% No Comisionable Habitación Single"]
     )
 
     # Solo sincronizar automáticamente desde el paquete si la reserva TIENE un paquete con precio/tarifa > 0

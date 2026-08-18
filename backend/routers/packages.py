@@ -1,5 +1,6 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from db.database import get_db
 from models.models import Packages, PackagesDatesOfExit, PackageHotels
@@ -75,16 +76,17 @@ async def get_packages(
     limit: int = Query(5, ge=1),
     db: Session = Depends(get_db)
 ):
-    q = db.query(Packages).filter(Packages.iweb_client_id == iweb_client_id)
-    total = q.count() if page is not None else 0
+    is_paged = isinstance(page, int) and page >= 1
+    q = db.query(Packages).filter(func.lower(Packages.iweb_client_id) == iweb_client_id.strip().lower())
+    total = q.count() if is_paged else 0
 
-    if page is not None:
+    if is_paged:
         pkgs = q.offset((page - 1) * limit).limit(limit).all()
     else:
         pkgs = q.all()
 
     if not pkgs:
-        if page is not None:
+        if is_paged:
             return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
         return []
 
@@ -123,7 +125,7 @@ async def get_packages(
         for p in pkgs
     ]
 
-    if page is not None:
+    if is_paged:
         total_pages = math.ceil(total / limit) if total > 0 else 1
         return {
             "items": res_list,

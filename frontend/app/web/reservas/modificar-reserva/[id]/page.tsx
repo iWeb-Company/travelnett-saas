@@ -11,7 +11,7 @@ import { Loader } from "@/app/components/Loader";
 import { Trash } from "lucide-react";
 import DateInput from "@/app/components/DateComponent";
 import toast from "react-hot-toast";
-import { parseRoomItem } from "@/lib/formatRooms";
+import { parseRoomItem, getRoomCapacity } from "@/lib/formatRooms";
 import ModalLayout from "@/app/components/ModalLayout";
 
 interface GastoNoComm {
@@ -73,26 +73,43 @@ export default function ReservaIdPage() {
       if (data.commission !== null && data.commission !== undefined) {
         setClientCommissionPct(Number(data.commission));
       }
+      let parsedRooms: string[] = [];
       if (data.room_type) {
         try {
-          if (data.room_type.startsWith("[")) {
-            setRooms(JSON.parse(data.room_type));
-          } else if (data.room_type.includes(",")) {
-            setRooms(data.room_type.split(",").map((s: string) => s.trim()));
-          } else {
-            setRooms([data.room_type]);
-          }
+          parsedRooms = typeof data.room_type === "string" && data.room_type.startsWith("[")
+            ? JSON.parse(data.room_type)
+            : (data.room_type.includes(",") ? data.room_type.split(",").map((s: string) => s.trim()) : [data.room_type]);
+          setRooms(parsedRooms);
         } catch {
-          setRooms([data.room_type]);
+          parsedRooms = [data.room_type];
+          setRooms(parsedRooms);
         }
       }
 
       if (data.reservation_passengers && Array.isArray(data.reservation_passengers)) {
-        const mapped = data.reservation_passengers.map((rp: any) => {
+        const allIndexesZero = data.reservation_passengers.every((rp: any) => !rp.room_index || rp.room_index === 0);
+
+        let rIdx = 0;
+        let rCap = getRoomCapacity(parsedRooms[0] || "");
+        let inRoomCount = 0;
+
+        const mapped = data.reservation_passengers.map((rp: any, i: number) => {
           const rawName = rp.nombre_completo || "";
           const parts = rawName.trim().split(" ");
           const first = rp.nombre || (parts.length > 1 ? parts[0] : rawName);
           const last = rp.apellido || (parts.length > 1 ? parts.slice(1).join(" ") : "");
+
+          let assignedRoom = rp.room_index;
+          if (assignedRoom === undefined || assignedRoom === null || (allIndexesZero && parsedRooms.length > 1)) {
+            if (inRoomCount >= rCap && rIdx < parsedRooms.length - 1) {
+              rIdx++;
+              rCap = getRoomCapacity(parsedRooms[rIdx] || "");
+              inRoomCount = 0;
+            }
+            assignedRoom = rIdx;
+            inRoomCount++;
+          }
+
           return {
             ...rp,
             nombre: first,
@@ -100,9 +117,12 @@ export default function ReservaIdPage() {
             dni: rp.dni ? String(rp.dni) : "",
             fecha_nacimiento: rp.fecha_nacimiento || rp.date_of_birth || "",
             telefono: rp.telefono || rp.phone || "",
+            butaca: rp.butaca_type || 'Semicama',
+            butaca_type: rp.butaca_type || 'semicama',
             sexo: rp.sex || rp.sexo || "M",
             pasajero_type: rp.pasajero_type || "ADL",
-            lugar_carga_id: rp.lugar_carga_id || ""
+            lugar_carga_id: rp.lugar_carga_id || "",
+            room_index: assignedRoom !== undefined && assignedRoom !== null ? assignedRoom : 0
           };
         });
         setPassengersList(mapped);
@@ -207,6 +227,27 @@ export default function ReservaIdPage() {
     const tipoKey = tipoMap[newRoomTipo] || "estandar";
 
     const newRoomCode = `${camaKey}_${distKey}_${tipoKey}`;
+    const newRoomIndex = rooms.length;
+    const capacity = getRoomCapacity(newRoomCode);
+
+    const currentSource = passengersList.length > 0 ? passengersList : (reserva?.reservation_passengers || []);
+    const emptyPassengers = Array.from({ length: capacity }, () => ({
+      id: null,
+      pasajero_id: null,
+      room_index: newRoomIndex,
+      dni: "",
+      nombre: "",
+      apellido: "",
+      fecha_nacimiento: "",
+      telefono: "",
+      lugar_carga_id: reserva?.lugar_carga_id || "",
+      butaca_type: "semicama",
+      butaca: "semicama",
+      sexo: "M",
+      pasajero_type: "ADL"
+    }));
+
+    setPassengersList([...currentSource, ...emptyPassengers]);
     setRooms((prev) => [...prev, newRoomCode]);
     setOpenAddRoomModal(false);
   };
@@ -254,31 +295,78 @@ export default function ReservaIdPage() {
     if (!user?.iweb_client_id) return;
     setSaving(true);
     try {
-      // 1. Update Passengers in backend if passenger details were edited
       const paxSource = passengersList.length > 0 ? passengersList : (reserva.reservation_passengers || []);
+
+      // Validate seating capacity if salida exists
+      if (reserva.salida_id) {
+        try {
+          const salidaInfo = await apiClient.getSalida(reserva.salida_id, user.iweb_client_id);
+          if (salidaInfo) {
+            const camaReq = paxSource.filter((p: any) => (p.butaca_type || "").toLowerCase() === "cama").length;
+            const semicamaReq = paxSource.filter((p: any) => (p.butaca_type || "").toLowerCase() === "semicama").length;
+
+            const prevCama = (reserva.reservation_passengers || []).filter((p: any) => (p.butaca_type || "").toLowerCase() === "cama").length;
+            const prevSemicama = (reserva.reservation_passengers || []).filter((p: any) => (p.butaca_type || "").toLowerCase() === "semicama").length;
+
+            const availableCama = (salidaInfo.cama_disponibles || 0) + prevCama;
+            const availableSemicama = (salidaInfo.semicama_disponibles || 0) + prevSemicama;
+
+            if (salidaInfo.cama_disponibles !== undefined && camaReq > availableCama) {
+              toast.error(`No hay disponibilidad suficiente de butacas CAMA en la salida. Disponibles: ${availableCama}`);
+              setSaving(false);
+              return;
+            }
+            if (salidaInfo.semicama_disponibles !== undefined && semicamaReq > availableSemicama) {
+              toast.error(`No hay disponibilidad suficiente de butacas SEMICAMA en la salida. Disponibles: ${availableSemicama}`);
+              setSaving(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn("Could not check salida seat availability:", e);
+        }
+      }
+
+      // 1. Update/Create Passengers in backend
       for (const pax of paxSource) {
-        if (pax.pasajero_id) {
+        if (!pax.pasajero_id) {
+          const createdPax = await apiClient.createParameter("create_passengers", {
+            name: pax.nombre || "Pasajero",
+            last_name: pax.apellido || "",
+            dni: pax.dni ? Number(pax.dni) : null,
+            date_of_birth: pax.fecha_nacimiento || null,
+            sex: pax.sexo || null,
+            phone: pax.telefono || null
+          }, user.iweb_client_id);
+          if (createdPax?.id) {
+            pax.pasajero_id = createdPax.id;
+          }
+        } else if (pax.pasajero_id) {
           await apiClient.updateParameter("update_passengers", pax.pasajero_id, {
             name: pax.nombre || "",
             last_name: pax.apellido || "",
             dni: pax.dni ? Number(pax.dni) : null,
             date_of_birth: pax.fecha_nacimiento || null,
+            butaca_type: pax.butaca_type || null,
             sex: pax.sexo || null,
             phone: pax.telefono || null
           }, user.iweb_client_id).catch(() => null);
         }
       }
 
-      // 2. Update Reserva with updated passengers list
+      // 2. Update Reserva with updated passengers list including room_index
       const roomTypePayload = JSON.stringify(rooms);
-      const passengersPayload = paxSource.map((rp: any) => ({
-        pasajero_id: rp.pasajero_id,
-        pasajero_type: rp.pasajero_type || "ADL",
-        butaca_number: rp.butaca_number,
-        butaca_type: rp.butaca_type,
-        bus_number: rp.bus_number,
-        lugar_carga_id: rp.lugar_carga_id || reserva.lugar_carga_id,
-      }));
+      const passengersPayload = paxSource
+        .filter((rp: any) => rp.pasajero_id)
+        .map((rp: any) => ({
+          pasajero_id: rp.pasajero_id,
+          pasajero_type: rp.pasajero_type || "ADL",
+          butaca_number: rp.butaca_number,
+          butaca_type: rp.butaca_type || "semicama",
+          bus_number: rp.bus_number,
+          lugar_carga_id: rp.lugar_carga_id || reserva.lugar_carga_id,
+          room_index: rp.room_index !== undefined && rp.room_index !== null ? rp.room_index : 0
+        }));
 
       await apiClient.updateReserva(user.iweb_client_id, id, {
         active: reserva.active,
@@ -288,28 +376,24 @@ export default function ReservaIdPage() {
         commission: clientCommissionPct,
         room_type: roomTypePayload,
         passengers: passengersPayload,
+        titulo: reserva.titulo !== undefined ? reserva.titulo : null,
       });
 
-      // 2. Create or Update Liquidacion
-      const liqData = {
-        iweb_client_id: user.iweb_client_id,
-        booking_id: id,
-        total_amout: totalReserva,
-        total_commission: totalComisionable,
-        commission: commission,
-        gastos: gastos.map((g) => ({
-          id: g.id,
-          name: g.name,
-          amount: g.amount,
-          iweb_client_id: user.iweb_client_id,
-        })),
-      };
-
-      if (liquidacionId) {
-        await apiClient.updateLiquidacion(liquidacionId, liqData);
-      } else {
-        const created = await apiClient.createLiquidacion(liqData);
-        if (created?.id) setLiquidacionId(created.id);
+      // 3. Reload updated Liquidacion calculated from backend
+      try {
+        const updatedLiq = await apiClient.getLiquidacionByBooking(id);
+        if (updatedLiq) {
+          if (updatedLiq.id) setLiquidacionId(updatedLiq.id);
+          if (updatedLiq.total_amout !== null && updatedLiq.total_amout !== undefined) setTotalReserva(Number(updatedLiq.total_amout));
+          const tc = updatedLiq.total_commission !== undefined && updatedLiq.total_commission !== null ? updatedLiq.total_commission : (updatedLiq.total_comisionable ?? updatedLiq.total_commissionable);
+          if (tc !== null && tc !== undefined) setTotalComisionable(Number(tc));
+          if (updatedLiq.commission !== null && updatedLiq.commission !== undefined) setCommission(Number(updatedLiq.commission));
+          if (updatedLiq.gastos && Array.isArray(updatedLiq.gastos)) {
+            setGastos(updatedLiq.gastos.map((g: any) => ({ id: g.id, name: g.name, amount: Number(g.amount) })));
+          }
+        }
+      } catch (e) {
+        console.warn("Could not reload liquidacion:", e);
       }
 
       toast.success("Reserva y liquidación guardadas correctamente");
@@ -429,51 +513,79 @@ export default function ReservaIdPage() {
     });
   };
 
-  const handlePassengerFieldChange = (globalIndex: number, field: string, value: any) => {
+  const handlePassengerFieldChange = (targetPax: any, field: string, value: any) => {
     setPassengersList((prev) => {
       const copy = [...prev];
-      if (!copy[globalIndex]) return prev;
-      const updated = { ...copy[globalIndex], [field]: value };
-      if (field === "nombre" || field === "apellido") {
-        const n = field === "nombre" ? value : (copy[globalIndex].nombre || "");
-        const a = field === "apellido" ? value : (copy[globalIndex].apellido || "");
-        updated.nombre_completo = `${n} ${a}`.trim();
+      const gIdx = targetPax.globalIndex;
+      if (gIdx >= 0 && copy[gIdx]) {
+        const updated = { ...copy[gIdx], [field]: value };
+        if (field === "nombre" || field === "apellido") {
+          const n = field === "nombre" ? value : (copy[gIdx].nombre || "");
+          const a = field === "apellido" ? value : (copy[gIdx].apellido || "");
+          updated.nombre_completo = `${n} ${a}`.trim();
+        }
+        copy[gIdx] = updated;
+        return copy;
       }
-      copy[globalIndex] = updated;
-      return copy;
+      
+      const updatedPax = { ...targetPax, [field]: value };
+      if (field === "nombre" || field === "apellido") {
+        const n = field === "nombre" ? value : (targetPax.nombre || "");
+        const a = field === "apellido" ? value : (targetPax.apellido || "");
+        updatedPax.nombre_completo = `${n} ${a}`.trim();
+      }
+      return [...copy, updatedPax];
     });
   };
 
   const getPassengersForRoom = (roomIdx: number) => {
     const source = passengersList.length > 0 ? passengersList : (reserva?.reservation_passengers || []);
-    if (!source || source.length === 0) return [];
+    const roomStr = rooms[roomIdx] || "";
+    const cap = getRoomCapacity(roomStr);
 
-    let startIndex = 0;
-    for (let i = 0; i < roomIdx; i++) {
-      const roomStr = rooms[i] || "";
-      const detail = parseRoomItem(roomStr);
-      let cap = 2;
-      if (detail.camaCode === "SGL") cap = 1;
-      else if (detail.camaCode === "DBL") cap = 2;
-      else if (detail.camaCode === "TPL") cap = 3;
-      else if (detail.camaCode === "CPL") cap = 4;
-      else if (detail.camaCode === "QTL" || detail.camaCode === "DEP") cap = 5;
-      startIndex += cap;
+    const distinctIndexes = new Set(source.map((p: any) => p.room_index).filter((idx) => idx !== undefined && idx !== null));
+    const isUnpartitioned = rooms.length > 1 && distinctIndexes.size <= 1;
+
+    let roomPaxs: any[] = [];
+    if (isUnpartitioned) {
+      let startIndex = 0;
+      for (let i = 0; i < roomIdx; i++) {
+        startIndex += getRoomCapacity(rooms[i] || "");
+      }
+      roomPaxs = source.slice(startIndex, startIndex + cap).map((p: any, offset: number) => ({
+        ...p,
+        globalIndex: startIndex + offset,
+        room_index: roomIdx
+      }));
+    } else {
+      roomPaxs = source
+        .map((p: any, idx: number) => ({ ...p, globalIndex: idx }))
+        .filter((p: any) => p.room_index === roomIdx);
     }
 
-    const currentRoomStr = rooms[roomIdx] || "";
-    const currentDetail = parseRoomItem(currentRoomStr);
-    let currentCap = 2;
-    if (currentDetail.camaCode === "SGL") currentCap = 1;
-    else if (currentDetail.camaCode === "DBL") currentCap = 2;
-    else if (currentDetail.camaCode === "TPL") currentCap = 3;
-    else if (currentDetail.camaCode === "CPL") currentCap = 4;
-    else if (currentDetail.camaCode === "QTL" || currentDetail.camaCode === "DEP") currentCap = 5;
+    if (roomPaxs.length < cap) {
+      const missingCount = cap - roomPaxs.length;
+      for (let k = 0; k < missingCount; k++) {
+        roomPaxs.push({
+          id: null,
+          pasajero_id: null,
+          room_index: roomIdx,
+          dni: "",
+          nombre: "",
+          apellido: "",
+          fecha_nacimiento: "",
+          telefono: "",
+          lugar_carga_id: reserva?.lugar_carga_id || "",
+          butaca_type: "semicama",
+          butaca: "semicama",
+          sexo: "M",
+          pasajero_type: "ADL",
+          globalIndex: -1
+        });
+      }
+    }
 
-    return source.slice(startIndex, startIndex + currentCap).map((p: any, offset: number) => ({
-      ...p,
-      globalIndex: startIndex + offset
-    }));
+    return roomPaxs;
   };
 
   return (
@@ -515,9 +627,10 @@ export default function ReservaIdPage() {
             <p className="font-medium w-1/3 text-lg">Título de reserva</p>
             <input
               type="text"
-              value={getNombreCompletoReserva() ?? ''}
-              disabled
-              className="border border-gray-200 text-gray-500 px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-gray-50"
+              placeholder={getNombreCompletoReserva() ?? ''}
+              value={reserva?.titulo !== undefined && reserva?.titulo !== null ? reserva.titulo : (getNombreCompletoReserva() ?? '')}
+              onChange={(e) => setReserva({ ...reserva, titulo: e.target.value })}
+              className="border border-gray-200 text-gray-800 px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <div className="flex items-center w-full">
@@ -629,6 +742,7 @@ export default function ReservaIdPage() {
                               <th className="p-3 text-center font-medium w-40 text-black">Fecha nac.</th>
                               <th className="p-3 text-center font-medium w-40 text-black">Telefono</th>
                               <th className="p-3 text-center font-medium w-40 text-black">Ascenso</th>
+                              <th className="p-3 text-center font-medium w-40 text-black">Butaca</th>
                               <th className="p-3 text-center font-medium w-40 text-black">Sexo</th>
                               <th className="p-3 text-center font-medium w-40 text-black">Tipo</th>
                             </tr>
@@ -642,7 +756,7 @@ export default function ReservaIdPage() {
                                     <input
                                       type="text"
                                       value={p.dni || ""}
-                                      onChange={(e) => handlePassengerFieldChange(gIdx, "dni", e.target.value)}
+                                      onChange={(e) => handlePassengerFieldChange(p, "dni", e.target.value)}
                                       className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
                                       placeholder="DNI"
                                     />
@@ -651,7 +765,7 @@ export default function ReservaIdPage() {
                                     <input
                                       type="text"
                                       value={p.nombre || ""}
-                                      onChange={(e) => handlePassengerFieldChange(gIdx, "nombre", e.target.value)}
+                                      onChange={(e) => handlePassengerFieldChange(p, "nombre", e.target.value)}
                                       className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
                                       placeholder="Nombre"
                                     />
@@ -660,7 +774,7 @@ export default function ReservaIdPage() {
                                     <input
                                       type="text"
                                       value={p.apellido || ""}
-                                      onChange={(e) => handlePassengerFieldChange(gIdx, "apellido", e.target.value)}
+                                      onChange={(e) => handlePassengerFieldChange(p, "apellido", e.target.value)}
                                       className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
                                       placeholder="Apellido"
                                     />
@@ -669,7 +783,7 @@ export default function ReservaIdPage() {
                                     <input
                                       type="date"
                                       value={p.fecha_nacimiento || p.birthday || ""}
-                                      onChange={(e) => handlePassengerFieldChange(gIdx, "fecha_nacimiento", e.target.value)}
+                                      onChange={(e) => handlePassengerFieldChange(p, "fecha_nacimiento", e.target.value)}
                                       className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary"
                                     />
                                   </td>
@@ -677,7 +791,7 @@ export default function ReservaIdPage() {
                                     <input
                                       type="text"
                                       value={p.telefono || p.phone || ""}
-                                      onChange={(e) => handlePassengerFieldChange(gIdx, "telefono", e.target.value)}
+                                      onChange={(e) => handlePassengerFieldChange(p, "telefono", e.target.value)}
                                       className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
                                       placeholder="Teléfono"
                                     />
@@ -685,7 +799,7 @@ export default function ReservaIdPage() {
                                   <td className="px-2 py-2">
                                     <select
                                       value={p.lugar_carga_id || ""}
-                                      onChange={(e) => handlePassengerFieldChange(gIdx, "lugar_carga_id", e.target.value)}
+                                      onChange={(e) => handlePassengerFieldChange(p, "lugar_carga_id", e.target.value)}
                                       className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary"
                                     >
                                       <option value="">Seleccionar Ascenso</option>
@@ -698,8 +812,19 @@ export default function ReservaIdPage() {
                                   </td>
                                   <td className="px-2 py-2">
                                     <select
+                                      value={p.butaca_type || ""}
+                                      onChange={(e) => handlePassengerFieldChange(p, "butaca_type", e.target.value)}
+                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary"
+                                    >
+                                      <option value="">Seleccionar tipo de Butaca</option>
+                                      <option value="semicama">Semicama</option>
+                                      <option value="cama">Cama</option>
+                                    </select>
+                                  </td>
+                                  <td className="px-2 py-2">
+                                    <select
                                       value={p.sexo || p.sex || "M"}
-                                      onChange={(e) => handlePassengerFieldChange(gIdx, "sexo", e.target.value)}
+                                      onChange={(e) => handlePassengerFieldChange(p, "sexo", e.target.value)}
                                       className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary"
                                     >
                                       <option value="M">M</option>
@@ -710,7 +835,7 @@ export default function ReservaIdPage() {
                                   <td className="px-2 py-2">
                                     <select
                                       value={p.pasajero_type || p.tipoPax || "ADL"}
-                                      onChange={(e) => handlePassengerFieldChange(gIdx, "pasajero_type", e.target.value)}
+                                      onChange={(e) => handlePassengerFieldChange(p, "pasajero_type", e.target.value)}
                                       className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary"
                                     >
                                       <option value="ADL">ADL</option>

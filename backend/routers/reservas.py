@@ -1,5 +1,6 @@
 import uuid
 import math
+from datetime import datetime
 from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -21,6 +22,7 @@ class ReservationPassengerDetail(BaseModel):
     bus_number: Optional[str] = None
     lugar_carga_id: Optional[str] = None
     lugar_carga_nombre: Optional[str] = None
+    room_index: Optional[int] = 0
     
     # Cruzados desde la tabla passengers
     nombre_completo: Optional[str] = None
@@ -40,6 +42,7 @@ class ReservaPassengerCreateInput(BaseModel):
     butaca_type: Optional[str] = None
     bus_number: Optional[str] = None
     lugar_carga_id: Optional[str] = None
+    room_index: Optional[int] = 0
 
 
 class ReservaCreatePayload(BaseModel):
@@ -57,6 +60,7 @@ class ReservaCreatePayload(BaseModel):
     commission: Optional[float] = None
     liberados: Optional[int] = 0
     type: Optional[str] = "tradicional"
+    titulo: Optional[str] = None
     
     # Nuevo campo
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
@@ -83,6 +87,7 @@ class ReservaUpdatePayload(BaseModel):
     commission: Optional[float] = None
     liberados: Optional[int] = None
     type: Optional[str] = None
+    titulo: Optional[str] = None
     
     # Nuevo campo para actualizar pasajeros
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
@@ -116,6 +121,8 @@ class ReservaDetailedResponse(BaseModel):
     commission: Optional[float] = None
     liberados: Optional[int] = 0
     type: Optional[str] = "tradicional"
+    titulo: Optional[str] = None
+    created_at: Optional[str] = None
     
     # Compatibilidad virtual para frontend tradicional
     passenger_id: Optional[str] = None
@@ -153,23 +160,25 @@ async def get_reservas(
     db: Session = Depends(get_db)
 ):
     norm_client = iweb_client_id.strip().lower()
+    is_paged = isinstance(page, int) and page >= 1
 
     # ── 1. Reservas ─────────────────────────────────────────────────────────
     query = db.query(Reservas).filter(
-        Reservas.iweb_client_id == norm_client
+        func.lower(Reservas.iweb_client_id) == norm_client
     )
     if salida_id and salida_id.strip() not in ("", "undefined", "null", "none", "None"):
-        query = query.filter(Reservas.salida_id == salida_id.strip().lower())
+        query = query.filter(func.lower(Reservas.salida_id) == salida_id.strip().lower())
     
-    total = query.count() if page is not None else 0
+    total = query.count() if is_paged else 0
 
-    if page is not None:
-        res_list = query.order_by(Reservas.id.desc()).offset((page - 1) * limit).limit(limit).all()
+    order_criteria = [Reservas.created_at.desc(), Reservas.id.desc()]
+    if is_paged:
+        res_list = query.order_by(*order_criteria).offset((page - 1) * limit).limit(limit).all()
     else:
-        res_list = query.order_by(Reservas.id.desc()).all()
+        res_list = query.order_by(*order_criteria).all()
 
     if not res_list:
-        if page is not None:
+        if is_paged:
             return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
         return []
 
@@ -183,7 +192,7 @@ async def get_reservas(
     # ── 2. ReservationPassengers (batch) ────────────────────────────────────
     all_rps = db.query(ReservationPassengers).filter(
         ReservationPassengers.reserva_id.in_(res_ids)
-    ).all()
+    ).order_by(ReservationPassengers.room_index.asc()).all()
     rp_by_reserva: dict = {}
     for rp in all_rps:
         rp_by_reserva.setdefault(rp.reserva_id, []).append(rp)
@@ -311,6 +320,7 @@ async def get_reservas(
                     bus_number=rp.bus_number,
                     lugar_carga_id=pax_lc_id,
                     lugar_carga_nombre=pax_lc_nombre,
+                    room_index=getattr(rp, 'room_index', 0) or 0,
                     nombre_completo=nombre_completo_pax,
                     name=p_name or None,
                     last_name=p_last or None,
@@ -396,6 +406,7 @@ async def get_reservas(
                 commission=float(r.commission) if r.commission is not None else None,
                 liberados=r.liberados or 0,
                 type=r.type or "tradicional",
+                titulo=r.titulo,
                 passenger_id=comp_passenger_id,
                 nombre_completo=comp_nombre_completo,
                 telefono=comp_telefono,
@@ -413,7 +424,15 @@ async def get_reservas(
                 balance=tot_balance,
             )
         )
-
+    if is_paged:
+        total_pages = math.ceil(total / limit) if total > 0 else 1
+        return {
+            "items": [item.model_dump() if hasattr(item, "model_dump") else item.dict() for item in result],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
     return result
 
 
@@ -435,13 +454,66 @@ async def create_reserva(
         if rel:
             resolved_salida_id = rel.salida_id
 
-    # Verificar si existe la salida
+    # Verificar si existe la salida y validar disponibilidad de butacas
     s = None
     if resolved_salida_id and resolved_salida_id.strip() not in ("", "undefined", "null", "none", "None"):
         s = db.query(Salidas).filter(
-            Salidas.id == resolved_salida_id,
-            Salidas.iweb_client_id == iweb_client_id
+            func.lower(Salidas.id) == resolved_salida_id.strip().lower(),
+            func.lower(Salidas.iweb_client_id) == iweb_client_id.strip().lower()
         ).first()
+
+    if s:
+        # Validar disponibilidad de butacas en la salida seleccionada
+        all_res_salida = db.query(Reservas).filter(
+            func.lower(Reservas.iweb_client_id) == iweb_client_id.strip().lower(),
+            func.lower(Reservas.salida_id) == s.id.strip().lower(),
+            (Reservas.active == True) | (Reservas.active.is_(None))
+        ).all()
+        res_ids_salida = [r.id for r in all_res_salida]
+        
+        semicama_occupied = 0
+        cama_occupied = 0
+        if res_ids_salida:
+            rps_salida = db.query(ReservationPassengers).filter(
+                ReservationPassengers.reserva_id.in_(res_ids_salida)
+            ).all()
+            for rp in rps_salida:
+                b_type = (rp.butaca_type or "").strip().lower()
+                if b_type == "cama":
+                    cama_occupied += 1
+                else:
+                    semicama_occupied += 1
+                    
+        total_s_semicama = s.semicama or 0
+        total_s_cama = s.cama or 0
+        avail_semicama = max(0, total_s_semicama - semicama_occupied)
+        avail_cama = max(0, total_s_cama - cama_occupied)
+        
+        req_cama = 0
+        req_semicama = 0
+        if body.passengers:
+            for p in body.passengers:
+                b_type = (p.butaca_type or "").strip().lower()
+                if b_type == "cama":
+                    req_cama += 1
+                else:
+                    req_semicama += 1
+        elif body.butaca_type:
+            if (body.butaca_type or "").strip().lower() == "cama":
+                req_cama += 1
+            else:
+                req_semicama += 1
+                
+        if req_cama > avail_cama:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No hay suficiente disponibilidad de butacas CAMA en la salida. Requeridos: {req_cama}, Disponibles: {avail_cama}"
+            )
+        if req_semicama > avail_semicama:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No hay suficiente disponibilidad de butacas SEMICAMA en la salida. Requeridos: {req_semicama}, Disponibles: {avail_semicama}"
+            )
         
     # Generar de forma automática el código de reserva en el formato: {sigla_destino}#{numero_orden}
     dest_sigla = "XXX"
@@ -485,6 +557,8 @@ async def create_reserva(
         commission=comm_val,
         liberados=body.liberados or 0,
         type=body.type or "tradicional",
+        titulo=body.titulo,
+        created_at=datetime.utcnow(),
     )
     db.add(new_res)
     
@@ -509,7 +583,8 @@ async def create_reserva(
                 butaca_number=p_in.butaca_number,
                 butaca_type=p_in.butaca_type,
                 bus_number=p_in.bus_number,
-                lugar_carga_id=p_in.lugar_carga_id or body.lugar_carga_id
+                lugar_carga_id=p_in.lugar_carga_id or body.lugar_carga_id,
+                room_index=p_in.room_index if p_in.room_index is not None else 0
             )
             db.add(new_rp)
             rp_to_create.append(new_rp)
@@ -572,6 +647,7 @@ async def create_reserva(
                 butaca_number=rp.butaca_number,
                 butaca_type=rp.butaca_type,
                 bus_number=rp.bus_number,
+                room_index=getattr(rp, 'room_index', 0) or 0,
                 nombre_completo=nombre_completo_pax,
                 name=p_chk.name if p_chk else None,
                 last_name=p_chk.last_name if p_chk else None,
@@ -701,6 +777,8 @@ async def update_reserva(
         r.liberados = body.liberados
     if body.type is not None:
         r.type = body.type
+    if body.titulo is not None:
+        r.titulo = body.titulo
         
     # Si viene passengers, actualizamos la intermedia
     if body.passengers is not None:
@@ -716,12 +794,20 @@ async def update_reserva(
                 butaca_number=p_in.butaca_number,
                 butaca_type=p_in.butaca_type,
                 bus_number=p_in.bus_number,
-                lugar_carga_id=p_in.lugar_carga_id or body.lugar_carga_id
+                lugar_carga_id=p_in.lugar_carga_id or body.lugar_carga_id,
+                room_index=p_in.room_index if p_in.room_index is not None else 0
             )
             db.add(new_rp)
             
     db.commit()
     db.refresh(r)
+
+    # Auto-actualizar Liquidacion para la reserva modificada
+    try:
+        from routers.liquidaciones import create_or_update_booking_liquidacion
+        create_or_update_booking_liquidacion(db, r.id, iweb_client_id)
+    except Exception as err:
+        print(f"Warning: could not auto-update liquidacion for updated res {r.id}: {err}")
     
     # Recuperar datos completos para la respuesta
     rp_list = db.query(ReservationPassengers).filter(
@@ -758,6 +844,7 @@ async def update_reserva(
                 bus_number=rp.bus_number,
                 lugar_carga_id=pax_lc_id,
                 lugar_carga_nombre=pax_lc_nombre,
+                room_index=getattr(rp, 'room_index', 0) or 0,
                 nombre_completo=nombre_completo_pax,
                 name=p.name if p else None,
                 last_name=p.last_name if p else None,
@@ -894,7 +981,7 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
     # Recuperar datos de la intermedia en batch
     rp_list = db.query(ReservationPassengers).filter(
         ReservationPassengers.reserva_id == r.id
-    ).all()
+    ).order_by(ReservationPassengers.room_index.asc()).all()
     
     pax_ids = list({rp.pasajero_id for rp in rp_list if rp.pasajero_id})
     lc_pax_ids = list({rp.lugar_carga_id for rp in rp_list if rp.lugar_carga_id})
@@ -938,6 +1025,7 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
                 bus_number=rp.bus_number if hasattr(rp, 'bus_number') else None,
                 lugar_carga_id=pax_lc_id,
                 lugar_carga_nombre=pax_lc_nombre,
+                room_index=getattr(rp, 'room_index', 0) or 0,
                 nombre_completo=nombre_completo_pax,
                 name=p.name if p else None,
                 last_name=p.last_name if p else None,
@@ -1174,6 +1262,7 @@ class ReservationPassengerUpdateInput(BaseModel):
     butaca_number: Optional[int] = None
     butaca_type: Optional[str] = None
     lugar_carga_id: Optional[str] = None
+    room_index: Optional[int] = None
 
 
 @router.patch("/update_reservation_passenger/{rp_id}")
@@ -1217,6 +1306,8 @@ async def update_reservation_passenger(
         rp.lugar_carga_id = body.lugar_carga_id
         if not res_obj.lugar_carga_id:
             res_obj.lugar_carga_id = body.lugar_carga_id
+    if body.room_index is not None:
+        rp.room_index = body.room_index
         
     db.commit()
     db.refresh(rp)
