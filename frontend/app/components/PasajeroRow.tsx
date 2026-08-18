@@ -132,9 +132,13 @@ export default function PasajeroRow({
             {pasajero.nombre}
           </span>
           <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
-          <span className="w-20 md:block hidden text-center truncate" title={pasajero.reserva}>
+          <Link
+            href={pasajero.reserva_id ? `/web/reservas/modificar-reserva/${pasajero.reserva_id}` : '#'}
+            className="w-20 md:block hidden text-center truncate text-primary hover:underline cursor-pointer font-bold"
+            title={`Modificar reserva ${pasajero.reserva}`}
+          >
             {pasajero.reserva}
-          </span>
+          </Link>
           <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
           <span className="w-24 md:block hidden text-center truncate" title={pasajero.cliente}>
             {pasajero.cliente}

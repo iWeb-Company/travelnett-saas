@@ -179,8 +179,10 @@ export function parseRoomItem(roomStr: string): RoomTypeDetails {
 /**
  * Returns estimated capacity for a given parsed room type.
  */
-export function getRoomCapacity(parsed: RoomTypeDetails): number {
-  switch (parsed.camaCode) {
+export function getRoomCapacity(input: RoomTypeDetails | string | null | undefined): number {
+  if (!input) return 2;
+  const parsed = typeof input === "string" ? parseRoomItem(input) : input;
+  switch (parsed?.camaCode) {
     case "SGL":
       return 1;
     case "DBL":

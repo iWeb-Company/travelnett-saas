@@ -48,6 +48,7 @@ export default function SalidasIDPage() {
   const [isSavingHorarios, setIsSavingHorarios] = useState(false);
 
   const [clientes, setClientes] = useState<any[]>([]);
+  const [packageHotelCount, setPackageHotelCount] = useState<number>(0);
 
   const loadData = async () => {
     if (!user?.iweb_client_id || !id) return;
@@ -69,6 +70,12 @@ export default function SalidasIDPage() {
       setSalida(salidaData);
       setDestinos(destData);
       setClientes(clientData);
+
+      const firstWithPkg = resData.find((r: any) => r.package_id);
+      if (firstWithPkg?.package_id) {
+        const pkgData = await apiClient.getPackage(user.iweb_client_id, firstWithPkg.package_id).catch(() => null);
+        setPackageHotelCount(pkgData?.hotels?.length || 0);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -196,56 +203,118 @@ export default function SalidasIDPage() {
          (r.codigo_reserva || "").toLowerCase().includes("bloqueo")));
 
     if (isBloqueoReserva && paxs.length > 1) {
-      // Group reservation into a single consolidated row
-      const firstPax = paxs[0];
-      const semicamaCount = paxs.filter((p: any) => (p.butaca_type || r.butaca_type || "").toLowerCase().includes("semicama")).length;
-      const camaCount = paxs.filter((p: any) => {
-        const bt = (p.butaca_type || r.butaca_type || "").toLowerCase();
-        return bt.includes("cama") && !bt.includes("semicama");
-      }).length;
-
-      let servicio = "Bus Semicama";
-      if (semicamaCount > 0 && camaCount > 0) {
-        servicio = `Semicama (x${semicamaCount}) / Cama (x${camaCount})`;
-      } else if (camaCount > 0) {
-        servicio = `Bus Cama (x${camaCount})`;
-      } else if (semicamaCount > 0) {
-        servicio = `Bus Semicama (x${semicamaCount})`;
-      }
-
-      const clientName = r.client_nombre || firstPax.nombre_completo || "Desconocido";
-      const seatsList = paxs
-        .map((p: any) => (p.butaca_number !== undefined && p.butaca_number !== null ? String(p.butaca_number) : (p.butaca || r.butaca)))
-        .filter((b: any) => b && b !== "-");
-      const seatsStr = seatsList.length > 0 ? seatsList.join(", ") : "-";
-
-      const busNumbers = Array.from(new Set(paxs.map((p: any) => p.bus_number || r.bus_number).filter(Boolean))).join(", ");
-
-      mappedPasajeros.push({
-        id: firstPax.id || r.id,
-        reserva_id: r.id,
-        numero: counter++,
-        apellido: clientName,
-        nombres: `(Bloqueo x${paxs.length})`,
-        nombre: `${clientName} (Bloqueo x${paxs.length})`,
-        reserva: r.codigo_reserva || "-",
-        cliente: r.client_nombre || "-",
-        client_id: r.client_id || null,
-        ascenso: firstPax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
-        lugar_carga_id: firstPax.lugar_carga_id || r.lugar_carga_id || null,
-        hotel: r.hotel_nombre || "-",
-        hotel_id: r.hotel_id || null,
-        regimen_id: r.regimen_id || null,
-        edad: `ADL (x${paxs.length})`,
-        servicio: servicio,
-        butaca: seatsStr,
-        telefono: firstPax.telefono || r.telefono || "-",
-        bus_number: busNumbers || "",
-        butaca_type: firstPax.butaca_type || r.butaca_type || "",
-        observations: r.observations || firstPax.observations || "",
-        isGroup: true,
-        groupCount: paxs.length,
+      const paxsConDatos = paxs.filter((p: any) => {
+        const full = (p.nombre_completo || `${p.name || ''} ${p.last_name || ''}`).trim();
+        return full !== "" && full !== "Desconocido" && full !== "Pasajero Cama" && full !== "Pasajero Semicama";
       });
+      const paxsSinDatos = paxs.filter((p: any) => {
+        const full = (p.nombre_completo || `${p.name || ''} ${p.last_name || ''}`).trim();
+        return full === "" || full === "Desconocido" || full === "Pasajero Cama" || full === "Pasajero Semicama";
+      });
+
+      // Render individual rows for passengers with loaded data
+      paxsConDatos.forEach((pax: any) => {
+        let apellido = pax.last_name || "";
+        let nombres = pax.name || "";
+        if (!apellido && !nombres) {
+          const full = (pax.nombre_completo || r.nombre_completo || "").trim();
+          const parts = full.split(" ");
+          if (parts.length > 1) {
+            apellido = parts[0];
+            nombres = parts.slice(1).join(" ");
+          } else {
+            apellido = full;
+            nombres = "";
+          }
+        }
+
+        let servicio = "Bus Semicama";
+        const bType = (pax.butaca_type || r.butaca_type || "").toLowerCase();
+        if (bType.includes("cama") && !bType.includes("semicama")) {
+          servicio = "Bus Cama";
+        } else if (bType.includes("semicama")) {
+          servicio = "Bus Semicama";
+        }
+
+        mappedPasajeros.push({
+          id: pax.id || r.id,
+          reserva_id: r.id,
+          numero: counter++,
+          apellido: apellido,
+          nombres: nombres,
+          nombre: pax.nombre_completo || r.nombre_completo || "Desconocido",
+          reserva: r.codigo_reserva || "-",
+          cliente: r.client_nombre || "-",
+          client_id: r.client_id || null,
+          ascenso: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
+          lugar_carga_id: pax.lugar_carga_id || r.lugar_carga_id || null,
+          hotel: r.hotel_nombre || "-",
+          hotel_id: r.hotel_id || null,
+          regimen_id: r.regimen_id || null,
+          edad: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
+          servicio: servicio,
+          butaca: pax.butaca_number !== undefined && pax.butaca_number !== null ? String(pax.butaca_number) : (pax.butaca || r.butaca || "-"),
+          telefono: pax.telefono || r.telefono || "-",
+          bus_number: pax.bus_number || "",
+          butaca_type: pax.butaca_type || r.butaca_type || "",
+          observations: r.observations || pax.observations || "",
+          isGroup: false,
+          groupCount: 1,
+        });
+      });
+
+      // Group remaining passengers without loaded data in a single row
+      if (paxsSinDatos.length > 0) {
+        const firstPax = paxsSinDatos[0];
+        const semicamaCount = paxsSinDatos.filter((p: any) => (p.butaca_type || r.butaca_type || "").toLowerCase().includes("semicama")).length;
+        const camaCount = paxsSinDatos.filter((p: any) => {
+          const bt = (p.butaca_type || r.butaca_type || "").toLowerCase();
+          return bt.includes("cama") && !bt.includes("semicama");
+        }).length;
+
+        let servicio = "Bus Semicama";
+        if (semicamaCount > 0 && camaCount > 0) {
+          servicio = `Semicama (x${semicamaCount}) / Cama (x${camaCount})`;
+        } else if (camaCount > 0) {
+          servicio = `Bus Cama (x${camaCount})`;
+        } else if (semicamaCount > 0) {
+          servicio = `Bus Semicama (x${semicamaCount})`;
+        }
+
+        const clientName = r.client_nombre || firstPax.nombre_completo || "Desconocido";
+        const seatsList = paxsSinDatos
+          .map((p: any) => (p.butaca_number !== undefined && p.butaca_number !== null ? String(p.butaca_number) : (p.butaca || r.butaca)))
+          .filter((b: any) => b && b !== "-");
+        const seatsStr = seatsList.length > 0 ? seatsList.join(", ") : "-";
+
+        const busNumbers = Array.from(new Set(paxsSinDatos.map((p: any) => p.bus_number || r.bus_number).filter(Boolean))).join(", ");
+
+        mappedPasajeros.push({
+          id: firstPax.id || r.id,
+          reserva_id: r.id,
+          numero: counter++,
+          apellido: clientName,
+          nombres: `(Pendientes x${paxsSinDatos.length})`,
+          nombre: `${clientName} (Pendientes x${paxsSinDatos.length})`,
+          reserva: r.codigo_reserva || "-",
+          cliente: r.client_nombre || "-",
+          client_id: r.client_id || null,
+          ascenso: firstPax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
+          lugar_carga_id: firstPax.lugar_carga_id || r.lugar_carga_id || null,
+          hotel: r.hotel_nombre || "-",
+          hotel_id: r.hotel_id || null,
+          regimen_id: r.regimen_id || null,
+          edad: `ADL (x${paxsSinDatos.length})`,
+          servicio: servicio,
+          butaca: seatsStr,
+          telefono: firstPax.telefono || r.telefono || "-",
+          bus_number: busNumbers || "",
+          butaca_type: firstPax.butaca_type || r.butaca_type || "",
+          observations: r.observations || firstPax.observations || "",
+          isGroup: true,
+          groupCount: paxsSinDatos.length,
+        });
+      }
     } else {
       paxs.forEach((pax: any) => {
         let apellido = pax.last_name || "";
@@ -431,14 +500,16 @@ export default function SalidasIDPage() {
           <p className="text-xs text-black md:block hidden">Horarios</p>
         </button>
         {/* Cambiar Hotel */}
-        <button
-          className="p-1.5 flex items-center gap-2 font-semibold text-black hover:text-secondary transition-colors"
-          title="Hotel y Régimen de la Salida"
-          onClick={handleOpenHotelModal}
-        >
-          <Hotel />
-          <p className="text-xs text-black md:block hidden">Cambiar Hotel</p>
-        </button>
+        {packageHotelCount === 1 && (
+          <button
+            className="p-1.5 flex items-center gap-2 font-semibold text-black hover:text-secondary transition-colors"
+            title="Hotel y Régimen de la Salida"
+            onClick={handleOpenHotelModal}
+          >
+            <Hotel />
+            <p className="text-xs text-black md:block hidden">Cambiar Hotel</p>
+          </button>
+        )}
       </section>
 
       {/* Lista de pasajeros */}

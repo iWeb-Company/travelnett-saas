@@ -252,13 +252,13 @@ export default function DashboardPage() {
           <ul className="flex flex-col md:grid grid-cols-2  md:gap-x-20 gap-4 mt-6 text-sm md:text-lg text-black">
             <hr className="my-2 border-gray-400 hidden md:block" />
             <hr className="my-2 border-gray-400" />
-            <Link href="/" className="flex items-center gap-2 md:gap-4">
+            <Link target='_blank' href="https://wa.me/5491167877298" className="flex items-center gap-2 md:gap-4">
               <span className="flex items-center [&>svg]:md:w-9 [&>svg]:md:h-9">
                 <Wpp />
               </span>
               <p>Whatsapp</p>
             </Link>
-            <Link href="/" className="flex items-center gap-2 md:gap-4">
+            <Link href="mailto:iweb.contacto@gmail.com" className="flex items-center gap-2 md:gap-4">
               <span className="flex items-center [&>svg]:md:w-9 [&>svg]:md:h-9">
                 <Mail />
               </span>

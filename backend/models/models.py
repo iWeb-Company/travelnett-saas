@@ -326,6 +326,8 @@ class Reservas(Base):
     commission: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     liberados: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="tradicional")
+    titulo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=datetime.utcnow)
 
 
 class ReservationPassengers(Base):
@@ -339,6 +341,7 @@ class ReservationPassengers(Base):
     butaca_type: Mapped[str | None] = mapped_column(String(36), nullable=True)
     bus_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     lugar_carga_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    room_index: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
 
 class Vouchers(Base):
