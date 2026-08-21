@@ -404,7 +404,29 @@ export default function VoucherPage() {
                             </div>
                         </div>
                     </section>
-                    <section className="flex flex-col my-10 w-full max-w-2/3 mx-auto border rounded-lg border-gray-500">
+                    {liquidacionData?.gastos && liquidacionData.gastos.length > 0 && (
+                        <section className="flex flex-col mt-8 w-full max-w-2/3 mx-auto border rounded-lg border-gray-500 text-lg">
+                            <h4 className="text-center w-full text-primary font-semibold bg-bg rounded-t-lg py-2 px-5 text-xl">Desglose de Gastos No Comisionables</h4>
+                            <table className="w-full">
+                                <thead className="border-b border-gray-500 bg-gray-100/70">
+                                    <tr className="divide-x divide-gray-500 text-base">
+                                        <th className="py-2 px-4 text-left font-bold">Concepto</th>
+                                        <th className="py-2 px-4 text-center font-bold">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-500 text-base">
+                                    {liquidacionData.gastos.map((gasto: any, idx: number) => (
+                                        <tr key={gasto.id || idx} className="divide-x divide-gray-500">
+                                            <td className="py-1.5 px-4 text-left font-medium">{gasto.name}</td>
+                                            <td className="py-1.5 px-4 text-center font-semibold">{formatMonto(gasto.amount)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </section>
+                    )}
+
+                    <section className="flex flex-col my-8 w-full max-w-2/3 mx-auto border rounded-lg border-gray-500">
                         <h4 className="text-center w-full text-primary font-semibold bg-bg rounded-t-lg py-2 px-5 text-2xl">Liquidacion monetaria</h4>
                         <table className="w-full">
                             <thead className="divide-x divide-gray-500">

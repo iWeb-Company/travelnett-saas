@@ -822,337 +822,337 @@ export default function PagosPage() {
             <div>
               {/* Resumen de la reserva */}
               <section className="flex justify-between gap-2">
-            <div className="text-black flex-1 text-sm md:text-base">
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-bold text-gray-700">Total de la reserva</span>
-                <span className="font-bold text-gray-900">{formatMonto(totalDeLaReserva)}</span>
-              </div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-bold text-gray-700">Total de pagos</span>
-                <span className="font-bold text-black">{formatMonto(totalPagos)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-gray-700">Saldo</span>
-                <span className="font-bold text-secondary">{formatMonto(saldoRestante)}</span>
-              </div>
-            </div>
-            <button onClick={() => {
-              setModalOpenPago(false)
-              setModalPaseDinero(true)
-            }} type="button">
-              <svg width="22" height="16" viewBox="0 0 22 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21.3505 4.65193L17.0172 0.318599C16.9162 0.217591 16.7963 0.137467 16.6643 0.0828016C16.5323 0.0281362 16.3909 0 16.248 0C15.9595 0 15.6829 0.114604 15.4789 0.318599C15.2749 0.522595 15.1603 0.799273 15.1603 1.08777C15.1603 1.37626 15.2749 1.65294 15.4789 1.85693L17.9705 4.33777H5.4147C5.12738 4.33777 4.85183 4.4519 4.64867 4.65507C4.44551 4.85823 4.33137 5.13378 4.33137 5.4211C4.33137 5.70842 4.44551 5.98397 4.64867 6.18713C4.85183 6.3903 5.12738 6.50443 5.4147 6.50443H20.5814C20.7952 6.50337 21.004 6.43901 21.1814 6.31949C21.3587 6.19996 21.4968 6.0306 21.578 5.83277C21.661 5.63548 21.6837 5.41804 21.6432 5.20788C21.6027 4.99773 21.5009 4.80428 21.3505 4.65193ZM16.248 8.6711H1.08137C0.867491 8.67217 0.658715 8.73652 0.481352 8.85605C0.303988 8.97557 0.165974 9.14493 0.0847018 9.34277C0.0017408 9.54005 -0.0209254 9.75749 0.0195632 9.96765C0.0600518 10.1778 0.161881 10.3713 0.312202 10.5236L4.64553 14.8569C4.74624 14.9585 4.86606 15.0391 4.99808 15.0941C5.13009 15.1491 5.27169 15.1774 5.4147 15.1774C5.55771 15.1774 5.69931 15.1491 5.83133 15.0941C5.96334 15.0391 6.08316 14.9585 6.18387 14.8569C6.28541 14.7562 6.366 14.6364 6.421 14.5044C6.476 14.3724 6.50432 14.2308 6.50432 14.0878C6.50432 13.9448 6.476 13.8032 6.421 13.6711C6.366 13.5391 6.28541 13.4193 6.18387 13.3186L3.6922 10.8378H16.248C16.5354 10.8378 16.8109 10.7236 17.0141 10.5205C17.2172 10.3173 17.3314 10.0418 17.3314 9.75443C17.3314 9.46711 17.2172 9.19157 17.0141 8.9884C16.8109 8.78524 16.5354 8.6711 16.248 8.6711Z" fill="#0546F7" />
-              </svg>
-
-            </button>
-          </section>
-          <hr className="border-gray-300 my-4" />
-
-          {/* Formulario Agregar Pago */}
-          <form onSubmit={handlePreSubmit}>
-            <div className='flex justify-center gap-2'>
-              <h4 className="text-center font-semibold text-primary text-base md:text-lg flex items-center justify-center gap-2 mb-3">
-                Agregar Pago
-              </h4>
-              <svg width="25" height="25" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M10.15 25.375C8.31736 25.375 6.7715 24.7459 5.51242 23.4876C4.25333 22.2293 3.6242 20.6834 3.625 18.85C3.625 18.0847 3.7559 17.3396 4.01771 16.6146C4.27951 15.8896 4.65208 15.2351 5.13542 14.651L9.425 9.48542L7.37083 5.37708C7.16945 4.97431 7.18475 4.5816 7.41675 4.19896C7.64875 3.81632 7.99594 3.625 8.45833 3.625H20.5417C21.0049 3.625 21.3525 3.81632 21.5845 4.19896C21.8165 4.5816 21.8314 4.97431 21.6292 5.37708L19.575 9.48542L23.8646 14.651C24.3479 15.2351 24.7205 15.8896 24.9823 16.6146C25.2441 17.3396 25.375 18.0847 25.375 18.85C25.375 20.6826 24.7406 22.2285 23.4719 23.4876C22.2031 24.7467 20.6625 25.3758 18.85 25.375H10.15ZM14.5 19.3333C13.8354 19.3333 13.2667 19.0969 12.7938 18.624C12.321 18.1512 12.0841 17.5821 12.0833 16.9167C12.0825 16.2513 12.3194 15.6826 12.7938 15.2105C13.2683 14.7384 13.837 14.5016 14.5 14.5C15.163 14.4984 15.7321 14.7352 16.2074 15.2105C16.6827 15.6858 16.9191 16.2545 16.9167 16.9167C16.9143 17.5788 16.6778 18.148 16.2074 18.624C15.7369 19.1001 15.1678 19.3366 14.5 19.3333ZM11.6302 8.45833H17.3698L18.5781 6.04167H10.4219L11.6302 8.45833ZM10.15 22.9583H18.85C19.9979 22.9583 20.9698 22.5608 21.7657 21.7657C22.5616 20.9706 22.9591 19.9987 22.9583 18.85C22.9583 18.3667 22.8725 17.8986 22.701 17.4459C22.5294 16.9932 22.2929 16.5852 21.9917 16.2219L17.551 10.875H11.4792L7.00833 16.1917C6.70625 16.5542 6.46982 16.967 6.29904 17.4302C6.12826 17.8934 6.04247 18.3667 6.04167 18.85C6.04167 19.9979 6.43961 20.9698 7.2355 21.7657C8.03139 22.5616 9.00289 22.9591 10.15 22.9583Z" fill="#0546F7" />
-              </svg>
-
-            </div>
-            {/* Método selector */}
-            <p className="text-center font-semibold text-primary mb-2">
-              Método de pago
-            </p>
-            <div className="flex justify-center gap-4 mb-4">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("tarjeta")}
-                className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all ${paymentMethod === "tarjeta" ? "bg-primary text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-              >
-                💳 Tarjeta
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("efectivo")}
-                className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all ${paymentMethod === "efectivo" ? "bg-primary text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-              >
-                💵 Efectivo
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("transferencia")}
-                className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all ${paymentMethod === "transferencia" ? "bg-primary text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-              >
-                🏦 Transferencia
-              </button>
-            </div>
-
-            {/* Form Fields according to selected method */}
-            {paymentMethod === "tarjeta" && (
-              <div className="flex flex-col gap-3 mt-2 text-black">
-                <select
-                  required
-                  value={inputTarjetaTipo}
-                  onChange={(e) => setInputTarjetaTipo(e.target.value)}
-                  className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="">Seleccionar Tarjeta *</option>
-                  {tarjetas.map(t => (
-                    <option key={t.id} value={t.label}>{t.label}</option>
-                  ))}
-                </select>
-                <input
-                  type="date"
-                  required
-                  value={inputFecha}
-                  onChange={(e) => setInputFecha(e.target.value)}
-                  className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <input
-                  type="text"
-                  required
-                  placeholder="Número de Tarjeta (Últimos 4 dígitos) *"
-                  maxLength={4}
-                  value={inputTarjetaNum}
-                  onChange={(e) => setInputTarjetaNum(e.target.value.replace(/\D/g, ""))}
-                  className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <input
-                  type="text"
-                  required
-                  placeholder="Titular de la tarjeta *"
-                  value={inputTitular}
-                  onChange={(e) => setInputTitular(e.target.value)}
-                  className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <input
-                  type="text"
-                  required
-                  placeholder="Número de operación / Cupón *"
-                  value={inputOperacion}
-                  onChange={(e) => setInputOperacion(e.target.value)}
-                  className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <select
-                  value={inputCuotas}
-                  onChange={(e) => setInputCuotas(e.target.value)}
-                  className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="1">1 Cuota</option>
-                  <option value="3">3 Cuotas sin interés</option>
-                  <option value="6">6 Cuotas</option>
-                  <option value="12">12 Cuotas</option>
-                </select>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    placeholder="Monto *"
-                    value={inputMonto}
-                    onChange={(e) => setInputMonto(e.target.value)}
-                    className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <select
-                    value={inputMoneda}
-                    onChange={(e) => setInputMoneda(e.target.value)}
-                    className="border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none"
-                  >
-                    <option value="$">ARS ($)</option>
-                    <option value="U$D">USD (U$D)</option>
-                  </select>
+                <div className="text-black flex-1 text-sm md:text-base">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-gray-700">Total de la reserva</span>
+                    <span className="font-bold text-gray-900">{formatMonto(totalDeLaReserva)}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-gray-700">Total de pagos</span>
+                    <span className="font-bold text-black">{formatMonto(totalPagos)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-gray-700">Saldo</span>
+                    <span className="font-bold text-secondary">{formatMonto(saldoRestante)}</span>
+                  </div>
                 </div>
-              </div>
-            )}
+                <button onClick={() => {
+                  setModalOpenPago(false)
+                  setModalPaseDinero(true)
+                }} type="button">
+                  <svg width="22" height="16" viewBox="0 0 22 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21.3505 4.65193L17.0172 0.318599C16.9162 0.217591 16.7963 0.137467 16.6643 0.0828016C16.5323 0.0281362 16.3909 0 16.248 0C15.9595 0 15.6829 0.114604 15.4789 0.318599C15.2749 0.522595 15.1603 0.799273 15.1603 1.08777C15.1603 1.37626 15.2749 1.65294 15.4789 1.85693L17.9705 4.33777H5.4147C5.12738 4.33777 4.85183 4.4519 4.64867 4.65507C4.44551 4.85823 4.33137 5.13378 4.33137 5.4211C4.33137 5.70842 4.44551 5.98397 4.64867 6.18713C4.85183 6.3903 5.12738 6.50443 5.4147 6.50443H20.5814C20.7952 6.50337 21.004 6.43901 21.1814 6.31949C21.3587 6.19996 21.4968 6.0306 21.578 5.83277C21.661 5.63548 21.6837 5.41804 21.6432 5.20788C21.6027 4.99773 21.5009 4.80428 21.3505 4.65193ZM16.248 8.6711H1.08137C0.867491 8.67217 0.658715 8.73652 0.481352 8.85605C0.303988 8.97557 0.165974 9.14493 0.0847018 9.34277C0.0017408 9.54005 -0.0209254 9.75749 0.0195632 9.96765C0.0600518 10.1778 0.161881 10.3713 0.312202 10.5236L4.64553 14.8569C4.74624 14.9585 4.86606 15.0391 4.99808 15.0941C5.13009 15.1491 5.27169 15.1774 5.4147 15.1774C5.55771 15.1774 5.69931 15.1491 5.83133 15.0941C5.96334 15.0391 6.08316 14.9585 6.18387 14.8569C6.28541 14.7562 6.366 14.6364 6.421 14.5044C6.476 14.3724 6.50432 14.2308 6.50432 14.0878C6.50432 13.9448 6.476 13.8032 6.421 13.6711C6.366 13.5391 6.28541 13.4193 6.18387 13.3186L3.6922 10.8378H16.248C16.5354 10.8378 16.8109 10.7236 17.0141 10.5205C17.2172 10.3173 17.3314 10.0418 17.3314 9.75443C17.3314 9.46711 17.2172 9.19157 17.0141 8.9884C16.8109 8.78524 16.5354 8.6711 16.248 8.6711Z" fill="#0546F7" />
+                  </svg>
 
-            {paymentMethod === "efectivo" && (
-              <div className="flex flex-col gap-3 mt-2 text-black">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-bold text-gray-500">Fecha de pago *</label>
-                  <input
-                    type="date"
-                    required
-                    value={inputFecha}
-                    onChange={(e) => setInputFecha(e.target.value)}
-                    className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    placeholder="Monto *"
-                    value={inputMonto}
-                    onChange={(e) => setInputMonto(e.target.value)}
-                    className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <select
-                    value={inputMoneda}
-                    onChange={(e) => setInputMoneda(e.target.value)}
-                    className="border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none"
-                  >
-                    <option value="$">ARS ($)</option>
-                    <option value="U$D">USD (U$D)</option>
-                  </select>
-                </div>
-
-              </div>
-            )}
-
-            {paymentMethod === "transferencia" && (
-              <div className="flex flex-col gap-3 mt-2 text-black">
-                <select
-                  required
-                  value={inputCuentaBanco}
-                  onChange={(e) => setInputCuentaBanco(e.target.value)}
-                  className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="">Seleccionar Cuenta Bancaria de Destino *</option>
-                  {realAccounts.map(c => (
-                    <option key={c.id} value={c.id}>{c.account_title}</option>
-                  ))}
-                </select>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-bold text-gray-500">Fecha de transferencia *</label>
-                  <input
-                    type="date"
-                    required
-                    value={inputFecha}
-                    onChange={(e) => setInputFecha(e.target.value)}
-                    className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    placeholder="Monto *"
-                    value={inputMonto}
-                    onChange={(e) => setInputMonto(e.target.value)}
-                    className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <select
-                    value={inputMoneda}
-                    onChange={(e) => setInputMoneda(e.target.value)}
-                    className="border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none"
-                  >
-                    <option value="$">ARS ($)</option>
-                    <option value="U$D">USD (U$D)</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            <textarea
-              placeholder="Observaciones (opcional)"
-              rows={3}
-              value={inputObservaciones}
-              onChange={(e) => setInputObservaciones(e.target.value)}
-              className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm mt-3 focus:outline-none focus:ring-1 focus:ring-primary resize-none text-black"
-            />
-            <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
-            <div className="flex items-center gap-2 mt-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-primary font-semibold text-xs hover:underline cursor-pointer flex items-center gap-1"
-              >
-                {selectedFile ? `📎 Adjunto: ${selectedFile.name}` : "+ Agregar comprobante"}
-              </button>
-              {selectedFile && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedFile(null);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
-                  className="text-red-500 text-xs font-bold hover:underline cursor-pointer"
-                >
-                  ✕ Quitar
                 </button>
-              )}
-            </div>
-          </form>
+              </section>
+              <hr className="border-gray-300 my-4" />
 
-          <hr className="border-gray-300 my-4" />
+              {/* Formulario Agregar Pago */}
+              <form onSubmit={handlePreSubmit}>
+                <div className='flex justify-center gap-2'>
+                  <h4 className="text-center font-semibold text-primary text-base md:text-lg flex items-center justify-center gap-2 mb-3">
+                    Agregar Pago
+                  </h4>
+                  <svg width="25" height="25" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10.15 25.375C8.31736 25.375 6.7715 24.7459 5.51242 23.4876C4.25333 22.2293 3.6242 20.6834 3.625 18.85C3.625 18.0847 3.7559 17.3396 4.01771 16.6146C4.27951 15.8896 4.65208 15.2351 5.13542 14.651L9.425 9.48542L7.37083 5.37708C7.16945 4.97431 7.18475 4.5816 7.41675 4.19896C7.64875 3.81632 7.99594 3.625 8.45833 3.625H20.5417C21.0049 3.625 21.3525 3.81632 21.5845 4.19896C21.8165 4.5816 21.8314 4.97431 21.6292 5.37708L19.575 9.48542L23.8646 14.651C24.3479 15.2351 24.7205 15.8896 24.9823 16.6146C25.2441 17.3396 25.375 18.0847 25.375 18.85C25.375 20.6826 24.7406 22.2285 23.4719 23.4876C22.2031 24.7467 20.6625 25.3758 18.85 25.375H10.15ZM14.5 19.3333C13.8354 19.3333 13.2667 19.0969 12.7938 18.624C12.321 18.1512 12.0841 17.5821 12.0833 16.9167C12.0825 16.2513 12.3194 15.6826 12.7938 15.2105C13.2683 14.7384 13.837 14.5016 14.5 14.5C15.163 14.4984 15.7321 14.7352 16.2074 15.2105C16.6827 15.6858 16.9191 16.2545 16.9167 16.9167C16.9143 17.5788 16.6778 18.148 16.2074 18.624C15.7369 19.1001 15.1678 19.3366 14.5 19.3333ZM11.6302 8.45833H17.3698L18.5781 6.04167H10.4219L11.6302 8.45833ZM10.15 22.9583H18.85C19.9979 22.9583 20.9698 22.5608 21.7657 21.7657C22.5616 20.9706 22.9591 19.9987 22.9583 18.85C22.9583 18.3667 22.8725 17.8986 22.701 17.4459C22.5294 16.9932 22.2929 16.5852 21.9917 16.2219L17.551 10.875H11.4792L7.00833 16.1917C6.70625 16.5542 6.46982 16.967 6.29904 17.4302C6.12826 17.8934 6.04247 18.3667 6.04167 18.85C6.04167 19.9979 6.43961 20.9698 7.2355 21.7657C8.03139 22.5616 9.00289 22.9591 10.15 22.9583Z" fill="#0546F7" />
+                  </svg>
 
-          {/* Historial de pagos */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="gap-2 flex-1 justify-center text-sm md:text-base flex items-center">
-              <h4 className="font-bold text-primary  gap-1">
-                Historial de pagos
-              </h4>
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M10.875 21.75C8.3375 21.75 6.09201 20.9799 4.13854 19.4397C2.18507 17.8994 0.916319 15.9307 0.332292 13.5333C0.251736 13.2312 0.312153 12.9545 0.513542 12.7032C0.71493 12.4519 0.986805 12.3057 1.32917 12.2646C1.65139 12.2243 1.9434 12.2847 2.20521 12.4458C2.46701 12.6069 2.64826 12.8486 2.74896 13.1708C3.23229 14.9833 4.22917 16.4635 5.73958 17.6115C7.25 18.7594 8.96181 19.3333 10.875 19.3333C13.2312 19.3333 15.2302 18.5129 16.872 16.872C18.5137 15.231 19.3341 13.2321 19.3333 10.875C19.3325 8.51794 18.5121 6.51936 16.872 4.87925C15.2318 3.23914 13.2329 2.41828 10.875 2.41667C9.48542 2.41667 8.18646 2.73889 6.97812 3.38333C5.76979 4.02778 4.75278 4.91389 3.92708 6.04167H6.04167C6.38403 6.04167 6.67121 6.15767 6.90321 6.38967C7.13521 6.62167 7.2508 6.90844 7.25 7.25C7.24919 7.59156 7.13319 7.87874 6.902 8.11154C6.6708 8.34435 6.38403 8.45994 6.04167 8.45833H1.20833C0.865972 8.45833 0.579195 8.34233 0.348 8.11033C0.116806 7.87833 0.000805555 7.59156 0 7.25V2.41667C0 2.07431 0.116 1.78753 0.348 1.55633C0.58 1.32514 0.866778 1.20914 1.20833 1.20833C1.54989 1.20753 1.83707 1.32353 2.06987 1.55633C2.30268 1.78914 2.41828 2.07592 2.41667 2.41667V4.04792C3.44375 2.75903 4.6976 1.76215 6.17821 1.05729C7.65882 0.352431 9.22442 0 10.875 0C12.3854 0 13.8004 0.287181 15.1199 0.861542C16.4394 1.4359 17.5873 2.21085 18.5636 3.18638C19.54 4.1619 20.3153 5.30982 20.8897 6.63013C21.464 7.95043 21.7508 9.36539 21.75 10.875C21.7492 12.3846 21.4624 13.7996 20.8897 15.1199C20.3169 16.4402 19.5416 17.5881 18.5636 18.5636C17.5857 19.5392 16.4378 20.3145 15.1199 20.8897C13.802 21.4648 12.387 21.7516 10.875 21.75ZM12.0833 10.3917L15.1042 13.4125C15.3257 13.634 15.4365 13.916 15.4365 14.2583C15.4365 14.6007 15.3257 14.8826 15.1042 15.1042C14.8826 15.3257 14.6007 15.4365 14.2583 15.4365C13.916 15.4365 13.634 15.3257 13.4125 15.1042L10.0292 11.7208C9.90833 11.6 9.81771 11.4643 9.75729 11.3136C9.69687 11.163 9.66667 11.0067 9.66667 10.8448V6.04167C9.66667 5.69931 9.78267 5.41253 10.0147 5.18133C10.2467 4.95014 10.5334 4.83414 10.875 4.83333C11.2166 4.83253 11.5037 4.94853 11.7365 5.18133C11.9693 5.41414 12.0849 5.70092 12.0833 6.04167V10.3917Z" fill="#0546F7" />
-              </svg>
-            </div>
-            <button
-              onClick={handleExportExcel}
-              className="text-xs text-black font-medium flex items-center gap-2 hover:underline"
-            >
-              <Excel />
-              Exportar a Excel
-            </button>
-          </div>
+                </div>
+                {/* Método selector */}
+                <p className="text-center font-semibold text-primary mb-2">
+                  Método de pago
+                </p>
+                <div className="flex justify-center gap-4 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("tarjeta")}
+                    className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all ${paymentMethod === "tarjeta" ? "bg-primary text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                  >
+                    💳 Tarjeta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("efectivo")}
+                    className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all ${paymentMethod === "efectivo" ? "bg-primary text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                  >
+                    💵 Efectivo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("transferencia")}
+                    className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all ${paymentMethod === "transferencia" ? "bg-primary text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                  >
+                    🏦 Transferencia
+                  </button>
+                </div>
 
-          <table className="w-full text-xs md:text-sm text-black">
-            <thead>
-              <tr className="font-bold border-b border-gray-200">
-                <th className="py-2 text-left">Fecha</th>
-                <th className="py-2 text-left">Tipo</th>
-                <th className="py-2 text-left">Monto</th>
-                <th className="py-2 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagos.map((pago) => (
-                <tr key={pago.id} className="font-medium border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-2">{formatDateDisplay(pago.date_pay)}</td>
-                  <td className="py-2">{pago.payment_method}</td>
-                  <td className="py-2 text-black">{formatMonto(pago.amount, getMoneda(pago))}</td>
-                  <td className="py-2 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      {pago.receipt_number && (pago.receipt_number.startsWith("http") || pago.receipt_number.startsWith("/")) && (
-                        <a
-                          href={pago.receipt_number}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="Ver archivo adjunto"
-                          className="text-blue-600 hover:text-blue-800 text-xs font-bold"
-                        >
-                          📎
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenRecibo(pago)}
-                        title="Ver recibo electrónico"
-                        className="text-primary hover:text-blue-800 text-xs font-bold hover:underline"
+                {/* Form Fields according to selected method */}
+                {paymentMethod === "tarjeta" && (
+                  <div className="flex flex-col gap-3 mt-2 text-black">
+                    <select
+                      required
+                      value={inputTarjetaTipo}
+                      onChange={(e) => setInputTarjetaTipo(e.target.value)}
+                      className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">Seleccionar Tarjeta *</option>
+                      {tarjetas.map(t => (
+                        <option key={t.id} value={t.label}>{t.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="date"
+                      required
+                      value={inputFecha}
+                      onChange={(e) => setInputFecha(e.target.value)}
+                      className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Número de Tarjeta (Últimos 4 dígitos) *"
+                      maxLength={4}
+                      value={inputTarjetaNum}
+                      onChange={(e) => setInputTarjetaNum(e.target.value.replace(/\D/g, ""))}
+                      className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Titular de la tarjeta *"
+                      value={inputTitular}
+                      onChange={(e) => setInputTitular(e.target.value)}
+                      className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Número de operación / Cupón *"
+                      value={inputOperacion}
+                      onChange={(e) => setInputOperacion(e.target.value)}
+                      className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <select
+                      value={inputCuotas}
+                      onChange={(e) => setInputCuotas(e.target.value)}
+                      className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="1">1 Cuota</option>
+                      <option value="3">3 Cuotas sin interés</option>
+                      <option value="6">6 Cuotas</option>
+                      <option value="12">12 Cuotas</option>
+                    </select>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="Monto *"
+                        value={inputMonto}
+                        onChange={(e) => setInputMonto(e.target.value)}
+                        className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <select
+                        value={inputMoneda}
+                        onChange={(e) => setInputMoneda(e.target.value)}
+                        className="border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none"
                       >
-                        <svg width="15" height="15" viewBox="0 0 19 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M3.42117 23.66H15.1405C17.4251 23.66 18.5617 22.5012 18.5617 20.2059V10.1858C18.5617 8.76197 18.4072 8.14422 17.5244 7.23925L11.4326 1.04857C10.5945 0.187397 9.90989 0 8.66309 0H3.42117C1.14792 0 0 1.16958 0 3.46542V20.2059C0 22.5121 1.14792 23.66 3.42117 23.66ZM3.50921 21.8835C2.37259 21.8835 1.7765 21.2761 1.7765 20.1729V3.49838C1.7765 2.40602 2.37259 1.7765 3.52051 1.7765H8.42014V8.18848C8.42014 9.57889 9.1264 10.263 10.4947 10.263H16.7852V20.1729C16.7852 21.2761 16.1999 21.8835 15.0525 21.8835H3.50921ZM10.6934 8.59623C10.263 8.59623 10.086 8.42013 10.086 7.97848V2.11881L16.4424 8.5967L10.6934 8.59623Z" fill="#0546F7" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDeletePago(pago.id)}
-                        title="Eliminar pago"
-                        className="text-red-500 hover:text-red-700 text-xs font-bold hover:underline"
-                      >
-                        <svg width="12" height="15" viewBox="0 0 21 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M1.5 23.655V2.655H0V1.155H6V0H15V1.155H21V2.655H19.5V23.655H1.5ZM3 22.155H18V2.655H3V22.155ZM7.212 19.155H8.712V5.655H7.212V19.155ZM12.288 19.155H13.788V5.655H12.288V19.155Z" fill="#0546F7" />
-                        </svg>
-                      </button>
+                        <option value="$">ARS ($)</option>
+                        <option value="U$D">USD (U$D)</option>
+                      </select>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                )}
+
+                {paymentMethod === "efectivo" && (
+                  <div className="flex flex-col gap-3 mt-2 text-black">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-gray-500">Fecha de pago *</label>
+                      <input
+                        type="date"
+                        required
+                        value={inputFecha}
+                        onChange={(e) => setInputFecha(e.target.value)}
+                        className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="Monto *"
+                        value={inputMonto}
+                        onChange={(e) => setInputMonto(e.target.value)}
+                        className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <select
+                        value={inputMoneda}
+                        onChange={(e) => setInputMoneda(e.target.value)}
+                        className="border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none"
+                      >
+                        <option value="$">ARS ($)</option>
+                        <option value="U$D">USD (U$D)</option>
+                      </select>
+                    </div>
+
+                  </div>
+                )}
+
+                {paymentMethod === "transferencia" && (
+                  <div className="flex flex-col gap-3 mt-2 text-black">
+                    <select
+                      required
+                      value={inputCuentaBanco}
+                      onChange={(e) => setInputCuentaBanco(e.target.value)}
+                      className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">Seleccionar Cuenta Bancaria de Destino *</option>
+                      {realAccounts.map(c => (
+                        <option key={c.id} value={c.id}>{c.account_title}</option>
+                      ))}
+                    </select>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-gray-500">Fecha de transferencia *</label>
+                      <input
+                        type="date"
+                        required
+                        value={inputFecha}
+                        onChange={(e) => setInputFecha(e.target.value)}
+                        className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        placeholder="Monto *"
+                        value={inputMonto}
+                        onChange={(e) => setInputMonto(e.target.value)}
+                        className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <select
+                        value={inputMoneda}
+                        onChange={(e) => setInputMoneda(e.target.value)}
+                        className="border border-gray-300 bg-white rounded-lg p-2.5 text-sm focus:outline-none"
+                      >
+                        <option value="$">ARS ($)</option>
+                        <option value="U$D">USD (U$D)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                <textarea
+                  placeholder="Observaciones (opcional)"
+                  rows={3}
+                  value={inputObservaciones}
+                  onChange={(e) => setInputObservaciones(e.target.value)}
+                  className="w-full border border-gray-300 bg-white rounded-lg p-2.5 text-sm mt-3 focus:outline-none focus:ring-1 focus:ring-primary resize-none text-black"
+                />
+                <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-primary font-semibold text-xs hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    {selectedFile ? `📎 Adjunto: ${selectedFile.name}` : "+ Agregar comprobante"}
+                  </button>
+                  {selectedFile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="text-red-500 text-xs font-bold hover:underline cursor-pointer"
+                    >
+                      ✕ Quitar
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              <hr className="border-gray-300 my-4" />
+
+              {/* Historial de pagos */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="gap-2 flex-1 justify-center text-sm md:text-base flex items-center">
+                  <h4 className="font-bold text-primary  gap-1">
+                    Historial de pagos
+                  </h4>
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10.875 21.75C8.3375 21.75 6.09201 20.9799 4.13854 19.4397C2.18507 17.8994 0.916319 15.9307 0.332292 13.5333C0.251736 13.2312 0.312153 12.9545 0.513542 12.7032C0.71493 12.4519 0.986805 12.3057 1.32917 12.2646C1.65139 12.2243 1.9434 12.2847 2.20521 12.4458C2.46701 12.6069 2.64826 12.8486 2.74896 13.1708C3.23229 14.9833 4.22917 16.4635 5.73958 17.6115C7.25 18.7594 8.96181 19.3333 10.875 19.3333C13.2312 19.3333 15.2302 18.5129 16.872 16.872C18.5137 15.231 19.3341 13.2321 19.3333 10.875C19.3325 8.51794 18.5121 6.51936 16.872 4.87925C15.2318 3.23914 13.2329 2.41828 10.875 2.41667C9.48542 2.41667 8.18646 2.73889 6.97812 3.38333C5.76979 4.02778 4.75278 4.91389 3.92708 6.04167H6.04167C6.38403 6.04167 6.67121 6.15767 6.90321 6.38967C7.13521 6.62167 7.2508 6.90844 7.25 7.25C7.24919 7.59156 7.13319 7.87874 6.902 8.11154C6.6708 8.34435 6.38403 8.45994 6.04167 8.45833H1.20833C0.865972 8.45833 0.579195 8.34233 0.348 8.11033C0.116806 7.87833 0.000805555 7.59156 0 7.25V2.41667C0 2.07431 0.116 1.78753 0.348 1.55633C0.58 1.32514 0.866778 1.20914 1.20833 1.20833C1.54989 1.20753 1.83707 1.32353 2.06987 1.55633C2.30268 1.78914 2.41828 2.07592 2.41667 2.41667V4.04792C3.44375 2.75903 4.6976 1.76215 6.17821 1.05729C7.65882 0.352431 9.22442 0 10.875 0C12.3854 0 13.8004 0.287181 15.1199 0.861542C16.4394 1.4359 17.5873 2.21085 18.5636 3.18638C19.54 4.1619 20.3153 5.30982 20.8897 6.63013C21.464 7.95043 21.7508 9.36539 21.75 10.875C21.7492 12.3846 21.4624 13.7996 20.8897 15.1199C20.3169 16.4402 19.5416 17.5881 18.5636 18.5636C17.5857 19.5392 16.4378 20.3145 15.1199 20.8897C13.802 21.4648 12.387 21.7516 10.875 21.75ZM12.0833 10.3917L15.1042 13.4125C15.3257 13.634 15.4365 13.916 15.4365 14.2583C15.4365 14.6007 15.3257 14.8826 15.1042 15.1042C14.8826 15.3257 14.6007 15.4365 14.2583 15.4365C13.916 15.4365 13.634 15.3257 13.4125 15.1042L10.0292 11.7208C9.90833 11.6 9.81771 11.4643 9.75729 11.3136C9.69687 11.163 9.66667 11.0067 9.66667 10.8448V6.04167C9.66667 5.69931 9.78267 5.41253 10.0147 5.18133C10.2467 4.95014 10.5334 4.83414 10.875 4.83333C11.2166 4.83253 11.5037 4.94853 11.7365 5.18133C11.9693 5.41414 12.0849 5.70092 12.0833 6.04167V10.3917Z" fill="#0546F7" />
+                  </svg>
+                </div>
+                <button
+                  onClick={handleExportExcel}
+                  className="text-xs text-black font-medium flex items-center gap-2 hover:underline"
+                >
+                  <Excel />
+                  Exportar a Excel
+                </button>
+              </div>
+
+              <table className="w-full text-xs md:text-sm text-black">
+                <thead>
+                  <tr className="font-bold border-b border-gray-200">
+                    <th className="py-2 text-left">Fecha</th>
+                    <th className="py-2 text-left">Tipo</th>
+                    <th className="py-2 text-left">Monto</th>
+                    <th className="py-2 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagos.map((pago) => (
+                    <tr key={pago.id} className="font-medium border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2">{formatDateDisplay(pago.date_pay)}</td>
+                      <td className="py-2">{pago.payment_method}</td>
+                      <td className="py-2 text-black">{formatMonto(pago.amount, getMoneda(pago))}</td>
+                      <td className="py-2 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          {pago.receipt_number && (pago.receipt_number.startsWith("http") || pago.receipt_number.startsWith("/")) && (
+                            <a
+                              href={pago.receipt_number}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Ver archivo adjunto"
+                              className="text-blue-600 hover:text-blue-800 text-xs font-bold"
+                            >
+                              📎
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRecibo(pago)}
+                            title="Ver recibo electrónico"
+                            className="text-primary hover:text-blue-800 text-xs font-bold hover:underline"
+                          >
+                            <svg width="15" height="15" viewBox="0 0 19 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M3.42117 23.66H15.1405C17.4251 23.66 18.5617 22.5012 18.5617 20.2059V10.1858C18.5617 8.76197 18.4072 8.14422 17.5244 7.23925L11.4326 1.04857C10.5945 0.187397 9.90989 0 8.66309 0H3.42117C1.14792 0 0 1.16958 0 3.46542V20.2059C0 22.5121 1.14792 23.66 3.42117 23.66ZM3.50921 21.8835C2.37259 21.8835 1.7765 21.2761 1.7765 20.1729V3.49838C1.7765 2.40602 2.37259 1.7765 3.52051 1.7765H8.42014V8.18848C8.42014 9.57889 9.1264 10.263 10.4947 10.263H16.7852V20.1729C16.7852 21.2761 16.1999 21.8835 15.0525 21.8835H3.50921ZM10.6934 8.59623C10.263 8.59623 10.086 8.42013 10.086 7.97848V2.11881L16.4424 8.5967L10.6934 8.59623Z" fill="#0546F7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeletePago(pago.id)}
+                            title="Eliminar pago"
+                            className="text-red-500 hover:text-red-700 text-xs font-bold hover:underline"
+                          >
+                            <svg width="12" height="15" viewBox="0 0 21 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M1.5 23.655V2.655H0V1.155H6V0H15V1.155H21V2.655H19.5V23.655H1.5ZM3 22.155H18V2.655H3V22.155ZM7.212 19.155H8.712V5.655H7.212V19.155ZM12.288 19.155H13.788V5.655H12.288V19.155Z" fill="#0546F7" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </ModalLayout>
@@ -1270,22 +1270,6 @@ export default function PagosPage() {
                       {selectedPago.observations} ({selectedPago.payment_method})
                     </span>
                   </div>
-
-                  {selectedPago.receipt_number && (selectedPago.receipt_number.startsWith("http") || selectedPago.receipt_number.startsWith("/")) && (
-                    <div className="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                      <span className="text-xs font-bold text-blue-900 flex items-center gap-1">
-                        📎 Comprobante adjunto:
-                      </span>
-                      <a
-                        href={selectedPago.receipt_number}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-bold bg-primary text-white px-3 py-1 rounded shadow hover:bg-blue-700 transition-colors"
-                      >
-                        Ver / Descargar Adjunto ↗
-                      </a>
-                    </div>
-                  )}
                 </div>
 
                 {/* Total */}
