@@ -251,9 +251,13 @@ async def create_liquidacion(payload: LiquidacionCreateRequest, db: Session = De
                     db.add(gasto)
         
         db.commit()
-        db.refresh(liquidacion)
-        
-        gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq_id).all()
+
+        # Execute full itemized breakdown calculation and sync
+        synced_liq = create_or_update_booking_liquidacion(db, resolved_booking_id, payload.iweb_client_id)
+        if synced_liq:
+            liquidacion = synced_liq
+
+        gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liquidacion.id).all()
         
         return LiquidacionResponse(
             id=liquidacion.id,
@@ -412,7 +416,7 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
             g_adm = GastosNoCommission(
                 id=str(uuid.uuid4()),
                 liquidacion_id=liq.id,
-                name="Gastos de reserva",
+                name="Gastos administrativos",
                 amount=calc["pkg_gastos"],
                 iweb_client_id=liq.iweb_client_id
             )
@@ -422,8 +426,12 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
         # Adicional no comisionable del paquete si no es comisionable
         add_gasto = next((g for g in existing_gastos if g.name == "Adicional cama (no comisionable)"), None)
         if add_gasto:
-            if not calc["is_comisionable"] and add_gasto.amount != calc["pkg_adicional"]:
-                add_gasto.amount = calc["pkg_adicional"]
+            if not calc["is_comisionable"] and calc["pkg_adicional"] > 0:
+                if add_gasto.amount != calc["pkg_adicional"]:
+                    add_gasto.amount = calc["pkg_adicional"]
+                    added_gasto = True
+            else:
+                db.delete(add_gasto)
                 added_gasto = True
         elif not calc["is_comisionable"] and calc["pkg_adicional"] > 0:
             g_add = GastosNoCommission(
@@ -437,10 +445,15 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
             added_gasto = True
 
         # 50% no comisionable por comisionable_single en habitación single
-        single_gasto = next((g for g in existing_gastos if g.name == "50% No Comisionable Habitación Single"), None)
+        single_gasto = next((g for g in existing_gastos if "50% No Comisionable" in g.name), None)
         if single_gasto:
-            if single_gasto.amount != calc.get("single_no_comisionable", 0):
-                single_gasto.amount = calc.get("single_no_comisionable", 0)
+            if calc.get("single_no_comisionable", 0) > 0:
+                if single_gasto.amount != calc["single_no_comisionable"] or single_gasto.name != "50% No Comisionable Habitación Single":
+                    single_gasto.amount = calc["single_no_comisionable"]
+                    single_gasto.name = "50% No Comisionable Habitación Single"
+                    added_gasto = True
+            else:
+                db.delete(single_gasto)
                 added_gasto = True
         elif calc.get("single_no_comisionable", 0) > 0:
             g_single = GastosNoCommission(

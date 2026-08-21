@@ -300,7 +300,7 @@ export default function ReservaIdPage() {
       // Validate seating capacity if salida exists
       if (reserva.salida_id) {
         try {
-          const salidaInfo = await apiClient.getSalida(reserva.salida_id, user.iweb_client_id);
+          const salidaInfo = await apiClient.getSalida(user.iweb_client_id, reserva.salida_id);
           if (salidaInfo) {
             const camaReq = paxSource.filter((p: any) => (p.butaca_type || "").toLowerCase() === "cama").length;
             const semicamaReq = paxSource.filter((p: any) => (p.butaca_type || "").toLowerCase() === "semicama").length;
@@ -308,15 +308,15 @@ export default function ReservaIdPage() {
             const prevCama = (reserva.reservation_passengers || []).filter((p: any) => (p.butaca_type || "").toLowerCase() === "cama").length;
             const prevSemicama = (reserva.reservation_passengers || []).filter((p: any) => (p.butaca_type || "").toLowerCase() === "semicama").length;
 
-            const availableCama = (salidaInfo.cama_disponibles || 0) + prevCama;
-            const availableSemicama = (salidaInfo.semicama_disponibles || 0) + prevSemicama;
+            const availableCama = (salidaInfo.cama_disponibles !== undefined ? Number(salidaInfo.cama_disponibles) : 0) + prevCama;
+            const availableSemicama = (salidaInfo.semicama_disponibles !== undefined ? Number(salidaInfo.semicama_disponibles) : 0) + prevSemicama;
 
-            if (salidaInfo.cama_disponibles !== undefined && camaReq > availableCama) {
+            if (camaReq > availableCama) {
               toast.error(`No hay disponibilidad suficiente de butacas CAMA en la salida. Disponibles: ${availableCama}`);
               setSaving(false);
               return;
             }
-            if (salidaInfo.semicama_disponibles !== undefined && semicamaReq > availableSemicama) {
+            if (semicamaReq > availableSemicama) {
               toast.error(`No hay disponibilidad suficiente de butacas SEMICAMA en la salida. Disponibles: ${availableSemicama}`);
               setSaving(false);
               return;

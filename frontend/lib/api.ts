@@ -31,7 +31,6 @@ interface PublicTenantInfo {
   logo_s: string;
 }
 
-const IWEB_CLIENT_ID = 'fdd2a8bf-4c81-4743-99e0-5d0443b5465b';
 function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
