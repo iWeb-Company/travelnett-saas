@@ -587,6 +587,8 @@ async def delete_documentation(doc_id: str, iweb_client_id: str, db: Session = D
 async def get_inicio(iweb_client_id: str, db: Session = Depends(get_db)):
     inicio = db.query(InicioWeb).filter(InicioWeb.iweb_client_id == iweb_client_id).first()
     if not inicio:
+        inicio = db.query(InicioWeb).first()
+    if not inicio:
         return InicioWebPayload(
             id="",
             iweb_client_id=iweb_client_id,

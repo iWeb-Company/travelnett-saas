@@ -443,11 +443,24 @@ async def create_reserva(
     db: Session = Depends(get_db)
 ):
     resolved_salida_id = body.salida_id
+    resolved_package_id = body.package_id
+
+    # Si package_id no está provisto pero sí salida_id, intentamos resolver el package_id desde packages_dates_of_exit
+    if (not resolved_package_id or str(resolved_package_id).strip() in ("", "undefined", "null", "none", "None")) and resolved_salida_id:
+        from models.models import PackagesDatesOfExit
+        rel_pkg = db.query(PackagesDatesOfExit).filter(
+            PackagesDatesOfExit.salida_id == resolved_salida_id.strip(),
+            PackagesDatesOfExit.iweb_client_id == iweb_client_id,
+            PackagesDatesOfExit.active == True
+        ).first()
+        if rel_pkg:
+            resolved_package_id = rel_pkg.package_id
+
     # Si salida_id no está provisto pero sí package_id, resolvemos la salida desde packages_dates_of_exit
-    if (not resolved_salida_id or resolved_salida_id.strip() in ("", "undefined", "null", "none", "None")) and body.package_id:
+    if (not resolved_salida_id or str(resolved_salida_id).strip() in ("", "undefined", "null", "none", "None")) and resolved_package_id:
         from models.models import PackagesDatesOfExit
         rel = db.query(PackagesDatesOfExit).filter(
-            PackagesDatesOfExit.package_id == body.package_id,
+            PackagesDatesOfExit.package_id == resolved_package_id.strip(),
             PackagesDatesOfExit.iweb_client_id == iweb_client_id,
             PackagesDatesOfExit.active == True
         ).first()
@@ -543,7 +556,7 @@ async def create_reserva(
         id=res_id,
         iweb_client_id=iweb_client_id,
         salida_id=resolved_salida_id,
-        package_id=body.package_id,
+        package_id=resolved_package_id,
         codigo_reserva=generated_code,
         client_id=body.client_id,
         lugar_carga_id=body.lugar_carga_id,

@@ -12,12 +12,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import AddVioleta from "@/app/components/icons/AddVioleta";
 
 export default function DestinosPage() {
   const { user, iwebClient } = useAuth();
   const r = useRouter();
   const [modalOpenPut, setModalOpenPut] = useState(false);
   const [modalOpenAdd, setModalOpenAdd] = useState(false);
+  const [modalOpenAddCombinado, setModalOpenAddCombinado] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [destinos, setDestinos] = useState<Destino[]>([]);
@@ -26,6 +28,8 @@ export default function DestinosPage() {
     name: "",
     sigla: "",
   });
+  const [combinadoDestinos, setCombinadoDestinos] = useState<string[]>(["", ""]);
+  const [combinadoSigla, setCombinadoSigla] = useState<string>("");
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
@@ -57,6 +61,59 @@ export default function DestinosPage() {
   const handleClickPut = (destino: Destino) => {
     setDestinosData(destino);
     setModalOpenPut(true);
+  };
+
+  const handleAddCombinadoSelect = () => {
+    setCombinadoDestinos((prev) => [...prev, ""]);
+  };
+
+  const handleRemoveCombinadoSelect = (index: number) => {
+    if (combinadoDestinos.length <= 2) return;
+    setCombinadoDestinos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCombinadoChange = (index: number, value: string) => {
+    setCombinadoDestinos((prev) => prev.map((v, i) => (i === index ? value : v)));
+  };
+
+  const handleSubmitAddCombinado = async () => {
+    const validIds = combinadoDestinos.filter(Boolean);
+    if (validIds.length < 2) {
+      toast.error("Debe seleccionar al menos 2 destinos");
+      return;
+    }
+    if (new Set(validIds).size !== validIds.length) {
+      toast.error("No puede seleccionar destinos repetidos");
+      return;
+    }
+
+    const selectedObjs = validIds
+      .map((id) => destinos.find((d) => d.id === id))
+      .filter(Boolean) as Destino[];
+
+    const name = selectedObjs.map((d) => d.name).join(" / ");
+    const autoSigla = selectedObjs
+      .map((d) => d.sigla || d.name.slice(0, 3))
+      .join("/")
+      .toUpperCase();
+    const sigla = (combinadoSigla.trim() || autoSigla).toUpperCase();
+
+    try {
+      await apiClient.createParameter(
+        "create_destinos",
+        { name, sigla },
+        user?.iweb_client_id
+      );
+      toast.success("Destino combinado agregado correctamente");
+      setModalOpenAddCombinado(false);
+      setCombinadoDestinos(["", ""]);
+      setCombinadoSigla("");
+      getDestinos();
+      r.refresh();
+    } catch (error) {
+      toast.error("Error al agregar el destino combinado");
+      console.error("Error creating destino combinado:", error);
+    }
   };
 
   const handleSubmitAdd = async () => {
@@ -256,6 +313,76 @@ export default function DestinosPage() {
         <img src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"} className="size-50 object-contain" alt="Logo Empresa" />
       </div>
 
+
+      {
+        modalOpenAddCombinado && (
+          <ModalLayout
+            onSubmit={handleSubmitAddCombinado}
+            setModalOpen={() => {
+              setModalOpenAddCombinado(false);
+              setCombinadoDestinos(["", ""]);
+              setCombinadoSigla("");
+            }}
+            title="Agregar Destino Combinado"
+            svg={
+              <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14.1705 13.7668C13.9647 13.1334 13.3709 12.6663 12.6663 12.6663H11.8747V10.2913C11.8747 10.0814 11.7913 9.88002 11.6428 9.73155C11.4943 9.58308 11.293 9.49967 11.083 9.49967H6.33301V7.91634H7.91634C8.1263 7.91634 8.32767 7.83293 8.47613 7.68447C8.6246 7.536 8.70801 7.33464 8.70801 7.12467V5.54134H10.2913C10.7113 5.54134 11.114 5.37453 11.4109 5.07759C11.7079 4.78066 11.8747 4.37793 11.8747 3.95801V3.63342C12.8219 4.0153 13.6625 4.62101 14.3244 5.39871C14.9864 6.17641 15.4501 7.10294 15.6757 8.09899C15.9014 9.09503 15.8823 10.1309 15.6202 11.118C15.3581 12.1051 14.8606 13.0139 14.1705 13.7668ZM8.70801 15.7776C5.58092 15.3897 3.16634 12.7297 3.16634 9.49967C3.16634 9.00884 3.22967 8.53384 3.33259 8.08259L7.12467 11.8747V12.6663C7.12467 13.0863 7.29149 13.489 7.58842 13.7859C7.88535 14.0829 8.28808 14.2497 8.70801 14.2497M9.49967 1.58301C8.46004 1.58301 7.43059 1.78778 6.4701 2.18563C5.5096 2.58348 4.63688 3.16662 3.90175 3.90175C2.41708 5.38641 1.58301 7.40004 1.58301 9.49967C1.58301 11.5993 2.41708 13.6129 3.90175 15.0976C4.63688 15.8327 5.5096 16.4159 6.4701 16.8137C7.43059 17.2116 8.46004 17.4163 9.49967 17.4163C11.5993 17.4163 13.6129 16.5823 15.0976 15.0976C16.5823 13.6129 17.4163 11.5993 17.4163 9.49967C17.4163 8.46004 17.2116 7.43059 16.8137 6.4701C16.4159 5.5096 15.8327 4.63688 15.0976 3.90175C14.3625 3.16662 13.4897 2.58348 12.5293 2.18563C11.5688 1.78778 10.5393 1.58301 9.49967 1.58301Z" fill="#F1F1F1" />
+              </svg>
+            }
+          >
+            <div className="flex flex-col gap-4">
+              {combinadoDestinos.map((destId, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <select
+                    className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none uppercase"
+                    value={destId}
+                    onChange={(e) => handleCombinadoChange(index, e.target.value)}
+                    required
+                  >
+                    <option disabled value="">Destino {index + 1}</option>
+                    {destinos.map((destino) => (
+                      <option
+                        className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none uppercase"
+                        key={destino.id}
+                        value={destino.id}
+                      >
+                        {destino.name}
+                      </option>
+                    ))}
+                  </select>
+                  {combinadoDestinos.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCombinadoSelect(index)}
+                      className="text-red-500 hover:text-red-700 font-bold px-2 py-1 cursor-pointer"
+                      title="Eliminar este destino"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleAddCombinadoSelect}
+                className="w-min cursor-pointer hover:opacity-80 transition"
+                title="Agregar otro destino"
+              >
+                <AddVioleta color="black" />
+              </button>
+              <input
+                type="text"
+                placeholder="Sigla (ej: MDQ / GES)"
+                value={combinadoSigla}
+                onChange={(e) => setCombinadoSigla(e.target.value)}
+                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none uppercase"
+              />
+            </div>
+          </ModalLayout>
+        )
+      }
+
+
       {modalOpenAdd && (
         <ModalLayout
           onSubmit={handleSubmitAdd}
@@ -267,6 +394,13 @@ export default function DestinosPage() {
             </svg>
           }
         >
+          <button onClick={() => {
+            setModalOpenAddCombinado(true)
+            setModalOpenAdd(false)
+          }} className="flex gap-2 items-center text-black font-semibold">
+            <AddVioleta color="black" />
+            <p>Agregar combinado</p>
+          </button>
           <div className="flex flex-col gap-4">
             <input
               type="text"

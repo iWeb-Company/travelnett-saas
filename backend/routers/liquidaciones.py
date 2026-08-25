@@ -83,7 +83,7 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
                 elif rm_lower.startswith("qtl") or rm_lower.startswith("dep") or "quintuple" in rm_lower or "depto" in rm_lower:
                     capacity = 5
                     tariff = float(matching_ph.tarifa_quintuple) if (matching_ph and matching_ph.tarifa_quintuple is not None) else pkg_price
-                elif rm_lower.startswith("sgl") or "single" in rm_lower:
+                elif rm_lower.startswith("sgl") or "single" in rm_lower or "individual" in rm_lower:
                     capacity = 1
                     tariff = float(matching_ph.tarifa_single) if (matching_ph and matching_ph.tarifa_single is not None) else pkg_price
                     is_single_room = True
@@ -144,13 +144,13 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
                 total_room_capacity += 4
             elif rm_lower.startswith("qtl") or rm_lower.startswith("dep") or "quintuple" in rm_lower or "depto" in rm_lower:
                 total_room_capacity += 5
-            elif rm_lower.startswith("sgl") or "single" in rm_lower:
+            elif rm_lower.startswith("sgl") or "single" in rm_lower or "individual" in rm_lower:
                 total_room_capacity += 1
             else:
                 total_room_capacity += 2
 
     real_pax_count = len([r for r in rps if (r.pasajero_type or "ADL").upper() != "INF"]) if rps else 0
-    num_pax = max(real_pax_count, total_room_capacity) if total_room_capacity > 0 else (real_pax_count or 1)
+    num_pax = real_pax_count if real_pax_count > 0 else (total_room_capacity or 1)
     num_cama = len([r for r in rps if (r.butaca_type or "").lower() == "cama"]) if rps else 0
 
     total_gastos = pkg_gastos * num_pax
@@ -386,7 +386,7 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
             iweb_client_id=client_id,
             booking_id=res_id,
             total_amout=calc["total_bruto"],
-            total_commission=calc["comm_amount"],
+            total_commission=calc.get("monto_comisionable", calc["total_bruto"]),
             commission=calc["comm_amount"]
         )
         db.add(liq)
@@ -481,11 +481,12 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     if has_package_price:
         calc_total = calc["total_bruto"] + sum_extra_gastos
         calc_comm = calc["comm_amount"]
+        calc_monto_comm = calc.get("monto_comisionable", calc_total)
 
-        if liq.total_amout != calc_total or liq.commission != calc_comm:
+        if liq.total_amout != calc_total or liq.commission != calc_comm or liq.total_commission != calc_monto_comm:
             liq.total_amout = calc_total
             liq.commission = calc_comm
-            liq.total_commission = calc.get("monto_comisionable", calc_total)
+            liq.total_commission = calc_monto_comm
             db.commit()
             db.refresh(liq)
     elif liq.total_amout is None or float(liq.total_amout) == 0.0:

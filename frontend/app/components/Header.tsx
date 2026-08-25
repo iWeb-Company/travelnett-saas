@@ -30,7 +30,7 @@ export default function Header() {
                       <p>Hola 👋 {user.name}</p>
                     </div>
                     <h1 className="font-bold text-lg text-start">
-                      ¡Bienvenido a Trannet!
+                      ¡Bienvenido a Tranett!
                     </h1>
                   </>
                 ) : null}

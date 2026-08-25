@@ -5,7 +5,7 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -106,6 +106,61 @@ export default function Paso1Page() {
     r.push(`/web/reservas/crear-reserva/paso-2?destino=${destino}&cliente=${cliente}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${salidaSelected || ""}&paquete=${paqueteSelected || ""}`);
   };
 
+  const targetDestinoKeys = useMemo(() => {
+    if (!destino) return [];
+    const selectedDestinoObj = destinos.find((d: any) => d.id === destino || d.name === destino || d.nombre === destino);
+    if (!selectedDestinoObj) return [String(destino).trim().toLowerCase()];
+
+    const subNames = (selectedDestinoObj.name || selectedDestinoObj.nombre || "")
+      .split(/\s*[/,+]\s*/)
+      .map((s: string) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    const matchingDestinoIds = destinos
+      .filter((d: any) => subNames.includes((d.name || d.nombre || "").trim().toLowerCase()))
+      .map((d: any) => d.id)
+      .filter(Boolean) as string[];
+
+    const matchingDestinoSiglas = destinos
+      .filter((d: any) => subNames.includes((d.name || d.nombre || "").trim().toLowerCase()))
+      .map((d: any) => d.sigla)
+      .filter(Boolean) as string[];
+
+    const allKeys = [
+      destino,
+      selectedDestinoObj.id,
+      selectedDestinoObj.name,
+      selectedDestinoObj.nombre,
+      selectedDestinoObj.sigla,
+      ...matchingDestinoIds,
+      ...matchingDestinoSiglas,
+      ...subNames,
+    ].filter(Boolean) as string[];
+
+    return Array.from(new Set(allKeys.map((k) => String(k).trim().toLowerCase())));
+  }, [destino, destinos]);
+
+  const filteredSalidas = useMemo(() => {
+    if (paqueteSelected) {
+      const selectedPkg = paquetes.find((p: any) => p.id === paqueteSelected);
+      if (selectedPkg && selectedPkg.dates && selectedPkg.dates.length > 0) {
+        const linked = salidas.filter((s: any) => selectedPkg.dates.includes(s.id));
+        if (linked.length > 0) return linked;
+      }
+    }
+    if (!destino) return salidas;
+    return salidas.filter((s: any) => s.destino && targetDestinoKeys.includes(String(s.destino).trim().toLowerCase()));
+  }, [salidas, destino, targetDestinoKeys, paqueteSelected, paquetes]);
+
+  const filteredPaquetes = useMemo(() => {
+    if (salidaSelected) {
+      const pkgsForSalida = paquetes.filter((p: any) => p.dates && p.dates.includes(salidaSelected));
+      if (pkgsForSalida.length > 0) return pkgsForSalida;
+    }
+    if (!destino) return paquetes;
+    return paquetes.filter((p: any) => p.destino && targetDestinoKeys.includes(String(p.destino).trim().toLowerCase()));
+  }, [paquetes, destino, targetDestinoKeys, salidaSelected]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -113,25 +168,6 @@ export default function Paso1Page() {
       </div>
     );
   }
-
-  const destinoObj = destinos.find((d) => d.id === destino || d.name === destino || d.nombre === destino);
-  const destinoNombre = destinoObj?.name || destinoObj?.nombre || "";
-
-  const filteredSalidas = destino
-    ? salidas.filter((s) => {
-      if (!s.destino) return false;
-      const dVal = String(s.destino).trim().toLowerCase();
-      return dVal === String(destino).trim().toLowerCase() || (destinoNombre && dVal === String(destinoNombre).trim().toLowerCase());
-    })
-    : salidas;
-
-  const filteredPaquetes = destino
-    ? paquetes.filter((p) => {
-      if (!p.destino) return false;
-      const dVal = String(p.destino).trim().toLowerCase();
-      return dVal === String(destino).trim().toLowerCase() || (destinoNombre && dVal === String(destinoNombre).trim().toLowerCase());
-    })
-    : paquetes;
 
   return (
     <Container>
@@ -195,7 +231,7 @@ export default function Paso1Page() {
               value={cliente}
               onChange={(e) => setCliente(e.target.value)}
             >
-              <option value="" selected disabled>Cliente</option>
+              <option value="" disabled>Cliente</option>
               {clientes.map((c: any) => (
                 <option key={c.id} value={c.id}>{c.complete_name || c.name_system || c.name || c.nombre}</option>
               ))}

@@ -142,23 +142,34 @@ export default function PagosPage() {
     }
   };
 
-  // Helper to find real reservation total price from Liquidaciones or reservation object
-  const getReservationPrice = (res: any) => {
+  // Helper to find real reservation total net price (Monto Neto = Total Bruto - Comisión)
+  const getReservationPrice = (res: any): number => {
+    if (!res) return 0;
+    if (res.neto !== undefined && res.neto !== null) {
+      return Number(res.neto);
+    }
     if (res.total_amount !== undefined && res.total_amount !== null && res.total_amount > 0) {
-      return res.total_amount;
+      const comm = Number(res.commission) || 0;
+      return Math.max(0, Number(res.total_amount) - comm);
     }
     if (res.total_amout !== undefined && res.total_amout !== null && res.total_amout > 0) {
-      return res.total_amout;
+      const comm = Number(res.commission) || 0;
+      return Math.max(0, Number(res.total_amout) - comm);
     }
-    if (!res.salida_id) return 400000; // fallback
-    const pkg = packages.find(p => p.dates?.includes(res.salida_id));
+    const pkg = packages.find(p => p.id === res.package_id || p.dates?.includes(res.salida_id));
     if (pkg) {
-      return (pkg.price || 0) + (pkg.gastos || 0) + (pkg.adicional || 0);
+      const paxCount = Array.isArray(res.reservation_passengers) ? res.reservation_passengers.length : 1;
+      const unitPrice = (pkg.price || 0) + (pkg.gastos || 0) + (pkg.adicional || 0);
+      const totalBruto = unitPrice * Math.max(paxCount, 1);
+      const client = realClients.find(c => c.id === res.client_id);
+      const commPct = Number(client?.commission || res.commission || 0);
+      const comm = Math.round((totalBruto * commPct) / 100);
+      return Math.max(0, totalBruto - comm);
     }
-    return 400000; // fallback
+    return 0;
   };
 
-  const totalDeLaReserva = selectedReserva ? getReservationPrice(selectedReserva) : '';
+  const totalDeLaReserva = selectedReserva ? (Number(getReservationPrice(selectedReserva)) || 0) : 0;
 
   // Keep original currency multiplication logic (if USD, multiply by 1000 for total comparison)
   const totalPagos = pagos.reduce((acc, p) => {
@@ -210,7 +221,8 @@ export default function PagosPage() {
   };
 
   const formatMonto = (monto: number, moneda: string = "$") => {
-    return `${moneda}${monto.toLocaleString("es-AR")}`;
+    const num = Math.round(Number(monto) || 0);
+    return `${moneda}${num.toLocaleString("es-AR")}`;
   };
 
   const formatDateDisplay = (dateStr: string) => {
@@ -406,8 +418,18 @@ export default function PagosPage() {
           apiClient.getLiquidacionByBooking(res.id).catch(() => null)
         ]);
         setPagos(pagosList);
-        if (liq && liq.total_amout) {
-          setSelectedReserva((prev: any) => prev ? { ...prev, total_amount: liq.total_amout, total_amout: liq.total_amout } : prev);
+        if (liq) {
+          const bruto = Number(liq.total_amout) || 0;
+          const comm = Number(liq.commission) || 0;
+          const neto = Math.max(0, bruto - comm);
+          setSelectedReserva((prev: any) => prev ? { 
+            ...prev, 
+            total_bruto: bruto,
+            commission: comm,
+            neto: neto,
+            total_amount: neto,
+            total_amout: neto 
+          } : prev);
         }
       } catch (err) {
         console.error("Error loading pagos for reservation:", err);
@@ -1275,8 +1297,7 @@ export default function PagosPage() {
                 {/* Total */}
                 <div className="flex justify-between items-center mt-8 pt-4 border-t border-gray-200">
                   <div className="text-[10px] text-gray-400 flex flex-col">
-                    <span>TravelNett SaaS Travel Agency Solutions</span>
-                    <span>CUIT: 30-71458922-3</span>
+                    <span>Tranett SaaS Travel Agency Solutions</span>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="font-extrabold text-primary text-xl">TOTAL:</span>

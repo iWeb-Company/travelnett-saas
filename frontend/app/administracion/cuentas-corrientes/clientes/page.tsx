@@ -77,8 +77,14 @@ export default function CuentasCorrientesClientesPage() {
   }, [user?.iweb_client_id]);
 
   const formatMonto = (monto: number) => {
-    const prefix = monto < 0 ? "-" : "";
-    return `${prefix}$${Math.abs(monto).toLocaleString("es-AR")}`;
+    const num = Math.round(Number(monto) || 0);
+    const prefix = num < 0 ? "-" : "";
+    return `${prefix}$${Math.abs(num).toLocaleString("es-AR")}`;
+  };
+
+  const cleanDetalle = (detalle?: string) => {
+    if (!detalle) return "";
+    return detalle.replace(/\s*\[.*?\]\s*$/, "").trim();
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -301,7 +307,16 @@ export default function CuentasCorrientesClientesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium">
-                  {movimientos.length === 0 ? (
+                  {searching ? (
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <tr key={idx} className="animate-pulse divide-y divide-black">
+                        <td className="py-3 px-4 border-r border-black"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                        <td className="py-3 px-4 border-r border-black"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                        <td className="py-3 px-4 border-r border-black"><div className="h-4 bg-gray-200 rounded w-48"></div></td>
+                        <td className="py-3 px-4 border-b border-black text-right"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
+                      </tr>
+                    ))
+                  ) : movimientos.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-8 text-center text-gray-500">
                         No hay movimientos registrados para los filtros seleccionados.
@@ -323,7 +338,7 @@ export default function CuentasCorrientesClientesPage() {
                             <span className="text-primary">{mov.reserva}</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 border-r border-black">{mov.detalle}</td>
+                        <td className="py-3 px-4 border-r border-black">{cleanDetalle(mov.detalle)}</td>
                         <td className={`py-3 px-4 text-right border-b border-black font-bold ${mov.saldo > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                           {formatMonto(mov.saldo)}
                         </td>
