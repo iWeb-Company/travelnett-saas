@@ -61,8 +61,14 @@ export default function SaldosPage() {
   }, [user?.iweb_client_id]);
 
   const formatMonto = (monto: number) => {
-    const prefix = monto < 0 ? "-" : "";
-    return `${prefix}$${Math.abs(monto).toLocaleString("es-AR")}`;
+    const num = Math.round(Number(monto) || 0);
+    const prefix = num < 0 ? "-" : "";
+    return `${prefix}$${Math.abs(num).toLocaleString("es-AR")}`;
+  };
+
+  const cleanDetalle = (detalle?: string) => {
+    if (!detalle) return "";
+    return detalle.replace(/\s*\[.*?\]\s*$/, "").trim();
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -227,7 +233,19 @@ export default function SaldosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium">
-                  {movimientos.length === 0 ? (
+                  {searching ? (
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <tr key={idx} className="animate-pulse border-b border-black">
+                        <td className="py-3 px-4 border border-black"><div className="h-4 bg-gray-200 rounded w-16 mx-auto"></div></td>
+                        <td className="py-3 px-4 border border-black"><div className="h-4 bg-gray-200 rounded w-20 mx-auto"></div></td>
+                        <td className="py-3 px-4 border border-black"><div className="h-4 bg-gray-200 rounded w-28"></div></td>
+                        <td className="py-3 px-4 border border-black"><div className="h-4 bg-gray-200 rounded w-36"></div></td>
+                        <td className="py-3 px-4 border border-black"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
+                        <td className="py-3 px-4 border border-black"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
+                        <td className="py-3 px-4 border border-black"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
+                      </tr>
+                    ))
+                  ) : movimientos.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-gray-500">
                         No se encontraron saldos pendientes para este criterio.
@@ -239,7 +257,7 @@ export default function SaldosPage() {
                         <td className="py-3 px-4 border border-black">{mov.fecha}</td>
                         <td className="py-3 px-4 border border-black text-black"><Link className="hover:underline text-primary" href={`/web/reservas/modificar-reserva/${mov.reserva_id}`}>{mov.reserva}</Link></td>
                         <td className="py-3 px-4 border border-black font-bold text-gray-800">{mov.cliente}</td>
-                        <td className="py-3 px-4 border border-black">{mov.detalle}</td>
+                        <td className="py-3 px-4 border border-black">{cleanDetalle(mov.detalle)}</td>
                         <td className="py-3 px-4 border border-black text-right text-gray-800">{formatMonto(mov.neto)}</td>
                         <td className="py-3 px-4 border border-black text-right text-green-600">{formatMonto(mov.cobros)}</td>
                         <td className={`py-3 px-4 border border-black text-right ${mov.saldo > 0 ? 'text-red-600' : 'text-gray-900'}`}>

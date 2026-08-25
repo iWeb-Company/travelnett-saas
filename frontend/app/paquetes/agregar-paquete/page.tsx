@@ -213,32 +213,39 @@ function AgregarPaqueteContent() {
     }
   };
 
+  const targetDestinoKeys = useMemo(() => {
+    if (!destino) return [];
+    const selectedDestinoObj = destinos.find((d: Destino) => d.id === destino || d.name === destino);
+    if (!selectedDestinoObj) return [destino];
+
+    const subNames = (selectedDestinoObj.name || "")
+      .split(/\s*[/,+]\s*/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    const matchingDestinoIds = destinos
+      .filter((d) => subNames.includes((d.name || "").trim().toLowerCase()))
+      .map((d) => d.id)
+      .filter(Boolean) as string[];
+
+    const allKeys = [destino, selectedDestinoObj.id, selectedDestinoObj.name, ...matchingDestinoIds, ...subNames].filter(Boolean) as string[];
+    return Array.from(new Set(allKeys));
+  }, [destino, destinos]);
+
   const salidasFiltered = useMemo(() => {
     if (!destino) return salidas;
-    const selectedDestinoObj = destinos.find((d: Destino) => d.id === destino || d.name === destino);
-    return salidas.filter((s: Salida) =>
-      s.destino === destino ||
-      (selectedDestinoObj && (s.destino === selectedDestinoObj.id || s.destino === selectedDestinoObj.name))
-    );
-  }, [salidas, destino, destinos]);
+    return salidas.filter((s: Salida) => s.destino && targetDestinoKeys.includes(s.destino));
+  }, [salidas, destino, targetDestinoKeys]);
 
   const hotelesFiltered = useMemo(() => {
     if (!destino) return [];
-    const selectedDestinoObj = destinos.find((d: Destino) => d.id === destino || d.name === destino);
-    return hoteles.filter((h: Hotel) =>
-      h.destino === destino ||
-      (selectedDestinoObj && (h.destino === selectedDestinoObj.id || h.destino === selectedDestinoObj.name))
-    );
-  }, [hoteles, destino, destinos]);
+    return hoteles.filter((h: Hotel) => h.destino && targetDestinoKeys.includes(h.destino));
+  }, [hoteles, destino, targetDestinoKeys]);
 
   const excursionesFiltered = useMemo(() => {
     if (!destino) return [];
-    const selectedDestinoObj = destinos.find((d: Destino) => d.id === destino || d.name === destino);
-    return excursiones.filter((e: Excursion) =>
-      e.destino === destino ||
-      (selectedDestinoObj && (e.destino === selectedDestinoObj.id || e.destino === selectedDestinoObj.name))
-    );
-  }, [excursiones, destino, destinos]);
+    return excursiones.filter((e: Excursion) => e.destino && targetDestinoKeys.includes(e.destino));
+  }, [excursiones, destino, targetDestinoKeys]);
 
   useEffect(() => {
     if (user?.iweb_client_id) {

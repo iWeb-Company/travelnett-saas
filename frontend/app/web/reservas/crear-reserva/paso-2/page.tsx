@@ -127,9 +127,12 @@ function Paso2Content() {
       }
     }
 
+    const actualSalidaId = salidaId || (itemType === "salida" ? itemId : "");
+    const actualPaqueteId = paqueteId || (itemType === "paquete" ? itemId : "");
+
     const roomsParam = encodeURIComponent(JSON.stringify(rooms));
     r.push(
-      `/web/reservas/crear-reserva/paso-3?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${salidaId}&paquete=${paqueteId}&rooms=${roomsParam}`
+      `/web/reservas/crear-reserva/paso-3?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${actualSalidaId}&paquete=${actualPaqueteId}&rooms=${roomsParam}`
     );
   };
 
@@ -330,12 +333,24 @@ function Paso2Content() {
       );
     }
     if (!destinoId) return hotels;
+    const subNames = (destinoNombre || "")
+      .split(/\s*[/,+]\s*/)
+      .map((s: string) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const matchingDestinoIds = destinos
+      .filter((d: any) => subNames.includes((d.name || d.nombre || "").trim().toLowerCase()))
+      .map((d: any) => String(d.id).trim().toLowerCase())
+      .filter(Boolean);
+    const allowed = new Set([
+      String(destinoId).trim().toLowerCase(),
+      String(destinoNombre).trim().toLowerCase(),
+      ...matchingDestinoIds,
+      ...subNames,
+    ]);
     return hotels.filter((h) => {
       if (!h.destino) return false;
       const hDest = String(h.destino).trim().toLowerCase();
-      const targetId = String(destinoId).trim().toLowerCase();
-      const targetName = String(destinoNombre).trim().toLowerCase();
-      return hDest === targetId || hDest === targetName;
+      return allowed.has(hDest);
     });
   })();
 

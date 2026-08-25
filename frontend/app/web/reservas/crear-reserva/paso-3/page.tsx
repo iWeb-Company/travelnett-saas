@@ -92,12 +92,21 @@ function Paso3Content() {
       setHotels(hotData || []);
 
       const actualSalidaId = salidaIdParam || (itemType === "salida" ? itemId : "");
-      const actualPaqueteId = paqueteIdParam || (itemType === "paquete" ? itemId : "");
+      let actualPaqueteId = paqueteIdParam || (itemType === "paquete" ? itemId : "");
 
       if (actualSalidaId) {
         const sal = await apiClient.getSalida(user.iweb_client_id, actualSalidaId).catch(() => null);
         setSalidaInfo(sal);
       }
+
+      if (!actualPaqueteId && actualSalidaId) {
+        const pkgs = await apiClient.getPackages(user.iweb_client_id).catch(() => []);
+        const found = pkgs.find((p: any) => p.dates && p.dates.includes(actualSalidaId));
+        if (found) {
+          actualPaqueteId = found.id;
+        }
+      }
+
       if (actualPaqueteId) {
         const pack = await apiClient.getPackage(user.iweb_client_id, actualPaqueteId).catch(() => null);
         setPaqueteInfo(pack);
@@ -240,7 +249,10 @@ function Paso3Content() {
     if (!user?.iweb_client_id) return;
 
     const actualSalidaId = salidaIdParam || (itemType === "salida" ? itemId : null);
-    const actualPaqueteId = paqueteIdParam || (itemType === "paquete" ? itemId : null);
+    let actualPaqueteId = paqueteIdParam || (itemType === "paquete" ? itemId : null);
+    if (!actualPaqueteId && paqueteInfo && paqueteInfo.id) {
+      actualPaqueteId = paqueteInfo.id;
+    }
 
     // Validation for Bloqueo mode
     if (tipoReserva === "bloqueo") {
@@ -492,6 +504,27 @@ function Paso3Content() {
               } else if (tc.includes("single") || tc.includes("individual") || tc.includes("1")) {
                 capacity = 1;
                 tariff = Number(paqueteInfo.tarifa_single) || defaultPrice;
+              }
+
+              if (paqueteInfo.hotels && Array.isArray(paqueteInfo.hotels)) {
+                const matchedHotel = paqueteInfo.hotels.find((h: any) => h.hotel_id === rm.hotel || h.id === rm.hotel);
+                if (matchedHotel) {
+                  if ((tc.includes("doble") || tc.includes("2")) && matchedHotel.tarifa_doble) {
+                    tariff = Number(matchedHotel.tarifa_doble);
+                  } else if ((tc.includes("triple") || tc.includes("3")) && matchedHotel.tarifa_triple) {
+                    tariff = Number(matchedHotel.tarifa_triple);
+                  } else if ((tc.includes("cuadruple") || tc.includes("4")) && matchedHotel.tarifa_cuadruple) {
+                    tariff = Number(matchedHotel.tarifa_cuadruple);
+                  } else if ((tc.includes("quintuple") || tc.includes("5")) && matchedHotel.tarifa_quintuple) {
+                    tariff = Number(matchedHotel.tarifa_quintuple);
+                  } else if ((tc.includes("single") || tc.includes("individual") || tc.includes("1")) && matchedHotel.tarifa_single) {
+                    tariff = Number(matchedHotel.tarifa_single);
+                  }
+                }
+              }
+
+              if (tariff === 0) {
+                tariff = defaultPrice;
               }
 
               if (isPorHabitacion) {
@@ -758,7 +791,7 @@ function Paso3Content() {
                           <input
                             type="text"
                             required
-                            className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                            className="w-full border border-gray-300 uppercase bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                             placeholder="Ingrese Nombre"
                             value={passenger.nombre}
                             onChange={(e) => handlePassengerChange(rIdx, pIdx, "nombre", e.target.value)}
@@ -770,7 +803,7 @@ function Paso3Content() {
                           <input
                             type="text"
                             required
-                            className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                            className="w-full border border-gray-300 uppercase bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                             placeholder="Ingrese Apellido"
                             value={passenger.apellido}
                             onChange={(e) => handlePassengerChange(rIdx, pIdx, "apellido", e.target.value)}

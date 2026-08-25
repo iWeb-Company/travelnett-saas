@@ -272,7 +272,7 @@ export default function DashboardPage() {
           alt="Logo de empresa logeada"
         />
       </section>
-      <img className="w-117 hidden md:block absolute bottom-0 left-0" src="/fotohome.png" alt="Foto Dashboard" />
+      <img className="w-60 lg:w-80 xl:w-96 2xl:w-117 hidden md:block absolute bottom-0 left-0 pointer-events-none" src="/fotohome.png" alt="Foto Dashboard" />
     </main>
   );
 }

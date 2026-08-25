@@ -172,7 +172,7 @@ export default function ReservaIdPage() {
   // Dynamic calculations
   const totalNoComisionable = gastos.reduce((acc, g) => acc + (g.amount || 0), 0);
   // const totalComisionable = Math.max(0, totalReserva - totalNoComisionable);
-  const saldoTotalNeto = totalReserva - pagosRealizados;
+  const saldoTotalNeto = totalReserva - commission;
 
   useEffect(() => {
     if (clientCommissionPct !== null && clientCommissionPct !== undefined) {
@@ -527,7 +527,7 @@ export default function ReservaIdPage() {
         copy[gIdx] = updated;
         return copy;
       }
-      
+
       const updatedPax = { ...targetPax, [field]: value };
       if (field === "nombre" || field === "apellido") {
         const n = field === "nombre" ? value : (targetPax.nombre || "");
@@ -766,7 +766,7 @@ export default function ReservaIdPage() {
                                       type="text"
                                       value={p.nombre || ""}
                                       onChange={(e) => handlePassengerFieldChange(p, "nombre", e.target.value)}
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
+                                      className="w-full border border-gray-300 uppercase bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
                                       placeholder="Nombre"
                                     />
                                   </td>
@@ -775,7 +775,7 @@ export default function ReservaIdPage() {
                                       type="text"
                                       value={p.apellido || ""}
                                       onChange={(e) => handlePassengerFieldChange(p, "apellido", e.target.value)}
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
+                                      className="w-full border border-gray-300 uppercase bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
                                       placeholder="Apellido"
                                     />
                                   </td>
@@ -1067,16 +1067,6 @@ export default function ReservaIdPage() {
                       onChange={(e) => setNewRoomCama(e.target.value)}
                       className="bg-gray-600 border border-gray-500 rounded-lg p-1.5 w-full text-center cursor-pointer text-white font-medium"
                     >
-                      {/* if (c === "DEP") return "Depto x5 Individual";
-    if (c === "QTL") return "Quintuple Individual";
-    if (c === "SGL") return "Single";
-    if (c === "TPL") return "Triple Individual";
-    if (c === "CPL") return "Cuádruple Individual";
-    if (c === "DBL") {
-      if (d === "MAT") return "Doble Matrimonial";
-      return "Doble Individual";
-    }
-    return "Doble Matrimonial"; */}
                       <option value="SGL">Single</option>
                       <option value="DBL">Doble</option>
                       <option value="TPL">Triple</option>

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any
 import uuid
 import os
-from models.models import Pagos, Reservas, iWebClient, Packages, Clients, ReservationPassengers, Passengers, Salidas
+from models.models import Pagos, Reservas, iWebClient, Packages, Clients, ReservationPassengers, Passengers, Salidas, Liquidaciones, PackageHotels
 from schemas.schemas import PagoResponse
 from db.database import get_db
 from routers.tenants import tenant_dir, public_tenant_asset_url, _guess_extension, _save_upload
@@ -112,6 +112,44 @@ async def delete_pago(pago_id: str, iweb_client_id: str = Query(...), db: Sessio
 
 import math
 
+def _normalize_date_pair(val: Any) -> tuple[str, str]:
+    """
+    Returns (iso_str 'YYYY-MM-DD', display_str 'DD/MM/YYYY')
+    """
+    if not val:
+        return ("", "")
+    s = str(val).strip()
+    if not s:
+        return ("", "")
+    
+    # Split time component if present
+    s = s.split(" ")[0].split("T")[0]
+    
+    if "-" in s:
+        parts = s.split("-")
+        if len(parts) == 3:
+            if len(parts[0]) == 4:  # YYYY-MM-DD
+                iso = f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
+                display = f"{parts[2].zfill(2)}/{parts[1].zfill(2)}/{parts[0]}"
+                return (iso, display)
+            elif len(parts[2]) == 4:  # DD-MM-YYYY
+                iso = f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                display = f"{parts[0].zfill(2)}/{parts[1].zfill(2)}/{parts[2]}"
+                return (iso, display)
+    elif "/" in s:
+        parts = s.split("/")
+        if len(parts) == 3:
+            if len(parts[2]) == 4:  # DD/MM/YYYY
+                iso = f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                display = f"{parts[0].zfill(2)}/{parts[1].zfill(2)}/{parts[2]}"
+                return (iso, display)
+            elif len(parts[0]) == 4:  # YYYY/MM/DD
+                iso = f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
+                display = f"{parts[2].zfill(2)}/{parts[1].zfill(2)}/{parts[0]}"
+                return (iso, display)
+                
+    return (s, s)
+
 @router.get("/get_saldos_clientes", tags=["Pagos"])
 async def get_saldos_clientes(
     iweb_client_id: str = Query(...),
@@ -174,21 +212,58 @@ async def get_saldos_clientes(
         pkg_list = db.query(Packages).filter(Packages.id.in_(pkg_ids)).all()
         pkg_map = {p.id: p for p in pkg_list}
 
-    # 7. Batch: salidas for dates
+    # 7. Batch: salidas for fallback dates
     sal_ids = list(set(r.salida_id for r in reservas if r.salida_id))
     sal_map: dict = {}
     if sal_ids:
         sal_list = db.query(Salidas).filter(Salidas.id.in_(sal_ids)).all()
         sal_map = {s.id: s for s in sal_list}
 
-    # 8. Build result
+    # 8. Batch: PackageHotels for hotel_fecha_in (Fecha de entrada al hotel del paquete)
+    all_ph = []
+    if pkg_ids:
+        all_ph = db.query(PackageHotels).filter(PackageHotels.package_id.in_(pkg_ids)).all()
+    
+    ph_map: dict = {}
+    ph_fallback_map: dict = {}
+    for ph in all_ph:
+        if ph.hotel_id:
+            ph_map[(ph.package_id, ph.hotel_id)] = ph
+        if ph.package_id not in ph_fallback_map:
+            ph_fallback_map[ph.package_id] = ph
+
+    # 9. Batch: liquidaciones for real total amount (neto)
+    all_liquidaciones = db.query(Liquidaciones).filter(Liquidaciones.booking_id.in_(res_ids)).all()
+    liq_map: dict = {}
+    for l in all_liquidaciones:
+        if l.booking_id:
+            liq_map[l.booking_id] = l
+
+    # Normalize filter parameters once
+    iso_crea_desde, _ = _normalize_date_pair(fecha_crea_desde)
+    iso_crea_hasta, _ = _normalize_date_pair(fecha_crea_hasta)
+    iso_in_desde, _ = _normalize_date_pair(fecha_in_desde)
+    iso_in_hasta, _ = _normalize_date_pair(fecha_in_hasta)
+
+    # 10. Build result
     result = []
     for r in reservas:
-        # Calculate neto from package
-        neto = 400000  # fallback
-        if r.package_id and r.package_id in pkg_map:
+        # Calculate neto (Total Bruto - Comisión) from liquidacion or package
+        neto = 0.0
+        liq = liq_map.get(r.id)
+        if liq and liq.total_amout is not None:
+            bruto = float(liq.total_amout)
+            comision = float(liq.commission or 0)
+            neto = max(0.0, bruto - comision)
+        elif r.package_id and r.package_id in pkg_map:
             pkg = pkg_map[r.package_id]
-            neto = (pkg.price or 0) + (pkg.gastos or 0) + (pkg.adicional or 0)
+            unit_price = float((pkg.price or 0) + (pkg.gastos or 0) + (pkg.adicional or 0))
+            pax_count_for_calc = len(rp_by_reserva.get(r.id, []))
+            bruto = unit_price * max(pax_count_for_calc, 1)
+            cl = clients_map.get(r.client_id) if r.client_id else None
+            comm_pct = float(cl.commission or r.commission or 0) if cl else float(r.commission or 0)
+            comision = round((bruto * comm_pct) / 100)
+            neto = max(0.0, bruto - comision)
 
         # Calculate cobros from pagos
         res_pagos = pagos_by_reserva.get(r.id, [])
@@ -200,65 +275,73 @@ async def get_saldos_clientes(
         cl = clients_map.get(r.client_id) if r.client_id else None
         cliente_nombre = (cl.complete_name or cl.name_system or "") if cl else "Sin cliente"
 
-        # Passenger detail string
+        # Passenger / Title detail string (no raw JSON array)
         rps = rp_by_reserva.get(r.id, [])
         pax_count = len(rps)
-        first_pax_name = "Sin pasajero"
-        if rps:
-            first_rp = rps[0]
-            p = pax_map.get(first_rp.pasajero_id)
-            if p:
-                first_pax_name = f"{(p.name or '').upper()} {(p.last_name or '').upper()}".strip()
-            elif cl:
-                first_pax_name = (cl.complete_name or cl.name_system or "").upper()
+        if r.titulo and r.titulo.strip():
+            detalle = r.titulo.strip()
+        else:
+            first_pax_name = "Sin pasajero"
+            if rps:
+                first_rp = rps[0]
+                p = pax_map.get(first_rp.pasajero_id)
+                if p:
+                    first_pax_name = f"{(p.name or '').upper()} {(p.last_name or '').upper()}".strip()
+                elif cl:
+                    first_pax_name = (cl.complete_name or cl.name_system or "").upper()
+            detalle = f"{first_pax_name} x{pax_count}".strip()
 
-        room = r.room_type or ""
-        detalle = f"{first_pax_name} x{pax_count} {room}".strip()
+        # Resolve Fecha de Entrada (IN) al Hotel del paquete de esa reserva
+        hotel_fecha_in_raw = ""
+        if r.package_id:
+            ph = None
+            if r.hotel_id:
+                ph = ph_map.get((r.package_id, r.hotel_id))
+            if not ph:
+                ph = ph_fallback_map.get(r.package_id)
+            if ph and ph.hotel_fecha_in:
+                hotel_fecha_in_raw = ph.hotel_fecha_in
 
-        # Date from salida or venciment
-        iso_fecha = ""
-        fecha = ""
-        if r.salida_id and r.salida_id in sal_map:
-            sal = sal_map[r.salida_id]
-            if sal.date_of_out:
-                iso_fecha = str(sal.date_of_out).split(" ")[0]
-                parts = iso_fecha.split("-")
-                if len(parts) == 3:
-                    fecha = f"{parts[2]}/{parts[1]}/{parts[0]}"
-                else:
-                    fecha = iso_fecha
-        elif r.venciment:
-            iso_fecha = str(r.venciment).split(" ")[0]
-            parts = iso_fecha.split("-")
-            if len(parts) == 3:
-                fecha = f"{parts[2]}/{parts[1]}/{parts[0]}"
-            else:
-                fecha = iso_fecha
+        # Fallback date if not configured in PackageHotels
+        if not hotel_fecha_in_raw:
+            if r.salida_id and r.salida_id in sal_map and sal_map[r.salida_id].date_of_out:
+                hotel_fecha_in_raw = str(sal_map[r.salida_id].date_of_out)
+            elif r.venciment:
+                hotel_fecha_in_raw = str(r.venciment)
 
-        # Filter by min date (fecha_in_desde or fecha_crea_desde)
-        min_fecha = fecha_in_desde or fecha_crea_desde
-        if min_fecha and min_fecha.strip() and iso_fecha:
-            if iso_fecha < min_fecha.strip():
+        iso_in, display_in = _normalize_date_pair(hotel_fecha_in_raw)
+
+        # Resolve Fecha de Creación de la Reserva (created_at)
+        iso_crea, _ = _normalize_date_pair(r.created_at)
+
+        # Filter by Fecha de Creación (created_at de la reserva)
+        if iso_crea_desde:
+            if not iso_crea or iso_crea < iso_crea_desde:
+                continue
+        if iso_crea_hasta:
+            if not iso_crea or iso_crea > iso_crea_hasta:
                 continue
 
-        # Filter by max date (fecha_in_hasta or fecha_crea_hasta)
-        max_fecha = fecha_in_hasta or fecha_crea_hasta
-        if max_fecha and max_fecha.strip() and iso_fecha:
-            if iso_fecha > max_fecha.strip():
+        # Filter by Fecha de Entrada (IN al hotel del paquete)
+        if iso_in_desde:
+            if not iso_in or iso_in < iso_in_desde:
+                continue
+        if iso_in_hasta:
+            if not iso_in or iso_in > iso_in_hasta:
                 continue
 
         result.append({
             "id": r.id,
             "reserva_id": r.id,
             "salida_id": r.salida_id or "",
-            "fecha": fecha,
+            "fecha": display_in or "-",
             "reserva": r.codigo_reserva or r.id[:8],
             "cliente": cliente_nombre,
             "client_id": r.client_id or "",
             "detalle": detalle,
-            "neto": round(neto),
-            "cobros": round(cobros),
-            "saldo": round(saldo),
+            "neto": int(round(neto)),
+            "cobros": int(round(cobros)),
+            "saldo": int(round(saldo)),
         })
 
     total_items = len(result)

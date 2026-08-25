@@ -142,20 +142,11 @@ export default function LoginPage() {
   return (
     <main className="login-page mx-5 min-h-screen max-w-3xl md:mx-auto flex flex-col justify-center py-10">
       <div className="text-center">
-        {tenantInfo?.logo_xl ? (
-          <img
-            className="mx-auto my-4 md:max-h-auto max-h-16 object-contain rounded-lg shadow-sm"
-            src={tenantInfo.logo_xl}
-            alt={`Logo de ${tenantInfo.name}`}
-          />
-        ) : (
-          <img
-            className="mx-auto my-4 md:max-h-auto max-h-28 object-contain"
-            src="/logo.png"
-            alt="Logo de TravelNett"
-          />
-        )}
-
+        <img
+          className="mx-auto my-4 md:max-h-auto max-h-28 object-contain"
+          src="/logo.png"
+          alt="Logo de TravelNett"
+        />
         <h1 className="text-3xl font-bold text-black mt-2">
           {tenantInfo ? 'Inicio de sesión' : "Tranett"}
         </h1>
