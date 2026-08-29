@@ -35,6 +35,23 @@ export default function ExcursionesPage() {
   const totalPages = Math.ceil(excursiones.length / pageSize);
   const paginatedExcursiones = excursiones.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const getDestinoSigla = (excursion: Excursion) => {
+    if (!excursion.destino) return "-";
+    const rawDest = excursion.destino;
+    const destObj = destinos.find(
+      (d: any) => d.id === rawDest || d.name === rawDest || d.nombre === rawDest
+    );
+    if (destObj) {
+      return (
+        destObj.sigla ||
+        destObj.name ||
+        destObj.nombre ||
+        "-"
+      ).toUpperCase();
+    }
+    return rawDest.slice(0, 3).toUpperCase();
+  };
+
   const getData = async () => {
     const clientId = user?.iweb_client_id;
     if (!clientId) return;
@@ -45,12 +62,33 @@ export default function ExcursionesPage() {
         apiClient.getParameters("get_excursions", clientId),
         apiClient.getParameters("get_destinos", clientId),
       ]);
+      setDestinos(destinosData);
+
+      const queryNorm = search.toLowerCase();
       const filtered = excursionesData.filter((e: any) => {
-        const nameToFilter = e.name || e.nombre || "";
-        return nameToFilter.toLowerCase().includes(search.toLowerCase());
+        const excursionName = (e.name || e.nombre || "").toLowerCase();
+        const excursionSigla = (e.sigla || "").toLowerCase();
+        let destName = "";
+        let destSigla = "";
+        const rawDest = e.destino || "";
+        const destObj = destinosData.find(
+          (d: any) => d.id === rawDest || d.name === rawDest || d.nombre === rawDest
+        );
+        if (destObj) {
+          destName = (destObj.name || destObj.nombre || "").toLowerCase();
+          destSigla = (destObj.sigla || "").toLowerCase();
+        } else {
+          destName = rawDest.toLowerCase();
+        }
+
+        return (
+          excursionName.includes(queryNorm) ||
+          (excursionSigla && excursionSigla.includes(queryNorm)) ||
+          (destName && destName.includes(queryNorm)) ||
+          (destSigla && destSigla.includes(queryNorm))
+        );
       });
       setExcursiones(filtered);
-      setDestinos(destinosData);
     } catch (error) {
       console.error("Error fetching excursions:", error);
     } finally {
@@ -73,8 +111,6 @@ export default function ExcursionesPage() {
   const handleSubmitAdd = async () => {
     try {
       await apiClient.createParameter("create_excursions", excursionData, user?.iweb_client_id);
-      console.log(excursionData);
-
       toast.success("Excursión agregada correctamente");
       setModalOpenAdd(false);
       setExcursionData({ name: "", description: "", destino: "" });
@@ -184,77 +220,96 @@ export default function ExcursionesPage() {
           </span>
           <input
             type="text"
-            placeholder="Buscar"
+            placeholder="Buscar (nombre de la excursión, sigla o nombre del destino)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full border border-gray-400 bg-[#F5F5F5] rounded-md py-2 pl-9 pr-4 text-black font-normal shadow-sm focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-gray-500"
           />
         </div>
 
-        <ul className="border border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-200 bg-white">
-          {isUpdating ? (
-            <li className="py-12 flex flex-col items-center justify-center gap-3">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-              <p className="text-sm text-gray-500 animate-pulse font-medium">Buscando excursiones...</p>
-            </li>
-          ) : excursiones.length === 0 ? (
-            <li className="py-12 text-center text-gray-500 text-sm flex flex-col items-center gap-2">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-300">
-                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <span>No se encontraron resultados</span>
-            </li>
-          ) : (
-            paginatedExcursiones.map((excursion) => (
-              <li
-                key={excursion.id}
-                className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
-              >
-                <div className="flex flex-col">
-                  <span className="font-medium text-gray-800">{excursion.name}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => handleClickPut(excursion)}
-                    title="Editar"
-                    className="text-gray-600 hover:text-primary"
+        {isUpdating ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 border border-gray-400 rounded-lg bg-white">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+            <p className="text-sm text-gray-500 animate-pulse font-medium">Buscando excursiones...</p>
+          </div>
+        ) : excursiones.length === 0 ? (
+          <div className="py-12 text-center text-gray-500 text-sm flex flex-col items-center gap-2 border border-gray-400 rounded-lg bg-white">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-300">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span>No se encontraron resultados</span>
+          </div>
+        ) : (
+          <ul className="flex flex-col w-full">
+            {paginatedExcursiones.map((excursion, index) => {
+              const isFirst = index === 0;
+              const isLast = index === paginatedExcursiones.length - 1;
+              const sigla = getDestinoSigla(excursion);
+
+              return (
+                <li key={excursion.id} className="flex items-stretch gap-3 w-full">
+                  {/* Destino Sigla Badge */}
+                  <div
+                    className={`w-20 sm:w-24 flex items-center justify-center px-3 py-3 bg-[#D8E2FD] border-x border-gray-400 text-black font-medium text-sm text-center shrink-0 ${
+                      isFirst ? "border-t rounded-t-md" : "border-t"
+                    } ${isLast ? "border-b rounded-b-md" : ""}`}
                   >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 13 13"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M8.6821 0.655196C9.10147 0.23574 9.67029 5.8616e-05 10.2634 1.09323e-08C10.8566 -5.85942e-05 11.4255 0.23551 11.8449 0.654884C12.2644 1.07426 12.5 1.64308 12.5001 2.23622C12.5002 2.82937 12.2646 3.39824 11.8452 3.8177L11.2877 4.37582L8.12522 1.2127L8.6821 0.655196ZM7.46272 1.87582L1.21272 8.1252C0.958684 8.37897 0.780167 8.69836 0.697097 9.0477L0.0127222 11.9239C-0.00580801 12.0019 -0.00407066 12.0832 0.0177686 12.1602C0.039608 12.2373 0.0808211 12.3075 0.137477 12.3641C0.194133 12.4206 0.264344 12.4618 0.341412 12.4835C0.41848 12.5053 0.499837 12.5069 0.577722 12.4883L3.45335 11.8033C3.80291 11.7204 4.12252 11.5418 4.37647 11.2877L10.6252 5.03832L7.46272 1.87582Z"
-                        fill="black"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(excursion.id!)}
-                    title="Eliminar"
-                    className="text-gray-600 hover:text-red-500"
+                    {sigla}
+                  </div>
+
+                  {/* Excursion Name Item */}
+                  <div
+                    className={`flex-1 flex items-center justify-between px-4 py-3 bg-[#F5F5F5] hover:bg-[#EFEFEF] transition-colors border-x border-gray-400 text-black text-sm ${
+                      isFirst ? "border-t rounded-t-md" : "border-t"
+                    } ${isLast ? "border-b rounded-b-md" : ""}`}
                   >
-                    <svg
-                      width="9"
-                      height="12"
-                      viewBox="0 0 9 12"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M8.75 0.625H6.5625L5.9375 0H2.8125L2.1875 0.625H0V1.875H8.75M0.625 10C0.625 10.3315 0.756696 10.6495 0.991117 10.8839C1.22554 11.1183 1.54348 11.25 1.875 11.25H6.875C7.20652 11.25 7.52446 11.1183 7.75888 10.8839C7.9933 10.6495 8.125 10.3315 8.125 10V2.5H0.625V10Z"
-                        fill="black"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
+                    <span className="font-normal text-gray-900">{excursion.name}</span>
+                    <div className="flex items-center gap-3">
+                      {/* BOTON EDITAR */}
+                      <button
+                        onClick={() => handleClickPut(excursion)}
+                        title="Editar"
+                        className="text-black hover:text-primary transition-colors cursor-pointer"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 13 13"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M8.6821 0.655196C9.10147 0.23574 9.67029 5.8616e-05 10.2634 1.09323e-08C10.8566 -5.85942e-05 11.4255 0.23551 11.8449 0.654884C12.2644 1.07426 12.5 1.64308 12.5001 2.23622C12.5002 2.82937 12.2646 3.39824 11.8452 3.8177L11.2877 4.37582L8.12522 1.2127L8.6821 0.655196ZM7.46272 1.87582L1.21272 8.1252C0.958684 8.37897 0.780167 8.69836 0.697097 9.0477L0.0127222 11.9239C-0.00580801 12.0019 -0.00407066 12.0832 0.0177686 12.1602C0.039608 12.2373 0.0808211 12.3075 0.137477 12.3641C0.194133 12.4206 0.264344 12.4618 0.341412 12.4835C0.41848 12.5053 0.499837 12.5069 0.577722 12.4883L3.45335 11.8033C3.80291 11.7204 4.12252 11.5418 4.37647 11.2877L10.6252 5.03832L7.46272 1.87582Z"
+                            fill="black"
+                          />
+                        </svg>
+                      </button>
+                      {/* BOTON ELIMINAR */}
+                      <button
+                        onClick={() => handleDelete(excursion.id!)}
+                        title="Eliminar"
+                        className="text-black hover:text-red-500 transition-colors cursor-pointer"
+                      >
+                        <svg
+                          width="10"
+                          height="13"
+                          viewBox="0 0 9 12"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M8.75 0.625H6.5625L5.9375 0H2.8125L2.1875 0.625H0V1.875H8.75M0.625 10C0.625 10.3315 0.756696 10.6495 0.991117 10.8839C1.22554 11.1183 1.54348 11.25 1.875 11.25H6.875C7.20652 11.25 7.52446 11.1183 7.75888 10.8839C7.9933 10.6495 8.125 10.3315 8.125 10V2.5H0.625V10Z"
+                            fill="black"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
         <Pagination
           currentPage={currentPage}

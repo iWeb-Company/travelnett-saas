@@ -32,8 +32,12 @@ function AgregarSalidaContent() {
   // Form State
   const [destino, setDestino] = useState("");
   const [empresa, setEmpresa] = useState("");
+  const [precioTransporte, setPrecioTransporte] = useState("");
   const [fecha, setFecha] = useState("");
   const [periodo, setPeriodo] = useState("");
+  const [alcance, setAlcance] = useState<"argentina" | "internacional">(
+    "argentina",
+  );
   const [pasajerosTotales, setPasajerosTotales] = useState("");
   const [economy, setEconomy] = useState("");
   const [business, setBusiness] = useState("");
@@ -77,9 +81,18 @@ function AgregarSalidaContent() {
         if (sal) {
           setDestino(sal.destino || "");
           setEmpresa(sal.transport_company || "");
-          const rawDate = String(sal.date_of_out || "").split(" ")[0].split("T")[0];
+          setPrecioTransporte(
+            sal.precio_transporte?.toString() ||
+              sal.precio_micro?.toString() ||
+              sal.precio?.toString() ||
+              "",
+          );
+          const rawDate = String(sal.date_of_out || "")
+            .split(" ")[0]
+            .split("T")[0];
           setFecha(rawDate);
           setPeriodo(sal.periodo || "");
+          setAlcance(sal.alcance || "argentina");
           setPasajerosTotales(sal.passengers?.toString() || "");
           setEconomy(sal.semicama?.toString() || "");
           setBusiness(sal.cama?.toString() || "");
@@ -128,7 +141,9 @@ function AgregarSalidaContent() {
       type: typeParam,
       active: active,
       periodo: periodo,
+      alcance: alcance,
       transport_company: empresa,
+      precio_transporte: parseFloat(precioTransporte) || 0,
       destino: destino,
       passengers: parseInt(pasajerosTotales) || 0,
       semicama: parseInt(economy) || 0,
@@ -185,14 +200,14 @@ function AgregarSalidaContent() {
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col w-full max-w-3xl mx-auto my-5 gap-5 bg-white p-6 rounded-xl border border-gray-200 text-lg shadow-sm text-black">
+        className="flex flex-col w-full max-w-3xl mx-auto my-5 gap-5 p-6 rounded-xl text-lg  text-black">
         <h2 className="text-black text-center md:text-xl font-semibold mb-3">
           {id ? "Modificar" : "Agregar"} salida
         </h2>
 
         {/* Destino */}
         <select
-          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={destino}
           onChange={(e) => setDestino(e.target.value)}
           required>
@@ -206,21 +221,55 @@ function AgregarSalidaContent() {
           ))}
         </select>
 
-        {/* Empresa de Transporte */}
-        <select
-          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          value={empresa}
-          onChange={(e) => setEmpresa(e.target.value)}
-          required>
-          <option value="" disabled>
-            Empresa de Transporte
-          </option>
-          {transportes.map((t: any) => (
-            <option key={t.id} value={t.id}>
-              {t.name} ({t.type === "aereo" ? "Aéreo" : "Bus"})
+        {/* Empresa de Transporte con animación para el Precio */}
+        <div className="w-full flex flex-col gap-3">
+          <select
+            className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary z-10 relative"
+            value={empresa}
+            onChange={(e) => setEmpresa(e.target.value)}
+            required>
+            <option value="" disabled>
+              Empresa de Transporte
             </option>
-          ))}
-        </select>
+            {transportes.map((t: any) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.type === "aereo" ? "Aéreo" : "Bus"})
+              </option>
+            ))}
+          </select>
+
+          {/* Precio del micro / transporte (Animación de desplazamiento de 300ms) */}
+          <div
+            className={`grid transition-all duration-300 ease-in-out origin-top ${
+              empresa
+                ? "grid-rows-[1fr] opacity-100 translate-y-0"
+                : "grid-rows-[0fr] opacity-0 -translate-y-6 pointer-events-none -mb-3"
+            }`}>
+            <div className="overflow-hidden">
+              <div className="relative w-full flex items-center bg-[#f1f1f1] border border-gray-300 rounded-md shadow-sm">
+                <input
+                  type="number"
+                  placeholder={
+                    typeParam === "aereo"
+                      ? "Precio del vuelo"
+                      : "Precio del micro"
+                  }
+                  className="w-full bg-transparent font-medium py-2.5 pl-4 pr-12 text-zinc-600 placeholder-zinc-500 focus:outline-none"
+                  value={precioTransporte}
+                  onChange={(e) => setPrecioTransporte(e.target.value)}
+                />
+                <div className="absolute right-4 flex items-center gap-1 text-zinc-500 pointer-events-none select-none">
+                  <span className="font-medium text-base">$</span>
+                  <svg
+                    className="w-4 h-4 fill-current text-zinc-600"
+                    viewBox="0 0 20 20">
+                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Fecha de salida */}
         <DateInput
@@ -231,12 +280,10 @@ function AgregarSalidaContent() {
 
         {/* Periodo */}
         <select
-          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={periodo}
           onChange={(e) => setPeriodo(e.target.value)}>
-          <option value="">
-            Sin período (Opcional)
-          </option>
+          <option value="">Período (Opcional)</option>
           {periodos.map((p: any) => (
             <option key={p.id} value={p.id}>
               {p.name || p.nombre || p.description}
@@ -244,11 +291,46 @@ function AgregarSalidaContent() {
           ))}
         </select>
 
+        {/* Switch Alcance: Salida Argentina / Salida Internacional */}
+        <div className="w-full flex rounded-md overflow-hidden border border-gray-300 shadow-sm text-zinc-600 font-medium select-none">
+          <button
+            type="button"
+            onClick={() => setAlcance("argentina")}
+            className={`w-1/2 py-2.5 px-4 flex items-center justify-center gap-2.5 cursor-pointer border-r border-gray-300 transition-colors focus:outline-none ${
+              alcance === "argentina"
+                ? "bg-[#dce6f9] text-zinc-700 font-semibold"
+                : "bg-[#f1f1f1] text-zinc-500 hover:bg-gray-200/60"
+            }`}>
+            <span>Salida Argentina</span>
+            <span
+              className={`w-3.5 h-3.5 rounded-full transition-colors ${
+                alcance === "argentina" ? "bg-[#1d4ed8]" : "bg-[#cccccc]"
+              }`}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAlcance("internacional")}
+            className={`w-1/2 py-2.5 px-4 flex items-center justify-center gap-2.5 cursor-pointer transition-colors focus:outline-none ${
+              alcance === "internacional"
+                ? "bg-[#dce6f9] text-zinc-700 font-semibold"
+                : "bg-[#f1f1f1] text-zinc-500 hover:bg-gray-200/60"
+            }`}>
+            <span>Salida Internacional</span>
+            <span
+              className={`w-3.5 h-3.5 rounded-full transition-colors ${
+                alcance === "internacional" ? "bg-[#1d4ed8]" : "bg-[#cccccc]"
+              }`}
+            />
+          </button>
+        </div>
+
         {/* Pasajeros totales */}
         <input
           type="number"
           placeholder="Cantidad de pasajeros totales"
-          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={pasajerosTotales}
           onChange={(e) => setPasajerosTotales(e.target.value)}
           required
@@ -258,7 +340,7 @@ function AgregarSalidaContent() {
         <input
           type="number"
           placeholder="Semicama"
-          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={economy}
           onChange={(e) => setEconomy(e.target.value)}
         />
@@ -267,7 +349,7 @@ function AgregarSalidaContent() {
         <input
           type="number"
           placeholder="Cama"
-          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={business}
           onChange={(e) => setBusiness(e.target.value)}
         />
