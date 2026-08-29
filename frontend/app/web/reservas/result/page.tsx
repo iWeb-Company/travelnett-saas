@@ -15,6 +15,8 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
 import { Reserva } from "@/app/types";
+import { formatDateDDMMYY } from "@/lib/formatDate";
+import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
 
 interface Passenger {
   dni: string;
@@ -66,13 +68,15 @@ function ResultContent() {
       const list = (resList || []).map((r: any) => {
         const pasajerosMap = r.reservation_passengers && r.reservation_passengers.length > 0
           ? r.reservation_passengers.map((rp: any) => ({
-            nombre: rp.nombre_completo || "Desconocido",
+            nombre: rp.name || rp.last_name
+              ? formatPassengerName(rp.name, rp.last_name)
+              : formatFullName(rp.nombre_completo),
             dni: rp.dni ? String(rp.dni) : "-",
             telefono: rp.telefono || "-",
             email: "-",
           }))
           : [{
-            nombre: r.nombre_completo || "Desconocido",
+            nombre: formatFullName(r.nombre_completo),
             dni: r.dni ? String(r.dni) : "-",
             telefono: r.telefono || "-",
             email: "-",
@@ -86,12 +90,12 @@ function ResultContent() {
           codigo_reserva: r.codigo_reserva,
           numero: r.codigo_reserva || `RES-${r.id.substring(0, 6).toUpperCase()}`,
           destino: r.destino || r.lugar_carga_nombre || "General",
-          cliente: r.client_nombre || "Particular",
+          cliente: (r.client_nombre || "Particular").toUpperCase(),
           client_nombre: r.client_nombre || "",
           client_id: r.client_id || "",
           fechaRaw: r.fecha || "",
-          fecha: r.fecha ? new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR") : "10/06/2026",
-          nombre_completo: r.nombre_completo || "Desconocido",
+          fecha: formatDateDDMMYY(r.fecha),
+          nombre_completo: formatFullName(r.nombre_completo),
           reservation_passengers: r.reservation_passengers || [],
           pasajeros: pasajerosMap,
           active: r.active
@@ -135,9 +139,9 @@ function ResultContent() {
         const sal = salidasList.find((s) => s.id === r.salida_id);
         let label = r.destino || "Salida";
         if (sal?.date_of_out) {
-          label += ` - ${sal.date_of_out}`;
+          label += ` - ${formatDateDDMMYY(sal.date_of_out)}`;
         } else if (r.fechaRaw) {
-          label += ` - ${r.fechaRaw}`;
+          label += ` - ${formatDateDDMMYY(r.fechaRaw)}`;
         }
         map.set(r.salida_id, { id: r.salida_id, label });
       }

@@ -249,6 +249,7 @@ async def create_periods(
     iweb_client_id: Optional[str] = Query(None),
     client_id_form: Optional[str] = Form(None, alias="iweb_client_id"),
     main_image: Optional[UploadFile] = File(None),
+    web_enabled: Optional[bool] = Form(True),
     db: Session = Depends(get_db),
 ):
     cid = iweb_client_id or client_id_form
@@ -271,6 +272,7 @@ async def create_periods(
         iweb_client_id=cid,
         name=name,
         main_image=relative_path,
+        web_enabled=web_enabled if web_enabled is not None else True,
     )
     db.add(new_period)
     db.commit()
@@ -308,6 +310,7 @@ async def create_lugares_carga(
         name=body.name,
         type=body.type,
         address=body.address,
+        is_essential=body.is_essential if body.is_essential is not None else False,
     )
     db.add(new_lugar_carga)
     db.commit()
@@ -382,6 +385,7 @@ async def create_clients(
         commission=body.commission,
         hashed_password=body.hashed_password,
         created_at=body.created_at,
+        active=body.active if body.active is not None else True,
     )
     db.add(new_client)
     db.commit()
@@ -422,7 +426,7 @@ async def create_passengers(
         dni=body.dni,
         date_of_birth=body.date_of_birth,
         sex=body.sex,
-        phone=body.phone,
+        phone=str(body.phone) if body.phone is not None else None,
     )
     db.add(new_passenger)
     db.commit()
@@ -491,15 +495,17 @@ async def get_transport_companies(
     db: Session = Depends(get_db)
 ):
     q = db.query(TransportCompany).filter(TransportCompany.iweb_client_id == iweb_client_id)
-    if page is not None:
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    if is_paged:
         total = q.count()
-        items = q.offset((page - 1) * limit).limit(limit).all()
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+        items = q.offset((page - 1) * limit_val).limit(limit_val).all()
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": jsonable_encoder(items),
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return jsonable_encoder(q.all())
@@ -513,9 +519,11 @@ async def get_hotels(
     db: Session = Depends(get_db)
 ):
     q = db.query(Hotels).filter(Hotels.iweb_client_id == iweb_client_id)
-    total = q.count() if page is not None else 0
-    if page is not None:
-        hotels = q.offset((page - 1) * limit).limit(limit).all()
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    total = q.count() if is_paged else 0
+    if is_paged:
+        hotels = q.offset((page - 1) * limit_val).limit(limit_val).all()
     else:
         hotels = q.all()
 
@@ -530,13 +538,13 @@ async def get_hotels(
 
     payloads = [_hotel_payload(hotel, images_by_hotel.get(hotel.id, [])) for hotel in hotels]
 
-    if page is not None:
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+    if is_paged:
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": payloads,
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return payloads
@@ -550,15 +558,17 @@ async def get_excursions(
     db: Session = Depends(get_db)
 ):
     q = db.query(Excursions).filter(Excursions.iweb_client_id == iweb_client_id)
-    if page is not None:
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    if is_paged:
         total = q.count()
-        items = q.offset((page - 1) * limit).limit(limit).all()
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+        items = q.offset((page - 1) * limit_val).limit(limit_val).all()
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": jsonable_encoder(items),
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return jsonable_encoder(q.all())
@@ -572,15 +582,17 @@ async def get_periods(
     db: Session = Depends(get_db)
 ):
     q = db.query(Periods).filter(Periods.iweb_client_id == iweb_client_id)
-    if page is not None:
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    if is_paged:
         total = q.count()
-        items = q.offset((page - 1) * limit).limit(limit).all()
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+        items = q.offset((page - 1) * limit_val).limit(limit_val).all()
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": jsonable_encoder(items),
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return jsonable_encoder(q.all())
@@ -594,15 +606,17 @@ async def get_destinos(
     db: Session = Depends(get_db)
 ):
     q = db.query(Destinos).filter(Destinos.iweb_client_id == iweb_client_id)
-    if page is not None:
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    if is_paged:
         total = q.count()
-        items = q.offset((page - 1) * limit).limit(limit).all()
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+        items = q.offset((page - 1) * limit_val).limit(limit_val).all()
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": jsonable_encoder(items),
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return jsonable_encoder(q.all())
@@ -615,16 +629,20 @@ async def get_lugares_carga(
     limit: int = Query(5, ge=1),
     db: Session = Depends(get_db)
 ):
-    q = db.query(LugaresCarga).filter(LugaresCarga.iweb_client_id == iweb_client_id)
-    if page is not None:
+    q = db.query(LugaresCarga).filter(LugaresCarga.iweb_client_id == iweb_client_id).order_by(
+        LugaresCarga.is_essential.desc(), LugaresCarga.name.asc()
+    )
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    if is_paged:
         total = q.count()
-        items = q.offset((page - 1) * limit).limit(limit).all()
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+        items = q.offset((page - 1) * limit_val).limit(limit_val).all()
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": jsonable_encoder(items),
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return jsonable_encoder(q.all())
@@ -642,9 +660,11 @@ async def get_clients(
     db: Session = Depends(get_db)
 ):
     q = db.query(Clients).filter(Clients.iweb_client_id == iweb_client_id)
-    total = q.count() if page is not None else 0
-    if page is not None:
-        results = q.offset((page - 1) * limit).limit(limit).all()
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    total = q.count() if is_paged else 0
+    if is_paged:
+        results = q.offset((page - 1) * limit_val).limit(limit_val).all()
     else:
         results = q.all()
 
@@ -664,16 +684,17 @@ async def get_clients(
             "phone": r.phone,
             "payment_method": r.payment_method,
             "commission": r.commission,
+            "active": r.active,
             "created_at": str(r.created_at) if r.created_at else None,
         })
 
-    if page is not None:
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+    if is_paged:
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": mapped_results,
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return mapped_results
@@ -687,15 +708,17 @@ async def get_regimenes(
     db: Session = Depends(get_db)
 ):
     q = db.query(Regimenes).filter(Regimenes.iweb_client_id == iweb_client_id)
-    if page is not None:
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    if is_paged:
         total = q.count()
-        items = q.offset((page - 1) * limit).limit(limit).all()
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+        items = q.offset((page - 1) * limit_val).limit(limit_val).all()
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": jsonable_encoder(items),
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return jsonable_encoder(q.all())
@@ -788,15 +811,18 @@ async def get_passengers(
         else:
             query = query.filter(func.cast(Passengers.dni, String).ilike(f"%{clean_dni}%"))
         
-    total = query.count() if page is not None else 0
-    if page is not None:
-        passengers = query.offset((page - 1) * limit).limit(limit).all()
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+
+    total = query.count() if is_paged else 0
+    if is_paged:
+        passengers = query.offset((page - 1) * limit_val).limit(limit_val).all()
     else:
         passengers = query.all()
 
     if not passengers:
-        if page is not None:
-            return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 1}
+        if is_paged:
+            return {"items": [], "total": 0, "page": page, "limit": limit_val, "total_pages": 1}
         return []
 
     p_ids = [p.id for p in passengers]
@@ -836,13 +862,13 @@ async def get_passengers(
             "reserva": res_by_pax.get(p.id, "-")
         })
 
-    if page is not None:
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+    if is_paged:
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": result,
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return result
@@ -856,9 +882,11 @@ async def get_bus_types(
     db: Session = Depends(get_db)
 ):
     q = db.query(BusTypes).filter(BusTypes.iweb_client_id == iweb_client_id)
-    total = q.count() if page is not None else 0
-    if page is not None:
-        results = q.offset((page - 1) * limit).limit(limit).all()
+    is_paged = isinstance(page, int) and page >= 1
+    limit_val = limit if isinstance(limit, int) and limit >= 1 else 5
+    total = q.count() if is_paged else 0
+    if is_paged:
+        results = q.offset((page - 1) * limit_val).limit(limit_val).all()
     else:
         results = q.all()
 
@@ -878,13 +906,13 @@ async def get_bus_types(
             "observaciones": r.description or ""
         })
 
-    if page is not None:
-        total_pages = math.ceil(total / limit) if total > 0 else 1
+    if is_paged:
+        total_pages = math.ceil(total / limit_val) if total > 0 else 1
         return {
             "items": mapped_results,
             "total": total,
             "page": page,
-            "limit": limit,
+            "limit": limit_val,
             "total_pages": total_pages
         }
     return mapped_results
@@ -1009,6 +1037,7 @@ async def update_excursions(
 async def update_periods(
     period_id: str,
     name: Optional[str] = Form(None),
+    web_enabled: Optional[str] = Form(None),
     iweb_client_id: Optional[str] = Query(None),
     client_id_form: Optional[str] = Form(None, alias="iweb_client_id"),
     main_image: Optional[UploadFile] = File(None),
@@ -1024,6 +1053,8 @@ async def update_periods(
         raise HTTPException(status_code=404, detail="Period not found")
     if name is not None:
         period.name = name
+    if web_enabled is not None:
+        period.web_enabled = str(web_enabled).strip().lower() in ("true", "1", "t", "yes")
     if main_image is not None and main_image.filename:
         tenant = _get_tenant_or_404(db, cid)
         ext = _guess_extension(main_image.filename or "", main_image.content_type)
@@ -1179,14 +1210,26 @@ async def update_passengers(
     iweb_client_id: str,
     db: Session = Depends(get_db),
 ):
+    clean_p_id = passenger_id.strip()
+    norm_client = iweb_client_id.strip().lower()
     passenger = db.query(Passengers).filter(
-        Passengers.id == passenger_id, Passengers.iweb_client_id == iweb_client_id
+        func.lower(Passengers.id) == clean_p_id.lower(),
+        func.lower(Passengers.iweb_client_id) == norm_client
     ).first()
     if not passenger:
+        passenger = db.query(Passengers).filter(
+            func.lower(Passengers.id) == clean_p_id.lower()
+        ).first()
+    if not passenger:
         raise HTTPException(status_code=404, detail="Passenger not found")
-    for key, value in body.model_dump(exclude_unset=True).items():
+
+    dump = body.model_dump(exclude_unset=True)
+    for key, value in dump.items():
         if key != "id":
-            setattr(passenger, key, value)
+            if key == "phone":
+                setattr(passenger, "phone", str(value).strip() if (value is not None and str(value).strip() != "") else None)
+            else:
+                setattr(passenger, key, value)
     db.commit()
     db.refresh(passenger)
     return passenger

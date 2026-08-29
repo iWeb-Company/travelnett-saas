@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
-from models.models import Reservas, Passengers, Salidas, LugaresCarga, Hotels, Regimenes, Clients, ReservationPassengers, Destinos, Liquidaciones, GastosNoCommission, Pagos, Vouchers, cuentasCorrientsClients
+from models.models import Reservas, Passengers, Salidas, LugaresCarga, Hotels, Regimenes, Clients, ReservationPassengers, Destinos, Liquidaciones, GastosNoCommission, Pagos, Vouchers, cuentasCorrientsClients, User
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -26,10 +26,13 @@ class ReservationPassengerDetail(BaseModel):
     
     # Cruzados desde la tabla passengers
     nombre_completo: Optional[str] = None
+    name: Optional[str] = None
+    last_name: Optional[str] = None
     dni: Optional[int] = None
     fecha_nacimiento: Optional[str] = None
     sex: Optional[str] = None
     telefono: Optional[str] = None
+    phone: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -61,6 +64,7 @@ class ReservaCreatePayload(BaseModel):
     liberados: Optional[int] = 0
     type: Optional[str] = "tradicional"
     titulo: Optional[str] = None
+    created_by_user_id: Optional[str] = None
     
     # Nuevo campo
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
@@ -123,6 +127,9 @@ class ReservaDetailedResponse(BaseModel):
     type: Optional[str] = "tradicional"
     titulo: Optional[str] = None
     created_at: Optional[str] = None
+    created_by_user_id: Optional[str] = None
+    vendedor_nombre: Optional[str] = "General"
+    vendedor: Optional[str] = "General"
     
     # Compatibilidad virtual para frontend tradicional
     passenger_id: Optional[str] = None
@@ -273,6 +280,13 @@ async def get_reservas(
         pagos_by_reserva.setdefault(p.reserva_id, 0.0)
         pagos_by_reserva[p.reserva_id] += float(p.amount or 0.0)
 
+    # ── 8.6. Users (batch for seller/vendedor) ──────────────────────────────
+    user_ids = list({r.created_by_user_id for r in res_list if getattr(r, 'created_by_user_id', None)})
+    users_map: dict = {}
+    if user_ids:
+        usrs = db.query(User).filter(User.id.in_(user_ids)).all()
+        users_map = {u.id: u for u in usrs}
+
     # ── 9. Construir respuesta en memoria ────────────────────────────────────
 
     result = []
@@ -382,6 +396,10 @@ async def get_reservas(
         tot_payments = pagos_by_reserva.get(r.id, 0.0)
         tot_balance = (tot_amount - tot_payments) if tot_amount is not None else None
 
+        u_seller = users_map.get(r.created_by_user_id) if getattr(r, 'created_by_user_id', None) else None
+        seller_name = f"{u_seller.name or ''} {u_seller.last_name or ''}".strip() if u_seller else ""
+        vendedor_val = seller_name or (u_seller.username if u_seller else "General")
+
         result.append(
             ReservaDetailedResponse(
                 id=r.id,
@@ -407,6 +425,10 @@ async def get_reservas(
                 liberados=r.liberados or 0,
                 type=r.type or "tradicional",
                 titulo=r.titulo,
+                created_at=str(r.created_at) if r.created_at else None,
+                created_by_user_id=getattr(r, 'created_by_user_id', None),
+                vendedor_nombre=vendedor_val,
+                vendedor=vendedor_val,
                 passenger_id=comp_passenger_id,
                 nombre_completo=comp_nombre_completo,
                 telefono=comp_telefono,
@@ -571,6 +593,7 @@ async def create_reserva(
         liberados=body.liberados or 0,
         type=body.type or "tradicional",
         titulo=body.titulo,
+        created_by_user_id=body.created_by_user_id,
         created_at=datetime.utcnow(),
     )
     db.add(new_res)
@@ -864,7 +887,8 @@ async def update_reserva(
                 dni=p.dni if p else None,
                 fecha_nacimiento=str(p.date_of_birth) if (p and p.date_of_birth) else None,
                 sex=p.sex if p else None,
-                telefono=str(p.phone) if (p and p.phone) else ""
+                telefono=str(p.phone) if (p and p.phone) else "",
+                phone=str(p.phone) if (p and p.phone) else ""
             )
         )
         
@@ -1045,7 +1069,8 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
                 dni=p.dni if p else None,
                 fecha_nacimiento=str(p.date_of_birth) if (p and p.date_of_birth) else None,
                 sex=p.sex if p else None,
-                telefono=str(p.phone) if (p and p.phone) else ""
+                telefono=str(p.phone) if (p and p.phone) else "",
+                phone=str(p.phone) if (p and p.phone) else ""
             )
         )
         
@@ -1113,6 +1138,13 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
                 if d_obj:
                     salida_dest_name = d_obj.name or ""
 
+    vendedor_val = "General"
+    if getattr(r, 'created_by_user_id', None):
+        u_seller = db.query(User).filter(User.id == r.created_by_user_id).first()
+        if u_seller:
+            seller_name = f"{u_seller.name or ''} {u_seller.last_name or ''}".strip()
+            vendedor_val = seller_name or u_seller.username or "General"
+
     return ReservaDetailedResponse(
         id=r.id,
         iweb_client_id=r.iweb_client_id,
@@ -1133,6 +1165,14 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
         active=bool(r.active if r.active is not None else True),
         venciment=r.venciment,
         observations=r.observations,
+        commission=float(r.commission) if r.commission is not None else None,
+        liberados=r.liberados or 0,
+        type=r.type or "tradicional",
+        titulo=r.titulo,
+        created_at=str(r.created_at) if r.created_at else None,
+        created_by_user_id=getattr(r, 'created_by_user_id', None),
+        vendedor_nombre=vendedor_val,
+        vendedor=vendedor_val,
         passenger_id=comp_passenger_id,
         nombre_completo=comp_nombre_completo,
         telefono=comp_telefono,

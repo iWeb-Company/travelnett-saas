@@ -206,7 +206,7 @@ export default function CuentasPage() {
             />
             <input
               type="text"
-              placeholder="N° de cuenta"
+              placeholder="N° de cuenta (Opcional)"
               value={cuentasData.account_number}
               onChange={(e) =>
                 setCuentasData({

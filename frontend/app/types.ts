@@ -139,7 +139,9 @@ export interface Client {
     commission?: number;
     hashed_password?: string;
     created_at?: string;
+    active?: boolean;
 }
+
 
 export interface TipoCliente {
     id?: string;
@@ -173,7 +175,9 @@ export interface LoadingPlace {
     name: string;
     address: string;
     type: "aereo" | "bus" | string;
+    is_essential?: boolean;
 }
+
 
 export interface Passengers {
     id?: string;
@@ -194,7 +198,9 @@ export interface Period {
     iweb_client_id?: string;
     name: string;
     main_image?: string;
+    web_enabled?: boolean;
 }
+
 
 export interface Permission {
     id?: string;

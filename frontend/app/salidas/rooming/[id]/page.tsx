@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 
 import { parseRoomItem, parseRoomTypes, getRoomCapacity } from "@/lib/formatRooms";
+import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
 
 export default function RoomingPage() {
   const router = useRouter();
@@ -125,7 +126,13 @@ export default function RoomingPage() {
         ? r.reservation_passengers
         : [r];
 
-      const paxNames: string[] = paxs.map((pax: any) => pax.nombre_completo || r.nombre_completo || "Desconocido");
+      const paxNames: string[] = paxs.map((pax: any) => {
+        if (pax.name || pax.last_name) {
+          return formatPassengerName(pax.name, pax.last_name);
+        }
+        const full = pax.nombre_completo || r.nombre_completo || "";
+        return full ? formatFullName(full) : "DESCONOCIDO";
+      });
       totalPaxSum += paxNames.length;
 
       const roomDetailsList = parseRoomTypes(r.room_type);

@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import AddVioleta from "@/app/components/icons/AddVioleta";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 interface RoomPassenger {
   dni: string;
@@ -219,6 +220,10 @@ function Paso3Content() {
               pax.last_name || pax.apellido || copy[roomIdx][paxIdx].apellido,
             fechaNacimiento:
               formattedBirth || copy[roomIdx][paxIdx].fechaNacimiento,
+            phone:
+              (pax.phone !== undefined && pax.phone !== null && String(pax.phone).trim() !== "")
+                ? String(pax.phone).trim()
+                : copy[roomIdx][paxIdx].phone,
           };
           return copy;
         });
@@ -461,10 +466,30 @@ function Paso3Content() {
                 .catch(() => []);
               if (existing && existing.length > 0) {
                 passengerId = existing[0].id;
+                const cleanPhone = (p.phone && String(p.phone).trim() !== "")
+                  ? String(p.phone).trim()
+                  : (existing[0].phone || null);
+                await apiClient
+                  .updateParameter(
+                    "update_passengers",
+                    passengerId,
+                    {
+                      name: p.nombre || existing[0].name,
+                      last_name: p.apellido || existing[0].last_name,
+                      dni: p.dni ? Number(p.dni) : existing[0].dni,
+                      date_of_birth: p.fechaNacimiento || existing[0].date_of_birth || null,
+                      phone: cleanPhone,
+                    },
+                    user.iweb_client_id,
+                  )
+                  .catch((err) => console.error("Error updating existing pax:", err));
               }
             }
 
             if (!passengerId) {
+              const cleanPhone = (p.phone && String(p.phone).trim() !== "")
+                ? String(p.phone).trim()
+                : null;
               const newPass = await apiClient.createParameter(
                 "create_passengers",
                 {
@@ -473,7 +498,7 @@ function Paso3Content() {
                   dni: p.dni ? Number(p.dni) : null,
                   date_of_birth: p.fechaNacimiento || null,
                   sex: null,
-                  phone: p.phone || null,
+                  phone: cleanPhone,
                 },
                 user.iweb_client_id,
               );
@@ -763,7 +788,7 @@ function Paso3Content() {
     clienteObj?.name_system ||
     (clienteId === "as" ? "En Espera" : "Cliente sin asignar");
   const fechaSalidaText =
-    salidaInfo?.date_of_out || paqueteInfo?.name || "Fecha a confirmar";
+    salidaInfo?.date_of_out ? formatDateDDMMYY(salidaInfo.date_of_out) : paqueteInfo?.name || "Fecha a confirmar";
   const siglaText = destinoObj?.sigla || "DEST";
 
   return (
@@ -1079,8 +1104,8 @@ function Paso3Content() {
                           <input
                             type="text"
                             required
-                            className="w-full border border-gray-300 uppercase bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
-                            placeholder="phone"
+                            className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                            placeholder="Teléfono"
                             value={passenger.phone}
                             onChange={(e) =>
                               handlePassengerChange(

@@ -23,6 +23,7 @@ import {
   Regimen,
   Salida,
 } from "@/app/types";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 import DateInput from "@/app/components/DateComponent";
 
 // ─── Hotel entry type for the multi-hotel form ────────────────────────────────
@@ -495,7 +496,7 @@ function AgregarPaqueteContent() {
             }}
             options={salidasFiltered.map((s: Salida) => ({
               id: s.id,
-              label: `${s.date_of_out || "Sin fecha"}`,
+              label: `${formatDateDDMMYY(s.date_of_out)}`,
             }))}
           />
         </div>
@@ -561,7 +562,7 @@ function AgregarPaqueteContent() {
         <div className="flex gap-2">
           <input
             type="number"
-            placeholder="Adicional bus cama/business"
+            placeholder="Adicional bus cama/business (Opcional)"
             value={adicionalBusCama}
             onChange={(e) => setAdicionalBusCama(e.target.value)}
             className="text-gray-500 flex-1 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -569,8 +570,7 @@ function AgregarPaqueteContent() {
           <select
             className="text-gray-500 bg-[#f1f1f1] font-semibold border border-gray-300 py-2.5 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
             value={monedaAdicionalBusCama}
-            onChange={(e) => setMonedaAdicionalBusCama(e.target.value)}
-            required>
+            onChange={(e) => setMonedaAdicionalBusCama(e.target.value)}>
             <option value="pesos">Pesos</option>
             <option value="dolares">Dólares</option>
           </select>

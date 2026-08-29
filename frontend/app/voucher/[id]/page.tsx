@@ -14,6 +14,7 @@ import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Salidas from "@/app/components/icons/home/Salidas";
 import Hotel from "@/app/components/icons/salidas/Hotel";
 import { formatRoomType } from "@/lib/formatRooms";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 export default function VoucherPage() {
   const params = useParams();
@@ -230,7 +231,7 @@ export default function VoucherPage() {
                     Fecha de salida
                   </p>
                   <p className="text-black text-xl font-bold mt-0.5">
-                    {voucherData.fecha_salida || "-"}
+                    {formatDateDDMMYY(voucherData.fecha_salida)}
                   </p>
                 </div>
               </div>
@@ -363,7 +364,7 @@ export default function VoucherPage() {
                     Fecha de entrada
                   </p>
                   <p className="text-black text-xl font-bold mt-0.5">
-                    {voucherData.fecha_salida || "-"}
+                    {formatDateDDMMYY(voucherData.fecha_salida)}
                   </p>
                 </div>
               </div>

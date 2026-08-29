@@ -241,7 +241,12 @@ export default function CargasPage() {
                     className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
                   >
                     <div className="flex flex-col">
-                      <span className="font-medium text-gray-800">{lugar.name || (lugar as any).nombre}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-800">{lugar.name || (lugar as any).nombre}</span>
+                        {lugar.is_essential && (
+                          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">⭐ Esencial</span>
+                        )}
+                      </div>
                       <span className="text-xs text-gray-500">{lugar.address || (lugar as any).direccion}</span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -332,6 +337,15 @@ export default function CargasPage() {
               onChange={(e) => setCargaData({ ...cargaData, address: e.target.value })}
               className="w-full border bg-white rounded-sm p-2 text-black/90 font-medium shadow-sm focus:outline-none"
             />
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={cargaData.is_essential || false}
+                onChange={(e) => setCargaData({ ...cargaData, is_essential: e.target.checked })}
+                className="w-4 h-4 accent-primary cursor-pointer"
+              />
+              <span className="text-sm font-medium text-black/80">Marcar como Esencial ⭐</span>
+            </label>
           </div>
         </ModalLayout>
       )}

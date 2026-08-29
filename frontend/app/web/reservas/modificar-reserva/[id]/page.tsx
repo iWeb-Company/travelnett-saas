@@ -88,7 +88,7 @@ export default function ReservaIdPage() {
           try {
             parsedRooms =
               typeof data.room_type === "string" &&
-              data.room_type.startsWith("[")
+                data.room_type.startsWith("[")
                 ? JSON.parse(data.room_type)
                 : data.room_type.includes(",")
                   ? data.room_type.split(",").map((s: string) => s.trim())
@@ -143,7 +143,8 @@ export default function ReservaIdPage() {
                 apellido: last,
                 dni: rp.dni ? String(rp.dni) : "",
                 fecha_nacimiento: rp.fecha_nacimiento || rp.date_of_birth || "",
-                telefono: rp.phone || "",
+                telefono: rp.telefono || rp.phone || "",
+                phone: rp.telefono || rp.phone || "",
                 butaca: rp.butaca_type || "Semicama",
                 butaca_type: rp.butaca_type || "semicama",
                 sexo: rp.sex || rp.sexo || "M",
@@ -447,6 +448,10 @@ export default function ReservaIdPage() {
 
       // 1. Update/Create Passengers in backend
       for (const pax of paxSource) {
+        const phoneVal = (pax.telefono !== undefined && pax.telefono !== null && String(pax.telefono).trim() !== "")
+          ? String(pax.telefono).trim()
+          : ((pax.phone !== undefined && pax.phone !== null && String(pax.phone).trim() !== "") ? String(pax.phone).trim() : null);
+
         if (!pax.pasajero_id) {
           const createdPax = await apiClient.createParameter(
             "create_passengers",
@@ -456,7 +461,7 @@ export default function ReservaIdPage() {
               dni: pax.dni ? Number(pax.dni) : null,
               date_of_birth: pax.fecha_nacimiento || null,
               sex: pax.sexo || null,
-              phone: pax.phone || null,
+              phone: phoneVal,
             },
             user.iweb_client_id,
           );
@@ -475,11 +480,11 @@ export default function ReservaIdPage() {
                 date_of_birth: pax.fecha_nacimiento || null,
                 butaca_type: pax.butaca_type || null,
                 sex: pax.sexo || null,
-                phone: pax.phone || null,
+                phone: phoneVal,
               },
               user.iweb_client_id,
             )
-            .catch(() => null);
+            .catch((err) => console.error("Error updating passenger:", err));
         }
       }
 
@@ -523,7 +528,7 @@ export default function ReservaIdPage() {
             setTotalReserva(Number(updatedLiq.total_amout));
           const tc =
             updatedLiq.total_commission !== undefined &&
-            updatedLiq.total_commission !== null
+              updatedLiq.total_commission !== null
               ? updatedLiq.total_commission
               : (updatedLiq.total_comisionable ??
                 updatedLiq.total_commissionable);
@@ -707,6 +712,11 @@ export default function ReservaIdPage() {
           const a = field === "apellido" ? value : copy[gIdx].apellido || "";
           updated.nombre_completo = `${n} ${a}`.trim();
         }
+        if (field === "telefono") {
+          updated.phone = value;
+        } else if (field === "phone") {
+          updated.telefono = value;
+        }
         copy[gIdx] = updated;
         return copy;
       }
@@ -716,6 +726,11 @@ export default function ReservaIdPage() {
         const n = field === "nombre" ? value : targetPax.nombre || "";
         const a = field === "apellido" ? value : targetPax.apellido || "";
         updatedPax.nombre_completo = `${n} ${a}`.trim();
+      }
+      if (field === "telefono") {
+        updatedPax.phone = value;
+      } else if (field === "phone") {
+        updatedPax.telefono = value;
       }
       return [...copy, updatedPax];
     });
@@ -820,12 +835,8 @@ export default function ReservaIdPage() {
             <p className="font-medium w-1/3 text-lg">Título de reserva</p>
             <input
               type="text"
-              placeholder={getNombreCompletoReserva() ?? ""}
-              value={
-                reserva?.titulo !== undefined && reserva?.titulo !== null
-                  ? reserva.titulo
-                  : (getNombreCompletoReserva() ?? "")
-              }
+              placeholder={getNombreCompletoReserva() || "Título de la reserva"}
+              value={reserva?.titulo ?? ""}
               onChange={(e) =>
                 setReserva({ ...reserva, titulo: e.target.value })
               }
@@ -855,8 +866,8 @@ export default function ReservaIdPage() {
                 );
                 const newComm =
                   matched &&
-                  matched.commission !== null &&
-                  matched.commission !== undefined
+                    matched.commission !== null &&
+                    matched.commission !== undefined
                     ? Number(matched.commission)
                     : clientCommissionPct;
                 setReserva({
@@ -1206,7 +1217,7 @@ export default function ReservaIdPage() {
                 onClick={() => setModalCommissionOpen(true)}
                 className="hover:underline cursor-pointer">
                 {clientCommissionPct !== null &&
-                clientCommissionPct !== undefined
+                  clientCommissionPct !== undefined
                   ? `(${clientCommissionPct}%)`
                   : ""}
               </button>

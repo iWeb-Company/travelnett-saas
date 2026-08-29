@@ -24,6 +24,8 @@ export default function ClientesPage() {
   const [modalOpenAddClientType, setModalOpenAddClientType] = useState(false);
   const [modalOpenPutClientType, setModalOpenPutClientType] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [clientTypes, setClientTypes] = useState<ClientsType[]>([]);
   const [clientes, setClientes] = useState<Client[]>([]);
@@ -74,9 +76,31 @@ export default function ClientesPage() {
     }
   }, [user?.iweb_client_id]);
 
+  const handleToggleActive = async (cliente: Client) => {
+    const clientId = user?.iweb_client_id;
+    if (!clientId || !cliente.id) return;
+    const newActive = cliente.active === false ? true : false;
+    try {
+      await apiClient.updateParameter(
+        "update_clients",
+        cliente.id,
+        { active: newActive },
+        clientId
+      );
+      setClientes((prev) =>
+        prev.map((c) => (c.id === cliente.id ? { ...c, active: newActive } : c))
+      );
+      toast.success(newActive ? "Cliente activado" : "Cliente desactivado");
+    } catch (err) {
+      toast.error("Error al actualizar estado del cliente");
+    }
+  };
+
   const clientesFiltered = clientes.filter((e) => {
     const name = e.name_system || "";
-    return name.toLowerCase().includes(search.toLowerCase());
+    const matchesName = name.toLowerCase().includes(search.toLowerCase());
+    const matchesType = !selectedTypeFilter || e.client_type === selectedTypeFilter || (e as any).client_type_id === selectedTypeFilter;
+    return matchesName && matchesType;
   });
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -315,28 +339,41 @@ export default function ClientesPage() {
       </div>
 
       <div className="w-full max-w-xl mx-auto flex flex-col gap-4">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 15 15"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M5.41667 10.8333C3.90278 10.8333 2.62167 10.3089 1.57333 9.26C0.525 8.21111 0.000555996 6.93 4.40917e-07 5.41667C-0.000555115 3.90333 0.523889 2.62222 1.57333 1.57333C2.62278 0.524444 3.90389 0 5.41667 0C6.92944 0 8.21083 0.524444 9.26083 1.57333C10.3108 2.62222 10.835 3.90333 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L14.4167 13.25C14.5694 13.4028 14.6458 13.5972 14.6458 13.8333C14.6458 14.0694 14.5694 14.2639 14.4167 14.4167C14.2639 14.5694 14.0694 14.6458 13.8333 14.6458C13.5972 14.6458 13.4028 14.5694 13.25 14.4167L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333ZM5.41667 9.16667C6.45833 9.16667 7.34389 8.80222 8.07333 8.07333C8.80278 7.34444 9.16722 6.45889 9.16667 5.41667C9.16611 4.37444 8.80167 3.48917 8.07333 2.76083C7.345 2.0325 6.45944 1.66778 5.41667 1.66667C4.37389 1.66556 3.48861 2.03028 2.76083 2.76083C2.03306 3.49139 1.66833 4.37667 1.66667 5.41667C1.665 6.45667 2.02972 7.34222 2.76083 8.07333C3.49195 8.80444 4.37722 9.16889 5.41667 9.16667Z"
-                fill="black"
-                fill-opacity="0.5"
-              />
-            </svg>
-          </span>
-          <input
-            type="text"
-            placeholder="Buscar"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 15 15"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M5.41667 10.8333C3.90278 10.8333 2.62167 10.3089 1.57333 9.26C0.525 8.21111 0.000555996 6.93 4.40917e-07 5.41667C-0.000555115 3.90333 0.523889 2.62222 1.57333 1.57333C2.62278 0.524444 3.90389 0 5.41667 0C6.92944 0 8.21083 0.524444 9.26083 1.57333C10.3108 2.62222 10.835 3.90333 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L14.4167 13.25C14.5694 13.4028 14.6458 13.5972 14.6458 13.8333C14.6458 14.0694 14.5694 14.2639 14.4167 14.4167C14.2639 14.5694 14.0694 14.6458 13.8333 14.6458C13.5972 14.6458 13.4028 14.5694 13.25 14.4167L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333ZM5.41667 9.16667C6.45833 9.16667 7.34389 8.80222 8.07333 8.07333C8.80278 7.34444 9.16722 6.45889 9.16667 5.41667C9.16611 4.37444 8.80167 3.48917 8.07333 2.76083C7.345 2.0325 6.45944 1.66778 5.41667 1.66667C4.37389 1.66556 3.48861 2.03028 2.76083 2.76083C2.03306 3.49139 1.66833 4.37667 1.66667 5.41667C1.665 6.45667 2.02972 7.34222 2.76083 8.07333C3.49195 8.80444 4.37722 9.16889 5.41667 9.16667Z"
+                  fill="black"
+                  fillOpacity="0.5"
+                />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Buscar por nombre..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <select
+            value={selectedTypeFilter}
+            onChange={(e) => setSelectedTypeFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg py-2 px-3 text-black/70 font-semibold shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="">Todos los tipos</option>
+            {clientTypes.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <ul className="border border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-200">
@@ -353,6 +390,20 @@ export default function ClientesPage() {
                   {(cliente.name_system || "").toUpperCase()}
                 </span>
                 <div className="flex items-center gap-3">
+                  {/* SWITCH ACTIVO / INACTIVO */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleActive(cliente)}
+                    title={cliente.active !== false ? "Activo" : "Inactivo"}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      cliente.active !== false ? "bg-blue-600" : "bg-gray-300"
+                    }`}>
+                    <span
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                        cliente.active !== false ? "translate-x-4" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
                   {/* BOTON EDITAR */}
                   <button
                     onClick={() => handleClickPut(cliente)}
@@ -727,7 +778,7 @@ export default function ClientesPage() {
               />
               <input
                 type="number"
-                placeholder="DNI o CUIT"
+                placeholder="DNI o CUIT (Opcional)"
                 value={clientesData.dni || ""}
                 onChange={(e) =>
                   setClientesData({
@@ -739,7 +790,7 @@ export default function ClientesPage() {
               />
               <input
                 type="date"
-                placeholder="Fecha de nacimiento"
+                placeholder="Fecha de nacimiento (Opcional)"
                 value={clientesData.birthday || ""}
                 onChange={(e) =>
                   setClientesData({ ...clientesData, birthday: e.target.value })
@@ -755,18 +806,27 @@ export default function ClientesPage() {
                 }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
-              <input
-                type="password"
-                placeholder="Contraseña"
-                value={clientesData.hashed_password || ""}
-                onChange={(e) =>
-                  setClientesData({
-                    ...clientesData,
-                    hashed_password: e.target.value,
-                  })
-                }
-                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-              />
+              <div className="relative w-full">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Contraseña"
+                  value={clientesData.hashed_password || ""}
+                  onChange={(e) =>
+                    setClientesData({
+                      ...clientesData,
+                      hashed_password: e.target.value,
+                    })
+                  }
+                  className="w-full border bg-white rounded-sm p-2 pr-10 text-black/90 font-medium shadow-sm focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1 text-sm select-none"
+                  title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}>
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
               <select
                 value={clientesData.client_type || ""}
                 onChange={(e) =>
@@ -906,7 +966,7 @@ export default function ClientesPage() {
               />
               <input
                 type="number"
-                placeholder="DNI"
+                placeholder="DNI o CUIT (Opcional)"
                 value={clientesData.dni || ""}
                 onChange={(e) =>
                   setClientesData({
@@ -918,7 +978,7 @@ export default function ClientesPage() {
               />
               <input
                 type="date"
-                placeholder="Fecha de nacimiento"
+                placeholder="Fecha de nacimiento (Opcional)"
                 value={clientesData.birthday || ""}
                 onChange={(e) =>
                   setClientesData({ ...clientesData, birthday: e.target.value })
@@ -934,18 +994,27 @@ export default function ClientesPage() {
                 }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
-              <input
-                type="password"
-                placeholder="Contraseña"
-                value={clientesData.hashed_password || ""}
-                onChange={(e) =>
-                  setClientesData({
-                    ...clientesData,
-                    hashed_password: e.target.value,
-                  })
-                }
-                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-              />
+              <div className="relative w-full">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Contraseña"
+                  value={clientesData.hashed_password || ""}
+                  onChange={(e) =>
+                    setClientesData({
+                      ...clientesData,
+                      hashed_password: e.target.value,
+                    })
+                  }
+                  className="w-full border bg-white rounded-sm p-2 pr-10 text-black/90 font-medium shadow-sm focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1 text-sm select-none"
+                  title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}>
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
               <select
                 value={clientesData.client_type || ""}
                 onChange={(e) =>

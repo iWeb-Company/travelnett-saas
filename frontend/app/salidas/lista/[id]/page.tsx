@@ -17,6 +17,8 @@ import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
 import toast from "react-hot-toast";
 import { exportListaToExcel, PasajeroListaData, LugarCargaListaData } from "@/app/utils/exportLista";
+import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 export default function SalidasIDPage() {
   const params = useParams();
@@ -214,19 +216,21 @@ export default function SalidasIDPage() {
 
       // Render individual rows for passengers with loaded data
       paxsConDatos.forEach((pax: any) => {
-        let apellido = pax.last_name || "";
-        let nombres = pax.name || "";
+        let apellido = (pax.last_name || "").trim().toUpperCase();
+        let nombres = (pax.name || "").trim().toUpperCase();
         if (!apellido && !nombres) {
           const full = (pax.nombre_completo || r.nombre_completo || "").trim();
-          const parts = full.split(" ");
+          const parts = full.split(/\s+/);
           if (parts.length > 1) {
-            apellido = parts[0];
-            nombres = parts.slice(1).join(" ");
+            apellido = parts[0].toUpperCase();
+            nombres = parts.slice(1).join(" ").toUpperCase();
           } else {
-            apellido = full;
+            apellido = full.toUpperCase();
             nombres = "";
           }
         }
+
+        const formattedNombre = apellido && nombres ? `${apellido}, ${nombres}` : (apellido || nombres || "DESCONOCIDO");
 
         let servicio = "Bus Semicama";
         const bType = (pax.butaca_type || r.butaca_type || "").toLowerCase();
@@ -242,9 +246,11 @@ export default function SalidasIDPage() {
           numero: counter++,
           apellido: apellido,
           nombres: nombres,
-          nombre: pax.nombre_completo || r.nombre_completo || "Desconocido",
+          nombre: formattedNombre,
+          dni: pax.dni || r.dni || "-",
+          fecha_nacimiento: pax.fecha_nacimiento || r.fecha_nacimiento || "-",
           reserva: r.codigo_reserva || "-",
-          cliente: r.client_nombre || "-",
+          cliente: (r.client_nombre || "-").toUpperCase(),
           client_id: r.client_id || null,
           ascenso: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
           lugar_carga_id: pax.lugar_carga_id || r.lugar_carga_id || null,
@@ -281,7 +287,7 @@ export default function SalidasIDPage() {
           servicio = `Bus Semicama (x${semicamaCount})`;
         }
 
-        const clientName = r.client_nombre || firstPax.nombre_completo || "Desconocido";
+        const clientName = (r.client_nombre || firstPax.nombre_completo || "Desconocido").toUpperCase();
         const seatsList = paxsSinDatos
           .map((p: any) => (p.butaca_number !== undefined && p.butaca_number !== null ? String(p.butaca_number) : (p.butaca || r.butaca)))
           .filter((b: any) => b && b !== "-");
@@ -294,10 +300,12 @@ export default function SalidasIDPage() {
           reserva_id: r.id,
           numero: counter++,
           apellido: clientName,
-          nombres: `(Pendientes x${paxsSinDatos.length})`,
-          nombre: `${clientName} (Pendientes x${paxsSinDatos.length})`,
+          nombres: `(PENDIENTES x${paxsSinDatos.length})`,
+          nombre: `${clientName} (PENDIENTES x${paxsSinDatos.length})`,
+          dni: firstPax.dni || r.dni || "-",
+          fecha_nacimiento: firstPax.fecha_nacimiento || r.fecha_nacimiento || "-",
           reserva: r.codigo_reserva || "-",
-          cliente: r.client_nombre || "-",
+          cliente: (r.client_nombre || "-").toUpperCase(),
           client_id: r.client_id || null,
           ascenso: firstPax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
           lugar_carga_id: firstPax.lugar_carga_id || r.lugar_carga_id || null,
@@ -317,19 +325,21 @@ export default function SalidasIDPage() {
       }
     } else {
       paxs.forEach((pax: any) => {
-        let apellido = pax.last_name || "";
-        let nombres = pax.name || "";
+        let apellido = (pax.last_name || "").trim().toUpperCase();
+        let nombres = (pax.name || "").trim().toUpperCase();
         if (!apellido && !nombres) {
           const full = (pax.nombre_completo || r.nombre_completo || "").trim();
-          const parts = full.split(" ");
+          const parts = full.split(/\s+/);
           if (parts.length > 1) {
-            apellido = parts[0];
-            nombres = parts.slice(1).join(" ");
+            apellido = parts[0].toUpperCase();
+            nombres = parts.slice(1).join(" ").toUpperCase();
           } else {
-            apellido = full;
+            apellido = full.toUpperCase();
             nombres = "";
           }
         }
+
+        const formattedNombre = apellido && nombres ? `${apellido}, ${nombres}` : (apellido || nombres || "DESCONOCIDO");
 
         let servicio = "Bus Semicama";
         const bType = (pax.butaca_type || r.butaca_type || "").toLowerCase();
@@ -345,9 +355,11 @@ export default function SalidasIDPage() {
           numero: counter++,
           apellido: apellido,
           nombres: nombres,
-          nombre: pax.nombre_completo || r.nombre_completo || "Desconocido",
+          nombre: formattedNombre,
+          dni: pax.dni || r.dni || "-",
+          fecha_nacimiento: pax.fecha_nacimiento || r.fecha_nacimiento || "-",
           reserva: r.codigo_reserva || "-",
-          cliente: r.client_nombre || "-",
+          cliente: (r.client_nombre || "-").toUpperCase(),
           client_id: r.client_id || null,
           ascenso: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
           lugar_carga_id: pax.lugar_carga_id || r.lugar_carga_id || null,
@@ -536,6 +548,8 @@ export default function SalidasIDPage() {
             <span className="w-28 md:block hidden text-center">Teléfono</span>
             <span className="text-transparent font-normal px-1 select-none">|</span>
             <span className="w-24 text-center">Tipo de Bus</span>
+            <span className="text-transparent font-normal px-1 select-none">|</span>
+            <span className="w-16 md:block hidden text-center">Obs</span>
             <span className="text-transparent font-normal px-1 select-none">|</span>
             <span className="w-20 text-center">Voucher</span>
           </div>

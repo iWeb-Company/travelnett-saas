@@ -77,7 +77,8 @@ function AgregarSalidaContent() {
         if (sal) {
           setDestino(sal.destino || "");
           setEmpresa(sal.transport_company || "");
-          setFecha(sal.date_of_out || "");
+          const rawDate = String(sal.date_of_out || "").split(" ")[0].split("T")[0];
+          setFecha(rawDate);
           setPeriodo(sal.periodo || "");
           setPasajerosTotales(sal.passengers?.toString() || "");
           setEconomy(sal.semicama?.toString() || "");
@@ -233,8 +234,8 @@ function AgregarSalidaContent() {
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={periodo}
           onChange={(e) => setPeriodo(e.target.value)}>
-          <option value="" disabled>
-            Período
+          <option value="">
+            Sin período (Opcional)
           </option>
           {periodos.map((p: any) => (
             <option key={p.id} value={p.id}>

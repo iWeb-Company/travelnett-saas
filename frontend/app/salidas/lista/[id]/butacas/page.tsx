@@ -6,12 +6,14 @@ import PDF from "@/app/components/icons/salidas/PDF";
 import ButacaDrop from "@/app/components/icons/salidas/ButacaDrop";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
 import { Salida } from "@/app/types";
 import { exportTaquillaToExcel, exportTaquillaToPdf } from "@/app/utils/exportTaquilla";
+import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
 import Link from "next/link";
 
 // Datos de asientos semicama (null = vacío/pasillo, "logo" = logo empresa, number = asiento)
@@ -30,15 +32,15 @@ const semicamaLayout: (number | null | "logo")[][] = [
   [33, 34, null, 35, 36],
   [37, 38, null, 39, 40],
   [41, 42, null, 43, 44],
-  [45, 46, null, 47, 48],
-  [49, 50, null, 51, 52],
 ];
 
-const camaLayout: (number | null)[][] = [
+// Datos de asientos cama (1 al 12)
+const camaLayout: (number | null | "logo")[][] = [
   [1, 2, null, null, 3],
-  [4, 5, null, null, null],
-  [6, 7, null, null, null],
-  [8, 9, null, null, 10],
+  [4, 5, null, null, 6],
+  [7, 8, null, null, null],
+  [9, 10, null, null, 11],
+  [null, null, null, null, 12],
 ];
 
 interface Pasajero {
@@ -48,6 +50,59 @@ interface Pasajero {
   pasajero_id?: string;
   pasajero_type?: string;
   uniqueId?: string;
+  observations?: string;
+}
+
+function ObservationBadge({ text, isSeat = false }: { text: string; isSeat?: boolean }) {
+  const [coords, setCoords] = useState<{ x: number; y: number; placeAbove: boolean } | null>(null);
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const placeAbove = rect.top > 160;
+    setCoords({
+      x: rect.left + rect.width / 2,
+      y: placeAbove ? rect.top - 8 : rect.bottom + 8,
+      placeAbove,
+    });
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    setCoords(null);
+  };
+
+  return (
+    <>
+      <span
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={
+          isSeat
+            ? "bg-primary rounded-full h-3 w-3 md:h-3.5 md:w-3.5 flex items-center justify-center text-white text-[7px] md:text-[8px] font-bold cursor-help select-none shadow-sm hover:opacity-90 transition-opacity"
+            : "bg-primary rounded-full h-4 w-4 md:h-5 md:w-5 flex items-center justify-center text-white text-[10px] md:text-xs font-semibold cursor-pointer select-none shadow-sm hover:opacity-90 transition-opacity"
+        }
+      >
+        ?
+      </span>
+      {coords && typeof document !== "undefined" && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            left: `${coords.x}px`,
+            top: `${coords.y}px`,
+            transform: coords.placeAbove ? "translate(-50%, -100%)" : "translate(-50%, 0)",
+            zIndex: 999999,
+            pointerEvents: "none",
+          }}
+          className="w-52 space-y-1 bg-primary text-white rounded-xl px-3 py-2.5 font-medium flex flex-col items-center text-center whitespace-normal drop-shadow-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+        >
+          <p className="text-xs leading-relaxed">{text}</p>
+        </div>,
+        document.body
+      )}
+    </>
+  );
 }
 
 function SeatSlot({
@@ -84,12 +139,17 @@ function SeatSlot({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className={`flex items-center gap-0.5 w-[80px] md:w-[120px] p-0.5 rounded transition-colors ${asignado ? "cursor-grab active:cursor-grabbing hover:bg-blue-100/60" : ""
+      className={`relative flex items-center gap-0.5 w-[80px] md:w-[120px] p-0.5 rounded transition-colors ${asignado ? "cursor-grab active:cursor-grabbing hover:bg-blue-100/60" : ""
         }`}>
       <div className="shrink-0 flex items-center justify-center scale-75 -mx-1 md:scale-100 md:mx-0">
         <ButacaDrop />
       </div>
-      <div className="flex flex-col gap-px flex-1 min-w-0">
+      <div className="flex flex-col gap-px flex-1 min-w-0 relative">
+        {asignado?.observations && (
+          <div className="relative flex justify-end -mb-0.5 z-20">
+            <ObservationBadge text={asignado.observations} isSeat />
+          </div>
+        )}
         <div className={`bg-white border rounded-sm h-3 md:h-4 px-0.5 flex items-center ${asignado ? "border-blue-400 bg-blue-50/70" : "border-gray-200"}`}>
           {asignado && (
             <span className="text-[6px] md:text-[9px] text-black font-semibold truncate" title={asignado.nombre}>
@@ -134,7 +194,7 @@ function SeatGrid({
         const hasLogo = row[3] === "logo";
 
         return (
-          <div key={rowIdx} className="flex items-center justify-center gap-2">
+          <div key={rowIdx} className="relative hover:z-50 focus-within:z-50 flex items-center justify-center gap-2">
             {/* Par izquierdo */}
             <div className="flex items-center gap-1">
               {leftPair.map((cell, colIdx) => {
@@ -196,9 +256,14 @@ function PasajeroCard({ pasajero }: { pasajero: Pasajero }) {
     <div
       draggable
       onDragStart={handleDragStart}
-      className="bg-[#D9DFF5] border border-[#3DADFF] rounded-md cursor-grab active:cursor-grabbing text-center md:border-primary">
-      <p className="text-xs font-semibold py-1 text-black">{pasajero.nombre}</p>
-      <p className="text-xs py-1 bg-primary text-white">{pasajero.localidad}</p>
+      className="bg-[#D9DFF5] border border-[#3DADFF] rounded-md cursor-grab active:cursor-grabbing text-center md:border-primary relative flex flex-col justify-between">
+      {pasajero.observations && (
+        <div className="absolute top-1 right-1 z-20">
+          <ObservationBadge text={pasajero.observations} />
+        </div>
+      )}
+      <p className="text-xs font-semibold py-1 text-black truncate px-1 pr-6" title={pasajero.nombre}>{pasajero.nombre}</p>
+      <p className="text-xs py-1 bg-primary text-white truncate px-1" title={pasajero.localidad}>{pasajero.localidad}</p>
     </div>
   );
 }
@@ -254,13 +319,23 @@ export default function ButacasPage() {
           paxs.forEach((pax: any) => {
             const passengerId = pax.pasajero_id || pax.passenger_id || r.passenger_id || pax.id || r.id;
             const uId = `${r.id}_${passengerId}`;
+            let rawNom = pax.nombre_completo || "";
+            if (pax.name || pax.last_name) {
+              rawNom = formatPassengerName(pax.name, pax.last_name);
+            } else if (rawNom && rawNom !== "Desconocido") {
+              rawNom = formatFullName(rawNom);
+            } else {
+              rawNom = "DESCONOCIDO";
+            }
+
             const pData: Pasajero = {
               id: r.id,
-              nombre: pax.nombre_completo || "Desconocido",
+              nombre: rawNom,
               localidad: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
               pasajero_id: passengerId,
               pasajero_type: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
-              uniqueId: uId
+              uniqueId: uId,
+              observations: r.observations || pax.observations || "",
             };
 
             const butacaKey = pax.butaca_number !== null && pax.butaca_number !== undefined && pax.butaca_type
