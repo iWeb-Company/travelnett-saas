@@ -16,6 +16,7 @@ import AddVioleta from "@/app/components/icons/AddVioleta";
 import ModalLayout from "@/app/components/ModalLayout";
 import Salidas from "@/app/components/icons/home/Salidas";
 import Paquetes from "@/app/components/icons/home/Paquetes";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 export default function Paso1Page() {
   const r = useRouter();
@@ -287,7 +288,7 @@ export default function Paso1Page() {
                       (() => {
                         const sObj = salidas.find(s => s.id === salidaSelected);
                         const dest = destinos.find(d => d.id === sObj?.destino);
-                        return sObj ? `${dest?.name || dest?.nombre || "Salida"} - ${sObj.date_of_out || ""}` : "";
+                        return sObj ? `${dest?.name || dest?.nombre || "Salida"} - ${formatDateDDMMYY(sObj.date_of_out)}` : "";
                       })()
                     }
                   </span>
@@ -331,7 +332,7 @@ export default function Paso1Page() {
                   return (
                     <div key={option.id} className="flex items-center justify-between gap-3">
                       <label htmlFor={`salida-${option.id}`} className="text-lg text-white font-medium cursor-pointer">
-                        {destinoObj?.name || destinoObj?.nombre || "Salida"} - {option.date_of_out}
+                        {destinoObj?.name || destinoObj?.nombre || "Salida"} - {formatDateDDMMYY(option.date_of_out)}
                       </label>
                       <input
                         className="w-5 h-5 cursor-pointer"

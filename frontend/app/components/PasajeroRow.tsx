@@ -22,6 +22,7 @@ interface PasajeroRowProps {
   bus_number?: string | null;
   butaca_type?: string | null;
   isGroup?: boolean;
+  observations?: string;
 }
 
 export default function PasajeroRow({
@@ -162,6 +163,13 @@ export default function PasajeroRow({
           <span className="text-black/35 font-normal px-1">|</span>
           <span className="md:w-24 w-12 text-center md:truncate" title={pasajero.butaca}>
             {pasajero.butaca_type === 'cama' ? 'Cama' : 'Semicama'}
+          </span>
+          <span className="text-black/35 font-normal px-1">|</span>
+          <span
+            className="w-16 md:block hidden text-center truncate text-[10px] text-gray-500"
+            title={pasajero.observations || ""}
+          >
+            {pasajero.observations || "—"}
           </span>
           <span className="text-black/35 font-normal px-1">|</span>
           <span

@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 import { Loader } from "@/app/components/Loader";
 import AddVioleta from "@/app/components/icons/AddVioleta";
 import { getRoomCapacity } from "@/lib/formatRooms";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 function Paso2Content() {
   const searchParams = useSearchParams();
@@ -313,7 +314,7 @@ function Paso2Content() {
   const destinoNombre = destinoObj?.name || destinoObj?.nombre || (destinoId ? destinoId : "General");
   const clienteObj = clientes.find((c) => c.id === clienteId);
   const clienteNombre = clienteObj?.complete_name || clienteObj?.name_system || (clienteId === "as" ? "En Espera" : "Cliente");
-  const fechaSalidaText = salidaInfo?.date_of_out || paqueteInfo?.name || "Fecha a confirmar";
+  const fechaSalidaText = salidaInfo?.date_of_out ? formatDateDDMMYY(salidaInfo.date_of_out) : paqueteInfo?.name || "Fecha a confirmar";
   const siglaText = destinoObj?.sigla || "DEST";
 
   // Filter hotels:

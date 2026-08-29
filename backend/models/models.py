@@ -86,6 +86,7 @@ class Periods(Base):
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     main_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    web_enabled: Mapped[bool] = mapped_column(BOOLEAN, default=True, nullable=False, server_default="1")
 
 
 class Destinos(Base):
@@ -105,6 +106,7 @@ class LugaresCarga(Base):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_essential: Mapped[bool] = mapped_column(BOOLEAN, default=False, nullable=False, server_default="0")
 
 class ClientsType(Base):
     __tablename__ = "clientsType"
@@ -133,6 +135,7 @@ class Clients(Base):
     commission: Mapped[int | None] = mapped_column(Integer, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    active: Mapped[bool] = mapped_column(BOOLEAN, default=True, nullable=False, server_default="1")
 
 
 class Regimenes(Base):
@@ -155,7 +158,7 @@ class Passengers(Base):
     dni: Mapped[int | None] = mapped_column(Integer, nullable=True)
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     sex: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    phone: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 
 class BusTypes(Base):
@@ -328,6 +331,7 @@ class Reservas(Base):
     type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="tradicional")
     titulo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=datetime.utcnow)
+    created_by_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
 
 class ReservationPassengers(Base):

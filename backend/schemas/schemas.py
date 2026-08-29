@@ -132,6 +132,7 @@ class CreateLugaresCargaRequest(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     address: Optional[str] = None
+    is_essential: Optional[bool] = False
     
 class CreateClientsTypeRequest(BaseModel):
     id: Optional[str] = None
@@ -153,6 +154,7 @@ class CreateClientsRequest(BaseModel):
     commission: Optional[int] = None
     hashed_password: Optional[str] = None
     created_at: Optional[datetime] = None
+    active: Optional[bool] = True
     
 class CreateRegimenesRequest(BaseModel):
     id: Optional[str] = None
@@ -167,7 +169,7 @@ class CreatePassengersRequest(BaseModel):
     dni: Optional[int] = None
     date_of_birth: Optional[date] = None
     sex: Optional[str] = None
-    phone: Optional[int] = None
+    phone: Optional[Union[str, int]] = None
     
 class CreateBusTypesRequest(BaseModel):
     id: Optional[str] = None
@@ -209,6 +211,7 @@ class UpdateExcursionsRequest(BaseModel):
 class UpdatePeriodsRequest(BaseModel):
     id : Optional[str] = None
     name : Optional[str] = None
+    web_enabled: Optional[bool] = None
     
 class UpdateDestinosRequest(BaseModel):
     id: Optional[str] = None
@@ -220,6 +223,7 @@ class UpdateLugaresCargaRequest(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     address: Optional[str] = None
+    is_essential: Optional[bool] = None
     
 class UpdateClientsTypeRequest(BaseModel):
     id: Optional[str] = None
@@ -240,6 +244,7 @@ class UpdateClientsRequest(BaseModel):
     payment_method: Optional[str] = None
     commission: Optional[int] = None
     hashed_password: Optional[str] = None
+    active: Optional[bool] = None
     
 class UpdateRegimenesRequest(BaseModel):
     id: Optional[str] = None
@@ -254,7 +259,7 @@ class UpdatePassengersRequest(BaseModel):
     dni: Optional[int] = None
     date_of_birth: Optional[date] = None
     sex: Optional[str] = None
-    phone: Optional[int] = None
+    phone: Optional[Union[str, int]] = None
     
 class UpdateBusTypesRequest(BaseModel):
     id: Optional[str] = None
@@ -1178,7 +1183,7 @@ class CreatePassengersRequest(BaseModel):
     dni: Optional[int] = None
     date_of_birth: Optional[date] = None
     sex: Optional[str] = None
-    phone: Optional[int] = None
+    phone: Optional[Union[str, int]] = None
     
 class CreateBusTypesRequest(BaseModel):
     id: Optional[str] = None
@@ -1196,13 +1201,13 @@ class UpdateTransportCompanyRequest(BaseModel):
     name : Optional[str] = None
     cuit : Optional[int] = None
     web: Optional[str] = None
-    phone: Optional[int] = None
+    phone: Optional[Union[str, int]] = None
     
 class UpdateHotelsRequest(BaseModel):
     id : Optional[str] = None
     destino : Optional[str] = None
     name : Optional[str] = None
-    phone: Optional[int] = None
+    phone: Optional[Union[str, int]] = None
     address: Optional[str] = None
     web: Optional[str] = None
     
@@ -1242,7 +1247,7 @@ class UpdateClientsRequest(BaseModel):
     dni: Optional[int] = None
     birthday: Optional[date] = None
     email: Optional[str] = None
-    phone: Optional[int] = None
+    phone: Optional[Union[str, int]] = None
     payment_method: Optional[str] = None
     commission: Optional[int] = None
     hashed_password: Optional[str] = None
@@ -1260,7 +1265,7 @@ class UpdatePassengersRequest(BaseModel):
     dni: Optional[int] = None
     date_of_birth: Optional[date] = None
     sex: Optional[str] = None
-    phone: Optional[int] = None
+    phone: Optional[Union[str, int]] = None
     
 class UpdateBusTypesRequest(BaseModel):
     id: Optional[str] = None

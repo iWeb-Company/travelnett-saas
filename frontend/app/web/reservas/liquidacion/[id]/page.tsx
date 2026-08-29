@@ -14,6 +14,8 @@ import Salidas from "@/app/components/icons/home/Salidas";
 import Hotel from "@/app/components/icons/salidas/Hotel";
 import { Package, Reserva, Salida } from "@/app/types";
 import { formatRoomType, formatRoomTypeDetails } from "@/lib/formatRooms";
+import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 export default function VoucherPage() {
     const params = useParams();
@@ -307,15 +309,15 @@ export default function VoucherPage() {
                             </div>
                             <div className="flex flex-col">
                                 <p className="font-bold">Fecha de vencimiento</p>
-                                <p>{reservaData.venciment ?? 'Sin fecha indicada'}</p>
+                                <p>{formatDateDDMMYY(reservaData.venciment)}</p>
                             </div>
                             <div className="flex flex-col">
                                 <p className="font-bold">Vendedor</p>
-                                <p>{reservaData.vendedor || reservaData.client_nombre || 'Reserva Particular'}</p>
+                                <p>{(reservaData as any).vendedor_nombre || (reservaData as any).vendedor || 'General'}</p>
                             </div>
                             <div className="flex flex-col items-start justify-start">
                                 <p className="font-bold text-start">Fecha de alta</p>
-                                <p>{reservaData.fecha}</p>
+                                <p>{formatDateDDMMYY((reservaData as any).created_at || (reservaData as any).fecha)}</p>
                             </div>
                         </div>
                         <div className="flex flex-col border rounded-lg border-gray-500 text-lg">
@@ -329,15 +331,21 @@ export default function VoucherPage() {
                                     <th className="">Ascenso</th>
                                 </thead>
                                 <tbody className="divide-y divide-gray-500 rounded-md">
-                                    {reservaData.reservation_passengers?.map((passenger: any) => (
-                                        <tr key={passenger.id} className="divide-x divide-gray-500">
-                                            <td className="text-center text-sm py-1 font-medium">{passenger.pasajero_type}</td>
-                                            <td className="text-center text-sm py-1 font-medium">{passenger.nombre_completo}</td>
-                                            <td className="text-center text-sm py-1 font-medium">{passenger.dni}</td>
-                                            <td className="text-center text-sm py-1 font-medium">{passenger.fecha_nacimiento}</td>
-                                            <td className="text-center text-sm py-1 font-medium">{getAscensoNombre(passenger)}</td>
-                                        </tr>
-                                    ))}
+                                    {reservaData.reservation_passengers?.map((passenger: any) => {
+                                        const formattedName = passenger.name || passenger.last_name
+                                            ? formatPassengerName(passenger.name, passenger.last_name)
+                                            : formatFullName(passenger.nombre_completo);
+
+                                        return (
+                                            <tr key={passenger.id} className="divide-x divide-gray-500">
+                                                <td className="text-center text-sm py-1 font-medium">{passenger.pasajero_type || "ADL"}</td>
+                                                <td className="text-center text-sm py-1 font-medium">{formattedName}</td>
+                                                <td className="text-center text-sm py-1 font-medium">{passenger.dni || "-"}</td>
+                                                <td className="text-center text-sm py-1 font-medium">{formatDateDDMMYY(passenger.fecha_nacimiento)}</td>
+                                                <td className="text-center text-sm py-1 font-medium">{getAscensoNombre(passenger)}</td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -361,11 +369,11 @@ export default function VoucherPage() {
                                 <div className="flex w-full border-t border-gray-500 justify-around p-5">
                                     <div className="flex flex-col text-xl gap-2">
                                         <p className="font-semibold">Fecha de salida</p>
-                                        <p className="">{salidaData?.date_of_out || 'A confirmar'}</p>
+                                        <p className="">{salidaData?.date_of_out ? formatDateDDMMYY(salidaData.date_of_out) : 'A confirmar'}</p>
                                     </div>
                                     <div className="flex flex-col text-xl gap-2">
                                         <p className="font-semibold">Fecha de regreso</p>
-                                        <p className="">{packageHotelMatch?.hotel_fecha_out ?? 'A confirmar'}</p>
+                                        <p className="">{packageHotelMatch?.hotel_fecha_out ? formatDateDDMMYY(packageHotelMatch.hotel_fecha_out) : 'A confirmar'}</p>
                                     </div>
                                 </div>
                             </div>

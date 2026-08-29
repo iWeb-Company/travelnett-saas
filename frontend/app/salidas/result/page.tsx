@@ -149,13 +149,12 @@ function ResultContent() {
             paginatedSalidas.map((salida) => {
               const destObj = destinos.find((d) => d.id === salida.destino);
               const destName = destObj?.name || destObj?.nombre || "Desconocido";
-              const fechaFormateada = salida.date_of_out ? new Date(salida.date_of_out).toLocaleDateString() : "-";
               return (
                 <SalidaCard
                   key={salida.id}
                   id={salida.id}
                   destino={destName}
-                  fecha={fechaFormateada}
+                  fecha={salida.date_of_out || ""}
                   categorias={[
                     { tipo: "Semicama", total: salida.semicama || 0, disponible: salida.semicama_disponibles ?? (salida.semicama || 0) },
                     { tipo: "Cama", total: salida.cama || 0, disponible: salida.cama_disponibles ?? (salida.cama || 0) }

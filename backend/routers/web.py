@@ -153,7 +153,7 @@ async def create_account(
     iweb_client_id: str = Query(...),
     account_title: str = Form(...),
     titular: str = Form(...),
-    account_number: str = Form(...),
+    account_number: str = Form(""),
     cuit_cuil: str = Form(...),
     cbu_cvu: str = Form(...),
     alias: str = Form(...),

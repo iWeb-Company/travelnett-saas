@@ -63,7 +63,6 @@ export default function CuentasPage() {
     if (
       !cuentasData.account_title ||
       !cuentasData.titular ||
-      !cuentasData.account_number ||
       !cuentasData.cuit_cuil ||
       !cuentasData.cbu_cvu ||
       !cuentasData.alias
@@ -102,7 +101,8 @@ export default function CuentasPage() {
 
   const handleDelete = async (id: string) => {
     if (!user?.iweb_client_id) return;
-    if (!window.confirm("¿Está seguro de eliminar esta cuenta bancaria?")) return;
+    if (!window.confirm("¿Está seguro de eliminar esta cuenta bancaria?"))
+      return;
     try {
       await apiClient.deleteAccount(user.iweb_client_id, id);
       toast.success("Cuenta eliminada con éxito");
@@ -156,10 +156,16 @@ export default function CuentasPage() {
       </button>
       <section className="flex flex-col max-w-3xl mx-auto w-full">
         {cuentas.length === 0 ? (
-          <p className="text-gray-500 text-center font-medium my-6">No hay cuentas bancarias registradas.</p>
+          <p className="text-gray-500 text-center font-medium my-6">
+            No hay cuentas bancarias registradas.
+          </p>
         ) : (
           cuentas.map((cuenta) => (
-            <CuentaCard key={cuenta.id} cuenta={cuenta} onDelete={handleDelete} />
+            <CuentaCard
+              key={cuenta.id}
+              cuenta={cuenta}
+              onDelete={handleDelete}
+            />
           ))
         )}
       </section>
@@ -183,22 +189,30 @@ export default function CuentasPage() {
             </svg>
           }
           title="Agregar Cuenta">
-          <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(e) => e.preventDefault()}>
             <input
               type="text"
               placeholder="Titulo de la cuenta (Banco y Tipo)"
               value={cuentasData.account_title}
               onChange={(e) =>
-                setCuentasData({ ...cuentasData, account_title: e.target.value })
+                setCuentasData({
+                  ...cuentasData,
+                  account_title: e.target.value,
+                })
               }
               className="w-full shadow-lg shadow-black/30 bg-white rounded-sm p-2 pr-4 text-black/90 font-medium focus:outline-none"
             />
             <input
               type="text"
-              placeholder="N° de cuenta"
+              placeholder="N° de cuenta (Opcional)"
               value={cuentasData.account_number}
               onChange={(e) =>
-                setCuentasData({ ...cuentasData, account_number: e.target.value })
+                setCuentasData({
+                  ...cuentasData,
+                  account_number: e.target.value,
+                })
               }
               className="w-full shadow-lg shadow-black/30 bg-white rounded-sm p-2 pr-4 text-black/90 font-medium focus:outline-none"
             />

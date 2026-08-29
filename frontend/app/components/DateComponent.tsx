@@ -1,6 +1,7 @@
 'use client'
 import { useRef } from "react";
 import { Calendar } from "lucide-react";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 export default function DateInput({
     value = "",
@@ -26,13 +27,7 @@ export default function DateInput({
         }
     };
 
-    const formattedDate = value
-        ? new Date(value + "T00:00:00").toLocaleDateString("es-AR", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-        })
-        : "";
+    const formattedDate = value ? formatDateDDMMYY(value) : "";
 
     return (
         <div

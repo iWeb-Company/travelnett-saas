@@ -24,6 +24,8 @@ export default function ClientesPage() {
   const [modalOpenAddClientType, setModalOpenAddClientType] = useState(false);
   const [modalOpenPutClientType, setModalOpenPutClientType] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [clientTypes, setClientTypes] = useState<ClientsType[]>([]);
   const [clientes, setClientes] = useState<Client[]>([]);
@@ -74,16 +76,41 @@ export default function ClientesPage() {
     }
   }, [user?.iweb_client_id]);
 
+  const handleToggleActive = async (cliente: Client) => {
+    const clientId = user?.iweb_client_id;
+    if (!clientId || !cliente.id) return;
+    const newActive = cliente.active === false ? true : false;
+    try {
+      await apiClient.updateParameter(
+        "update_clients",
+        cliente.id,
+        { active: newActive },
+        clientId
+      );
+      setClientes((prev) =>
+        prev.map((c) => (c.id === cliente.id ? { ...c, active: newActive } : c))
+      );
+      toast.success(newActive ? "Cliente activado" : "Cliente desactivado");
+    } catch (err) {
+      toast.error("Error al actualizar estado del cliente");
+    }
+  };
+
   const clientesFiltered = clientes.filter((e) => {
     const name = e.name_system || "";
-    return name.toLowerCase().includes(search.toLowerCase());
+    const matchesName = name.toLowerCase().includes(search.toLowerCase());
+    const matchesType = !selectedTypeFilter || e.client_type === selectedTypeFilter || (e as any).client_type_id === selectedTypeFilter;
+    return matchesName && matchesType;
   });
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
 
   const totalPages = Math.ceil(clientesFiltered.length / pageSize);
-  const paginatedClientes = clientesFiltered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedClientes = clientesFiltered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
 
   const handleClickPut = (cliente: Client) => {
     setClientesData({
@@ -142,7 +169,12 @@ export default function ClientesPage() {
         client_type_id: clientesData.client_type,
       };
 
-      await apiClient.updateParameter("update_clients", clientesData.id!, payload, clientId);
+      await apiClient.updateParameter(
+        "update_clients",
+        clientesData.id!,
+        payload,
+        clientId,
+      );
       toast.success("Cliente actualizado correctamente");
       setModalOpenPut(false);
       getData();
@@ -153,7 +185,8 @@ export default function ClientesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("¿Está seguro de que desea eliminar este cliente?")) return;
+    if (!window.confirm("¿Está seguro de que desea eliminar este cliente?"))
+      return;
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
@@ -170,10 +203,18 @@ export default function ClientesPage() {
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
-      await apiClient.createParameter("create_clients_type", clientTypeData, clientId);
+      await apiClient.createParameter(
+        "create_clients_type",
+        clientTypeData,
+        clientId,
+      );
       toast.success("Tipo de cliente creado correctamente");
       setModalOpenAddClientType(false);
-      setClientTypeData({ name: "", adminForSellers: false, admin_clients: "" });
+      setClientTypeData({
+        name: "",
+        adminForSellers: false,
+        admin_clients: "",
+      });
       getData();
       r.refresh();
     } catch (error: any) {
@@ -185,7 +226,12 @@ export default function ClientesPage() {
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
-      await apiClient.updateParameter("update_clients_type", clientTypeData.id!, clientTypeData, clientId);
+      await apiClient.updateParameter(
+        "update_clients_type",
+        clientTypeData.id!,
+        clientTypeData,
+        clientId,
+      );
       toast.success("Tipo de cliente actualizado correctamente");
       setModalOpenPutClientType(false);
       getData();
@@ -196,7 +242,12 @@ export default function ClientesPage() {
   };
 
   const handleDeleteClientType = async (id: string) => {
-    if (!window.confirm("¿Está seguro de que desea eliminar este tipo de cliente?")) return;
+    if (
+      !window.confirm(
+        "¿Está seguro de que desea eliminar este tipo de cliente?",
+      )
+    )
+      return;
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
@@ -288,28 +339,41 @@ export default function ClientesPage() {
       </div>
 
       <div className="w-full max-w-xl mx-auto flex flex-col gap-4">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 15 15"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M5.41667 10.8333C3.90278 10.8333 2.62167 10.3089 1.57333 9.26C0.525 8.21111 0.000555996 6.93 4.40917e-07 5.41667C-0.000555115 3.90333 0.523889 2.62222 1.57333 1.57333C2.62278 0.524444 3.90389 0 5.41667 0C6.92944 0 8.21083 0.524444 9.26083 1.57333C10.3108 2.62222 10.835 3.90333 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L14.4167 13.25C14.5694 13.4028 14.6458 13.5972 14.6458 13.8333C14.6458 14.0694 14.5694 14.2639 14.4167 14.4167C14.2639 14.5694 14.0694 14.6458 13.8333 14.6458C13.5972 14.6458 13.4028 14.5694 13.25 14.4167L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333ZM5.41667 9.16667C6.45833 9.16667 7.34389 8.80222 8.07333 8.07333C8.80278 7.34444 9.16722 6.45889 9.16667 5.41667C9.16611 4.37444 8.80167 3.48917 8.07333 2.76083C7.345 2.0325 6.45944 1.66778 5.41667 1.66667C4.37389 1.66556 3.48861 2.03028 2.76083 2.76083C2.03306 3.49139 1.66833 4.37667 1.66667 5.41667C1.665 6.45667 2.02972 7.34222 2.76083 8.07333C3.49195 8.80444 4.37722 9.16889 5.41667 9.16667Z"
-                fill="black"
-                fill-opacity="0.5"
-              />
-            </svg>
-          </span>
-          <input
-            type="text"
-            placeholder="Buscar"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 15 15"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M5.41667 10.8333C3.90278 10.8333 2.62167 10.3089 1.57333 9.26C0.525 8.21111 0.000555996 6.93 4.40917e-07 5.41667C-0.000555115 3.90333 0.523889 2.62222 1.57333 1.57333C2.62278 0.524444 3.90389 0 5.41667 0C6.92944 0 8.21083 0.524444 9.26083 1.57333C10.3108 2.62222 10.835 3.90333 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L14.4167 13.25C14.5694 13.4028 14.6458 13.5972 14.6458 13.8333C14.6458 14.0694 14.5694 14.2639 14.4167 14.4167C14.2639 14.5694 14.0694 14.6458 13.8333 14.6458C13.5972 14.6458 13.4028 14.5694 13.25 14.4167L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333ZM5.41667 9.16667C6.45833 9.16667 7.34389 8.80222 8.07333 8.07333C8.80278 7.34444 9.16722 6.45889 9.16667 5.41667C9.16611 4.37444 8.80167 3.48917 8.07333 2.76083C7.345 2.0325 6.45944 1.66778 5.41667 1.66667C4.37389 1.66556 3.48861 2.03028 2.76083 2.76083C2.03306 3.49139 1.66833 4.37667 1.66667 5.41667C1.665 6.45667 2.02972 7.34222 2.76083 8.07333C3.49195 8.80444 4.37722 9.16889 5.41667 9.16667Z"
+                  fill="black"
+                  fillOpacity="0.5"
+                />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Buscar por nombre..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <select
+            value={selectedTypeFilter}
+            onChange={(e) => setSelectedTypeFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg py-2 px-3 text-black/70 font-semibold shadow-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="">Todos los tipos</option>
+            {clientTypes.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <ul className="border border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-200">
@@ -326,6 +390,20 @@ export default function ClientesPage() {
                   {(cliente.name_system || "").toUpperCase()}
                 </span>
                 <div className="flex items-center gap-3">
+                  {/* SWITCH ACTIVO / INACTIVO */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleActive(cliente)}
+                    title={cliente.active !== false ? "Activo" : "Inactivo"}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      cliente.active !== false ? "bg-blue-600" : "bg-gray-300"
+                    }`}>
+                    <span
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                        cliente.active !== false ? "translate-x-4" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
                   {/* BOTON EDITAR */}
                   <button
                     onClick={() => handleClickPut(cliente)}
@@ -376,7 +454,11 @@ export default function ClientesPage() {
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-        <img src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"} className="size-50 object-contain" alt="Logo Empresa" />
+        <img
+          src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"}
+          className="size-50 object-contain"
+          alt="Logo Empresa"
+        />
       </div>
       {modalOpenClientType && (
         <ModalLayout
@@ -424,9 +506,15 @@ export default function ClientesPage() {
           </button>
           <div className="w-full mt-2">
             <div className="flex items-center justify-end gap-0 pr-2 mb-1">
-              <span className="text-xs font-semibold text-black/70 w-14 text-center">Editar</span>
-              <span className="text-xs font-semibold text-black/70 w-14 text-center">Borrar</span>
-              <span className="text-xs font-semibold text-black/70 w-14 text-center">Admin</span>
+              <span className="text-xs font-semibold text-black/70 w-14 text-center">
+                Editar
+              </span>
+              <span className="text-xs font-semibold text-black/70 w-14 text-center">
+                Borrar
+              </span>
+              <span className="text-xs font-semibold text-black/70 w-14 text-center">
+                Admin
+              </span>
             </div>
             <ul className="rounded-lg overflow-hidden divide-y divide-gray-200">
               {clientTypes.map((tipo) => (
@@ -467,7 +555,13 @@ export default function ClientesPage() {
                         />
                       </svg>
                     </button>
-                    <input type="radio" checked={tipo.adminForSellers || false} readOnly name={`admin-${tipo.id}`} id={`admin-${tipo.id}`} />
+                    <input
+                      type="radio"
+                      checked={tipo.adminForSellers || false}
+                      readOnly
+                      name={`admin-${tipo.id}`}
+                      id={`admin-${tipo.id}`}
+                    />
                   </div>
                 </li>
               ))}
@@ -506,26 +600,47 @@ export default function ClientesPage() {
                 type="text"
                 placeholder="Nombre"
                 value={clientTypeData.name || ""}
-                onChange={(e) => setClientTypeData({ ...clientTypeData, name: e.target.value })}
+                onChange={(e) =>
+                  setClientTypeData({ ...clientTypeData, name: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <div
-                onClick={() => setClientTypeData({ ...clientTypeData, adminForSellers: !clientTypeData.adminForSellers })}
+                onClick={() =>
+                  setClientTypeData({
+                    ...clientTypeData,
+                    adminForSellers: !clientTypeData.adminForSellers,
+                  })
+                }
                 className="flex items-center justify-between w-full border bg-white cursor-pointer rounded-sm p-2 pr-4 shadow-sm">
-                <span className="text-black/90 font-medium">Administrador para vendedores</span>
-                <span className={`inline-block w-4 h-4 rounded-full border-2 ${clientTypeData.adminForSellers
-                    ? "bg-black border-black"
-                    : "bg-white border-blue-500"
-                  }`} />
+                <span className="text-black/90 font-medium">
+                  Administrador para vendedores
+                </span>
+                <span
+                  className={`inline-block w-4 h-4 rounded-full border-2 ${
+                    clientTypeData.adminForSellers
+                      ? "bg-black border-black"
+                      : "bg-white border-blue-500"
+                  }`}
+                />
               </div>
-              <p className="text-white/80 text-sm font-medium self-start">Si es Admin 👇</p>
+              <p className="text-white/80 text-sm font-medium self-start">
+                Si es Admin 👇
+              </p>
               <select
                 value={clientTypeData.admin_clients || ""}
-                onChange={(e) => setClientTypeData({ ...clientTypeData, admin_clients: e.target.value })}
+                onChange={(e) =>
+                  setClientTypeData({
+                    ...clientTypeData,
+                    admin_clients: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
                 <option value="">Cliente (Ninguno)</option>
-                {clientes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name_system}</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name_system}
+                  </option>
                 ))}
               </select>
             </div>
@@ -563,28 +678,47 @@ export default function ClientesPage() {
                 type="text"
                 placeholder="Nombre"
                 value={clientTypeData.name || ""}
-                onChange={(e) => setClientTypeData({ ...clientTypeData, name: e.target.value })}
+                onChange={(e) =>
+                  setClientTypeData({ ...clientTypeData, name: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <div
-                onClick={() => setClientTypeData({ ...clientTypeData, adminForSellers: !clientTypeData.adminForSellers })}
+                onClick={() =>
+                  setClientTypeData({
+                    ...clientTypeData,
+                    adminForSellers: !clientTypeData.adminForSellers,
+                  })
+                }
                 className="flex items-center justify-between w-full border bg-white cursor-pointer rounded-sm p-2 pr-4 shadow-sm">
-                <span className="text-black/90 font-medium">Administrador para vendedores</span>
+                <span className="text-black/90 font-medium">
+                  Administrador para vendedores
+                </span>
                 <span
-                  className={`inline-block w-4 h-4 rounded-full border-2 ${clientTypeData.adminForSellers
-                    ? "bg-black border-black"
-                    : "bg-white border-blue-500"
-                    }`}
+                  className={`inline-block w-4 h-4 rounded-full border-2 ${
+                    clientTypeData.adminForSellers
+                      ? "bg-black border-black"
+                      : "bg-white border-blue-500"
+                  }`}
                 />
               </div>
-              <p className="text-white/80 text-sm font-medium self-start">Si es Admin 👇</p>
+              <p className="text-white/80 text-sm font-medium self-start">
+                Si es Admin 👇
+              </p>
               <select
                 value={clientTypeData.admin_clients || ""}
-                onChange={(e) => setClientTypeData({ ...clientTypeData, admin_clients: e.target.value })}
+                onChange={(e) =>
+                  setClientTypeData({
+                    ...clientTypeData,
+                    admin_clients: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
                 <option value="">Cliente (Ninguno)</option>
-                {clientes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name_system}</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name_system}
+                  </option>
                 ))}
               </select>
             </div>
@@ -622,74 +756,139 @@ export default function ClientesPage() {
                 type="text"
                 placeholder="Nombre en sistema"
                 value={clientesData.name_system || ""}
-                onChange={(e) => setClientesData({ ...clientesData, name_system: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    name_system: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Nombre completo"
                 value={clientesData.complete_name || ""}
-                onChange={(e) => setClientesData({ ...clientesData, complete_name: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    complete_name: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="number"
-                placeholder="DNI"
+                placeholder="DNI o CUIT (Opcional)"
                 value={clientesData.dni || ""}
-                onChange={(e) => setClientesData({ ...clientesData, dni: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    dni: e.target.value ? parseInt(e.target.value) : undefined,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="date"
-                placeholder="Fecha de nacimiento"
+                placeholder="Fecha de nacimiento (Opcional)"
                 value={clientesData.birthday || ""}
-                onChange={(e) => setClientesData({ ...clientesData, birthday: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({ ...clientesData, birthday: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="email"
-                placeholder="E-mail"
+                placeholder="E-mail o Usuario"
                 value={clientesData.email || ""}
-                onChange={(e) => setClientesData({ ...clientesData, email: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({ ...clientesData, email: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
-              <input
-                type="password"
-                placeholder="Contraseña"
-                value={clientesData.hashed_password || ""}
-                onChange={(e) => setClientesData({ ...clientesData, hashed_password: e.target.value })}
-                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-              />
+              <div className="relative w-full">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Contraseña"
+                  value={clientesData.hashed_password || ""}
+                  onChange={(e) =>
+                    setClientesData({
+                      ...clientesData,
+                      hashed_password: e.target.value,
+                    })
+                  }
+                  className="w-full border bg-white rounded-sm p-2 pr-10 text-black/90 font-medium shadow-sm focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1 text-sm select-none"
+                  title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}>
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
               <select
                 value={clientesData.client_type || ""}
-                onChange={(e) => setClientesData({ ...clientesData, client_type: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    client_type: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
-                <option value="" disabled>Tipo de cliente</option>
+                <option value="" disabled>
+                  Tipo de cliente
+                </option>
                 {clientTypes.map((tipo) => (
-                  <option key={tipo.id} value={tipo.id}>{tipo.name}</option>
+                  <option key={tipo.id} value={tipo.id}>
+                    {tipo.name}
+                  </option>
                 ))}
               </select>
               <select
                 value={clientesData.parent_client_id || ""}
-                onChange={(e) => setClientesData({ ...clientesData, parent_client_id: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    parent_client_id: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
                 <option value="">Cliente Padre (Ninguno)</option>
-                {clientes.filter(c => c.id !== clientesData.id).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name_system}</option>
-                ))}
+                {clientes
+                  .filter((c) => c.id !== clientesData.id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name_system}
+                    </option>
+                  ))}
               </select>
               <input
                 type="number"
                 placeholder="Telefono de contacto"
                 value={clientesData.phone || ""}
-                onChange={(e) => setClientesData({ ...clientesData, phone: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    phone: e.target.value
+                      ? parseInt(e.target.value)
+                      : undefined,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <select
                 value={clientesData.payment_method || ""}
-                onChange={(e) => setClientesData({ ...clientesData, payment_method: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    payment_method: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
-                <option value="" disabled>Forma de pago</option>
+                <option value="" disabled>
+                  Forma de pago
+                </option>
                 <option value="cuenta_corriente">Cuenta Corriente</option>
                 <option value="contado">Contado</option>
               </select>
@@ -698,7 +897,14 @@ export default function ClientesPage() {
                   type="number"
                   placeholder="Comision"
                   value={clientesData.commission || ""}
-                  onChange={(e) => setClientesData({ ...clientesData, commission: e.target.value ? parseInt(e.target.value) : undefined })}
+                  onChange={(e) =>
+                    setClientesData({
+                      ...clientesData,
+                      commission: e.target.value
+                        ? parseInt(e.target.value)
+                        : undefined,
+                    })
+                  }
                   className="border-none focus:outline-none flex-1"
                 />
                 <span>%</span>
@@ -738,74 +944,139 @@ export default function ClientesPage() {
                 type="text"
                 placeholder="Nombre en sistema"
                 value={clientesData.name_system || ""}
-                onChange={(e) => setClientesData({ ...clientesData, name_system: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    name_system: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Nombre completo"
                 value={clientesData.complete_name || ""}
-                onChange={(e) => setClientesData({ ...clientesData, complete_name: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    complete_name: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="number"
-                placeholder="DNI"
+                placeholder="DNI o CUIT (Opcional)"
                 value={clientesData.dni || ""}
-                onChange={(e) => setClientesData({ ...clientesData, dni: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    dni: e.target.value ? parseInt(e.target.value) : undefined,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="date"
-                placeholder="Fecha de nacimiento"
+                placeholder="Fecha de nacimiento (Opcional)"
                 value={clientesData.birthday || ""}
-                onChange={(e) => setClientesData({ ...clientesData, birthday: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({ ...clientesData, birthday: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="email"
                 placeholder="E-mail"
                 value={clientesData.email || ""}
-                onChange={(e) => setClientesData({ ...clientesData, email: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({ ...clientesData, email: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
-              <input
-                type="password"
-                placeholder="Contraseña"
-                value={clientesData.hashed_password || ""}
-                onChange={(e) => setClientesData({ ...clientesData, hashed_password: e.target.value })}
-                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-              />
+              <div className="relative w-full">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Contraseña"
+                  value={clientesData.hashed_password || ""}
+                  onChange={(e) =>
+                    setClientesData({
+                      ...clientesData,
+                      hashed_password: e.target.value,
+                    })
+                  }
+                  className="w-full border bg-white rounded-sm p-2 pr-10 text-black/90 font-medium shadow-sm focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1 text-sm select-none"
+                  title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}>
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
               <select
                 value={clientesData.client_type || ""}
-                onChange={(e) => setClientesData({ ...clientesData, client_type: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    client_type: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
-                <option value="" disabled>Tipo de cliente</option>
+                <option value="" disabled>
+                  Tipo de cliente
+                </option>
                 {clientTypes.map((tipo) => (
-                  <option key={tipo.id} value={tipo.id}>{tipo.name}</option>
+                  <option key={tipo.id} value={tipo.id}>
+                    {tipo.name}
+                  </option>
                 ))}
               </select>
               <select
                 value={clientesData.parent_client_id || ""}
-                onChange={(e) => setClientesData({ ...clientesData, parent_client_id: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    parent_client_id: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
                 <option value="">Cliente Padre (Ninguno)</option>
-                {clientes.filter(c => c.id !== clientesData.id).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name_system}</option>
-                ))}
+                {clientes
+                  .filter((c) => c.id !== clientesData.id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name_system}
+                    </option>
+                  ))}
               </select>
               <input
                 type="number"
                 placeholder="Telefono de contacto"
                 value={clientesData.phone || ""}
-                onChange={(e) => setClientesData({ ...clientesData, phone: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    phone: e.target.value
+                      ? parseInt(e.target.value)
+                      : undefined,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <select
                 value={clientesData.payment_method || ""}
-                onChange={(e) => setClientesData({ ...clientesData, payment_method: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    payment_method: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
-                <option value="" disabled>Forma de pago</option>
+                <option value="" disabled>
+                  Forma de pago
+                </option>
                 <option value="cuenta_corriente">Cuenta Corriente</option>
                 <option value="contado">Contado</option>
               </select>
@@ -814,7 +1085,14 @@ export default function ClientesPage() {
                   type="number"
                   placeholder="Comision"
                   value={clientesData.commission || ""}
-                  onChange={(e) => setClientesData({ ...clientesData, commission: e.target.value ? parseInt(e.target.value) : undefined })}
+                  onChange={(e) =>
+                    setClientesData({
+                      ...clientesData,
+                      commission: e.target.value
+                        ? parseInt(e.target.value)
+                        : undefined,
+                    })
+                  }
                   className="border-none focus:outline-none flex-1"
                 />
                 <span>%</span>

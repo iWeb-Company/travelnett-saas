@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva; onRefresh?: () => void }) {
   const { user } = useAuth();
@@ -79,7 +80,7 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
               </p>
             </div>
           </div>
-          <p className="font-semibold">{reserva.fecha}</p>
+          <p className="font-semibold">{formatDateDDMMYY(reserva.fecha)}</p>
         </div>
         <div className="text-black items-center gap-2 flex">
           <div className="flex flex-col">
@@ -159,7 +160,7 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
               }`}>
             <p className="font-semibold">{reserva.numero}</p>
             <p>{reserva.destino}</p>
-            <p className="font-semibold">{reserva.fecha}</p>
+            <p className="font-semibold">{formatDateDDMMYY(reserva.fecha)}</p>
           </div>
           {/* Action icons inline */}
           <div className="flex items-center gap-1 text-black">

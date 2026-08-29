@@ -125,6 +125,21 @@ export default function PeriodosPage() {
     }
   };
 
+  const handleToggleWebEnabled = async (periodo: Period) => {
+    try {
+      const formData = new FormData();
+      formData.append("name", periodo.name);
+      formData.append("web_enabled", String(!periodo.web_enabled));
+      await apiClient.updateParameter("update_periods", periodo.id!, formData, user?.iweb_client_id);
+      toast.success(`Periodo ${!periodo.web_enabled ? "habilitado" : "deshabilitado"} en la web`);
+      getPeriodos();
+    } catch (error) {
+      toast.error("Error al cambiar el estado del periodo");
+      console.error(error);
+    }
+  };
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -236,9 +251,22 @@ export default function PeriodosPage() {
                       </svg>
                     </div>
                   )}
-                  <span className="font-medium text-gray-800">{periodo.name}</span>
+                  <div className="flex flex-col">
+                    <span className="font-medium text-gray-800">{periodo.name}</span>
+                    <span className={`text-[10px] font-semibold ${periodo.web_enabled !== false ? "text-green-600" : "text-gray-400"}`}>
+                      {periodo.web_enabled !== false ? "● Visible en web" : "○ Oculto en web"}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  {/* Toggle web_enabled */}
+                  <button
+                    onClick={() => handleToggleWebEnabled(periodo)}
+                    title={periodo.web_enabled !== false ? "Deshabilitar en web" : "Habilitar en web"}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${periodo.web_enabled !== false ? "bg-green-500" : "bg-gray-300"}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${periodo.web_enabled !== false ? "translate-x-4" : "translate-x-1"}`} />
+                  </button>
                   <button
                     onClick={() => handleClickPut(periodo)}
                     title="Editar"

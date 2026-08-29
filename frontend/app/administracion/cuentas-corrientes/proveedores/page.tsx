@@ -14,6 +14,7 @@ import DateInput from "@/app/components/DateComponent";
 import ModalLayout from "@/app/components/ModalLayout";
 import Administracion from "@/app/components/icons/home/Administracion";
 import { Account, Hotel, TransportCompany } from "@/app/types";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 interface FormDataType {
   type: 'consumo' | 'pago';
@@ -216,7 +217,7 @@ export default function CuentasCorrientesProveedoresPage() {
       filteredMovimientos.forEach((mov) => {
         const tipoLabel = mov.type === 'consumo' ? 'Consumo' : 'Pago';
         ws.addRow([
-          mov.date ? new Date(mov.date).toLocaleDateString("es-AR") : "",
+          formatDateDDMMYY(mov.date),
           tipoLabel,
           mov.detail || "",
           mov.amount || 0,
@@ -402,7 +403,7 @@ export default function CuentasCorrientesProveedoresPage() {
                     paginatedMovimientos.map((mov, i) => (
                       <tr key={mov.id || i} className="divide-x divide-black">
                         <td className="py-3 px-4">
-                          {mov.date ? new Date(mov.date + "T00:00:00").toLocaleDateString("es-AR") : "-"}
+                          {formatDateDDMMYY(mov.date)}
                         </td>
                         <td className="py-3 px-4 text-black font-bold">
                           {mov.type === 'consumo' ? 'Consumo' : 'Pago'}

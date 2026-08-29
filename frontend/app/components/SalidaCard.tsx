@@ -5,6 +5,7 @@ import Rooming from "@/app/components/icons/salidas/Rooming";
 import Update from "@/app/components/icons/salidas/Update";
 import Delete from "@/app/components/icons/salidas/Delete";
 import Link from "next/link";
+import { formatDateDDMMYY } from "@/lib/formatDate";
 
 interface SalidaCardProps {
   id: string | number;
@@ -31,19 +32,6 @@ export default function SalidaCard({
     }
   }, [categorias]);
 
-  const formatFecha = (fechaStr: string) => {
-    if (!fechaStr) return "";
-    if (fechaStr.includes("-")) {
-      const parts = fechaStr.split("T")[0].split("-");
-      if (parts.length === 3 && parts[0].length === 4) {
-        const [year, month, day] = parts;
-        return `${day}/${month}/${year}`;
-      }
-    }
-    const d = new Date(fechaStr);
-    return isNaN(d.getTime()) ? fechaStr : d.toLocaleDateString();
-  };
-
   return (
     <div className="flex items-start gap-5">
       <div className="flex-1 flex flex-col">
@@ -52,7 +40,7 @@ export default function SalidaCard({
           className={`bg-primary text-white rounded-md justify-between px-2 md:text-xl md:px-5 font-semibold text-xs py-3 flex gap-2 cursor-pointer select-none transition-all duration-300 ${isOpen ? "rounded-t-lg" : "rounded-lg"
             }`}>
           <p>{destino}</p>
-          <p>{formatFecha(fecha)}</p>
+          <p>{formatDateDDMMYY(fecha)}</p>
         </div>
 
         {/* Dropdown animado */}
