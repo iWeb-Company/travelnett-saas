@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 import Container from "@/app/components/Container";
@@ -43,16 +43,26 @@ function AgregarSalidaContent() {
   const loadParameters = async () => {
     if (!user?.iweb_client_id) return;
     try {
-      const [destData, transData, periodData, cargaData, salidasData] = await Promise.all([
-        apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
-        apiClient.getParameters("get_transport_companies", user.iweb_client_id).catch(() => []),
-        apiClient.getParameters("get_periods", user.iweb_client_id).catch(() => []),
-        apiClient.getParameters("get_lugares_carga", user.iweb_client_id).catch(() => []),
-        apiClient.getSalidas(user.iweb_client_id).catch(() => [])
-      ]);
+      const [destData, transData, periodData, cargaData, salidasData] =
+        await Promise.all([
+          apiClient
+            .getParameters("get_destinos", user.iweb_client_id)
+            .catch(() => []),
+          apiClient
+            .getParameters("get_transport_companies", user.iweb_client_id)
+            .catch(() => []),
+          apiClient
+            .getParameters("get_periods", user.iweb_client_id)
+            .catch(() => []),
+          apiClient
+            .getParameters("get_lugares_carga", user.iweb_client_id)
+            .catch(() => []),
+          apiClient.getSalidas(user.iweb_client_id).catch(() => []),
+        ]);
 
-      const transportFilterByType = transData.filter((x: any) => x.type === typeParam);
-
+      const transportFilterByType = transData.filter(
+        (x: any) => x.type === typeParam,
+      );
 
       setDestinos(destData);
       setTransportes(transportFilterByType);
@@ -61,7 +71,9 @@ function AgregarSalidaContent() {
 
       // If we are editing, fetch the existing data
       if (id) {
-        const sal = await apiClient.getSalida(user.iweb_client_id, id).catch(() => salidasData.find((x: any) => x.id === id));
+        const sal = await apiClient
+          .getSalida(user.iweb_client_id, id)
+          .catch(() => salidasData.find((x: any) => x.id === id));
         if (sal) {
           setDestino(sal.destino || "");
           setEmpresa(sal.transport_company || "");
@@ -73,8 +85,10 @@ function AgregarSalidaContent() {
           const cargas = sal.cargas || sal.lugares_carga || [];
           setSelectedCargas(
             Array.isArray(cargas)
-              ? cargas.map((c: any) => (typeof c === "object" && c !== null ? (c.id || c.name) : c))
-              : []
+              ? cargas.map((c: any) =>
+                  typeof c === "object" && c !== null ? c.id || c.name : c,
+                )
+              : [],
           );
           setActive(sal.active ?? true);
         }
@@ -99,7 +113,9 @@ function AgregarSalidaContent() {
 
   const handleCargaToggle = (idCarga: string) => {
     setSelectedCargas((prev) =>
-      prev.includes(idCarga) ? prev.filter((x) => x !== idCarga) : [...prev, idCarga]
+      prev.includes(idCarga)
+        ? prev.filter((x) => x !== idCarga)
+        : [...prev, idCarga],
     );
   };
 
@@ -122,7 +138,8 @@ function AgregarSalidaContent() {
     if (!user?.iweb_client_id) return;
 
     if (id) {
-      apiClient.updateSalida(user.iweb_client_id, id, apiPayload)
+      apiClient
+        .updateSalida(user.iweb_client_id, id, apiPayload)
         .then(() => {
           toast.success("Salida modificada con éxito");
           r.push(`/salidas/result?tipo=${typeParam}`);
@@ -132,7 +149,8 @@ function AgregarSalidaContent() {
           toast.error("Error al modificar la salida");
         });
     } else {
-      apiClient.createSalida(user.iweb_client_id, apiPayload)
+      apiClient
+        .createSalida(user.iweb_client_id, apiPayload)
         .then(() => {
           toast.success("Salida agregada con éxito");
           r.push(`/salidas/result?tipo=${typeParam}`);
@@ -158,11 +176,15 @@ function AgregarSalidaContent() {
         <ArrowLeft />
         <h1 className="font-bold">Volver al menú</h1>
       </Link>
-      <button onClick={handleBack} className="flex items-center my-3 justify-start gap-3">
+      <button
+        onClick={handleBack}
+        className="flex items-center my-3 justify-start gap-3">
         <h2 className="font-semibold text-secondary underline">Cancelar</h2>
       </button>
 
-      <form onSubmit={handleSubmit} className="flex flex-col w-full max-w-3xl mx-auto my-5 gap-5 bg-white p-6 rounded-xl border border-gray-200 text-lg shadow-sm text-black">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col w-full max-w-3xl mx-auto my-5 gap-5 bg-white p-6 rounded-xl border border-gray-200 text-lg shadow-sm text-black">
         <h2 className="text-black text-center md:text-xl font-semibold mb-3">
           {id ? "Modificar" : "Agregar"} salida
         </h2>
@@ -172,11 +194,14 @@ function AgregarSalidaContent() {
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={destino}
           onChange={(e) => setDestino(e.target.value)}
-          required
-        >
-          <option value="" disabled>Destino</option>
+          required>
+          <option value="" disabled>
+            Destino
+          </option>
           {destinos.map((d: any) => (
-            <option key={d.id} value={d.id}>{d.name || d.nombre}</option>
+            <option key={d.id} value={d.id}>
+              {d.name || d.nombre}
+            </option>
           ))}
         </select>
 
@@ -185,27 +210,36 @@ function AgregarSalidaContent() {
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={empresa}
           onChange={(e) => setEmpresa(e.target.value)}
-          required
-        >
-          <option value="" disabled>Empresa de Transporte</option>
+          required>
+          <option value="" disabled>
+            Empresa de Transporte
+          </option>
           {transportes.map((t: any) => (
-            <option key={t.id} value={t.id}>{t.name} ({t.type === 'aereo' ? 'Aéreo' : 'Bus'})</option>
+            <option key={t.id} value={t.id}>
+              {t.name} ({t.type === "aereo" ? "Aéreo" : "Bus"})
+            </option>
           ))}
         </select>
 
         {/* Fecha de salida */}
-        <DateInput value={fecha} onChange={(e) => setFecha(e)} placeholder="Fecha de salida" />
+        <DateInput
+          value={fecha}
+          onChange={(e) => setFecha(e)}
+          placeholder="Fecha de salida"
+        />
 
         {/* Periodo */}
         <select
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={periodo}
-          onChange={(e) => setPeriodo(e.target.value)}
-          required
-        >
-          <option value="" disabled>Período</option>
+          onChange={(e) => setPeriodo(e.target.value)}>
+          <option value="" disabled>
+            Período
+          </option>
           {periodos.map((p: any) => (
-            <option key={p.id} value={p.id}>{p.name || p.nombre || p.description}</option>
+            <option key={p.id} value={p.id}>
+              {p.name || p.nombre || p.description}
+            </option>
           ))}
         </select>
 
@@ -239,7 +273,9 @@ function AgregarSalidaContent() {
 
         {/* Lugares de Carga */}
         {lugaresCarga.length === 0 ? (
-          <p className="text-xs text-gray-500">No hay lugares de carga registrados en parámetros.</p>
+          <p className="text-xs text-gray-500">
+            No hay lugares de carga registrados en parámetros.
+          </p>
         ) : (
           <ComponentToogleModal
             onSelect={(value) => {
@@ -258,19 +294,26 @@ function AgregarSalidaContent() {
           {id ? "Modificar" : "Agregar"} Salida
         </button>
       </form>
-    </Container >
+    </Container>
   );
 }
 
 // Wrapping helper for load parameter toggle inside checkbox
 function handleCoggleToggle(id: string) {
-  const checkbox = document.querySelector(`input[type=checkbox][value="${id}"]`) as HTMLInputElement;
+  const checkbox = document.querySelector(
+    `input[type=checkbox][value="${id}"]`,
+  ) as HTMLInputElement;
   if (checkbox) checkbox.checked = !checkbox.checked;
 }
 
 export default function AgregarSalidaPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-screen">
+          <Loader />
+        </div>
+      }>
       <AgregarSalidaContent />
     </Suspense>
   );

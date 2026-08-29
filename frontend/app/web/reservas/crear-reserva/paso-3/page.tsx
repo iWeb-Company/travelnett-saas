@@ -10,9 +10,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
-import DateInput from "@/app/components/DateComponent";
 import AddVioleta from "@/app/components/icons/AddVioleta";
-import { constants } from "buffer";
 
 interface RoomPassenger {
   dni: string;
@@ -21,6 +19,7 @@ interface RoomPassenger {
   fechaNacimiento: string;
   puntoAscenso: string;
   tipoPax: string;
+  phone: string;
   tipoButaca?: string;
   isInfoa?: boolean;
 }
@@ -81,34 +80,52 @@ function Paso3Content() {
     if (!user?.iweb_client_id) return;
     try {
       const [lcData, destData, cliData, hotData] = await Promise.all([
-        apiClient.getParameters("get_lugares_carga", user.iweb_client_id).catch(() => []),
-        apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
-        apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []),
-        apiClient.getParameters("get_hotels", user.iweb_client_id).catch(() => [])
+        apiClient
+          .getParameters("get_lugares_carga", user.iweb_client_id)
+          .catch(() => []),
+        apiClient
+          .getParameters("get_destinos", user.iweb_client_id)
+          .catch(() => []),
+        apiClient
+          .getParameters("get_clients", user.iweb_client_id)
+          .catch(() => []),
+        apiClient
+          .getParameters("get_hotels", user.iweb_client_id)
+          .catch(() => []),
       ]);
       setLugaresCarga(lcData || []);
       setDestinos(destData || []);
       setClientes(cliData || []);
       setHotels(hotData || []);
 
-      const actualSalidaId = salidaIdParam || (itemType === "salida" ? itemId : "");
-      let actualPaqueteId = paqueteIdParam || (itemType === "paquete" ? itemId : "");
+      const actualSalidaId =
+        salidaIdParam || (itemType === "salida" ? itemId : "");
+      let actualPaqueteId =
+        paqueteIdParam || (itemType === "paquete" ? itemId : "");
 
       if (actualSalidaId) {
-        const sal = await apiClient.getSalida(user.iweb_client_id, actualSalidaId).catch(() => null);
+        const sal = await apiClient
+          .getSalida(user.iweb_client_id, actualSalidaId)
+          .catch(() => null);
         setSalidaInfo(sal);
       }
 
       if (!actualPaqueteId && actualSalidaId) {
-        const pkgs = await apiClient.getPackages(user.iweb_client_id).catch(() => []);
-        const found = pkgs.find((p: any) => p.dates && p.dates.includes(actualSalidaId));
+        const pkgs = await apiClient
+          .getPackages(user.iweb_client_id)
+          .catch(() => []);
+        const found = pkgs.find(
+          (p: any) => p.dates && p.dates.includes(actualSalidaId),
+        );
         if (found) {
           actualPaqueteId = found.id;
         }
       }
 
       if (actualPaqueteId) {
-        const pack = await apiClient.getPackage(user.iweb_client_id, actualPaqueteId).catch(() => null);
+        const pack = await apiClient
+          .getPackage(user.iweb_client_id, actualPaqueteId)
+          .catch(() => null);
         setPaqueteInfo(pack);
       }
     } catch (error) {
@@ -137,12 +154,14 @@ function Paso3Content() {
     }
 
     if (parsedRooms.length === 0) {
-      parsedRooms = [{
-        hotel: hotelIdParam,
-        tipoCama: camaParam || "doble",
-        distribucion: "matrimonial",
-        tipoHabitacion: habitacionParam || "estandar"
-      }];
+      parsedRooms = [
+        {
+          hotel: hotelIdParam,
+          tipoCama: camaParam || "doble",
+          distribucion: "matrimonial",
+          tipoHabitacion: habitacionParam || "estandar",
+        },
+      ];
     }
     setRoomsConfig(parsedRooms);
 
@@ -161,23 +180,34 @@ function Paso3Content() {
         apellido: "",
         fechaNacimiento: "",
         puntoAscenso: "",
+        phone: "",
         tipoPax: "ADL",
         tipoButaca: "semicama",
-        isInfoa: false
+        isInfoa: false,
       }));
     });
 
     setRoomPassengers(initialByRoom);
   }, [roomsParam, hotelIdParam, camaParam, habitacionParam]);
 
-  const handleDniBlur = async (roomIdx: number, paxIdx: number, dniValue: string) => {
-    if (!dniValue || dniValue.trim().length < 6 || !user?.iweb_client_id) return;
+  const handleDniBlur = async (
+    roomIdx: number,
+    paxIdx: number,
+    dniValue: string,
+  ) => {
+    if (!dniValue || dniValue.trim().length < 6 || !user?.iweb_client_id)
+      return;
     const cleanDni = dniValue.trim();
     try {
-      const found = await apiClient.getPassengerByDNI(user.iweb_client_id, cleanDni);
+      const found = await apiClient.getPassengerByDNI(
+        user.iweb_client_id,
+        cleanDni,
+      );
       if (found && found.length > 0) {
         const pax = found[0];
-        const formattedBirth = pax.date_of_birth ? String(pax.date_of_birth).split("T")[0] : "";
+        const formattedBirth = pax.date_of_birth
+          ? String(pax.date_of_birth).split("T")[0]
+          : "";
         setRoomPassengers((current) => {
           const copy = [...current];
           copy[roomIdx] = [...copy[roomIdx]];
@@ -185,12 +215,16 @@ function Paso3Content() {
             ...copy[roomIdx][paxIdx],
             dni: cleanDni,
             nombre: pax.name || pax.nombre || copy[roomIdx][paxIdx].nombre,
-            apellido: pax.last_name || pax.apellido || copy[roomIdx][paxIdx].apellido,
-            fechaNacimiento: formattedBirth || copy[roomIdx][paxIdx].fechaNacimiento,
+            apellido:
+              pax.last_name || pax.apellido || copy[roomIdx][paxIdx].apellido,
+            fechaNacimiento:
+              formattedBirth || copy[roomIdx][paxIdx].fechaNacimiento,
           };
           return copy;
         });
-        toast.success(`Pasajero ${pax.name || ""} ${pax.last_name || ""} encontrado`);
+        toast.success(
+          `Pasajero ${pax.name || ""} ${pax.last_name || ""} encontrado`,
+        );
       }
     } catch (err) {
       // Silent catch
@@ -202,16 +236,15 @@ function Paso3Content() {
     roomIdx: number,
     paxIdx: number,
     field: keyof RoomPassenger,
-    value: string
+    value: string,
   ) => {
     const updated = [...roomPassengers];
     updated[roomIdx] = [...updated[roomIdx]];
     updated[roomIdx][paxIdx] = {
       ...updated[roomIdx][paxIdx],
-      [field]: value
+      [field]: value,
     };
     setRoomPassengers(updated);
-
   };
 
   // Add INFOA passenger specifically to a room
@@ -225,10 +258,11 @@ function Paso3Content() {
         apellido: "",
         fechaNacimiento: "",
         puntoAscenso: "",
+        phone: "",
         tipoPax: "INF",
         tipoButaca: "semicama",
-        isInfoa: true
-      }
+        isInfoa: true,
+      },
     ];
     setRoomPassengers(updated);
   };
@@ -248,28 +282,41 @@ function Paso3Content() {
 
     if (!user?.iweb_client_id) return;
 
-    const actualSalidaId = salidaIdParam || (itemType === "salida" ? itemId : null);
-    let actualPaqueteId = paqueteIdParam || (itemType === "paquete" ? itemId : null);
+    const actualSalidaId =
+      salidaIdParam || (itemType === "salida" ? itemId : null);
+    let actualPaqueteId =
+      paqueteIdParam || (itemType === "paquete" ? itemId : null);
     if (!actualPaqueteId && paqueteInfo && paqueteInfo.id) {
       actualPaqueteId = paqueteInfo.id;
     }
 
     // Validation for Bloqueo mode
     if (tipoReserva === "bloqueo") {
-      if ((bloqueoData.cantSemicama || 0) === 0 && (bloqueoData.cantCama || 0) === 0) {
-        toast.error("Por favor ingresa la cantidad de pasajeros (Semicama o Cama) para la reserva de bloqueo.");
+      if (
+        (bloqueoData.cantSemicama || 0) === 0 &&
+        (bloqueoData.cantCama || 0) === 0
+      ) {
+        toast.error(
+          "Por favor ingresa la cantidad de pasajeros (Semicama o Cama) para la reserva de bloqueo.",
+        );
         return;
       }
       if (salidaInfo) {
-        const availableSemicama = salidaInfo.semicama_disponibles ?? salidaInfo.semicama ?? 999;
-        const availableCama = salidaInfo.cama_disponibles ?? salidaInfo.cama ?? 999;
+        const availableSemicama =
+          salidaInfo.semicama_disponibles ?? salidaInfo.semicama ?? 999;
+        const availableCama =
+          salidaInfo.cama_disponibles ?? salidaInfo.cama ?? 999;
 
         if (bloqueoData.cantSemicama > availableSemicama) {
-          toast.error(`No hay suficientes asientos Semicama. Disponibles: ${availableSemicama}`);
+          toast.error(
+            `No hay suficientes asientos Semicama. Disponibles: ${availableSemicama}`,
+          );
           return;
         }
         if (bloqueoData.cantCama > availableCama) {
-          toast.error(`No hay suficientes asientos Cama. Disponibles: ${availableCama}`);
+          toast.error(
+            `No hay suficientes asientos Cama. Disponibles: ${availableCama}`,
+          );
           return;
         }
       }
@@ -292,15 +339,21 @@ function Paso3Content() {
           }
         }
 
-        const availableSemicama = salidaInfo.semicama_disponibles ?? salidaInfo.semicama ?? 999;
-        const availableCama = salidaInfo.cama_disponibles ?? salidaInfo.cama ?? 999;
+        const availableSemicama =
+          salidaInfo.semicama_disponibles ?? salidaInfo.semicama ?? 999;
+        const availableCama =
+          salidaInfo.cama_disponibles ?? salidaInfo.cama ?? 999;
 
         if (reqSemicama > availableSemicama) {
-          toast.error(`No hay suficientes asientos Semicama disponibles en la salida. Disponibles: ${availableSemicama}`);
+          toast.error(
+            `No hay suficientes asientos Semicama disponibles en la salida. Disponibles: ${availableSemicama}`,
+          );
           return;
         }
         if (reqCama > availableCama) {
-          toast.error(`No hay suficientes asientos Cama disponibles en la salida. Disponibles: ${availableCama}`);
+          toast.error(
+            `No hay suficientes asientos Cama disponibles en la salida. Disponibles: ${availableCama}`,
+          );
           return;
         }
       }
@@ -310,12 +363,16 @@ function Paso3Content() {
           const p = roomPassengers[rIdx][pIdx];
           if (p.isInfoa) {
             if (!p.nombre || !p.apellido || !p.fechaNacimiento) {
-              toast.error(`Por favor completa Nombre, Apellido y Fecha de Nacimiento del INFOA en Habitación ${rIdx + 1}`);
+              toast.error(
+                `Por favor completa Nombre, Apellido y Fecha de Nacimiento del INFOA en Habitación ${rIdx + 1}`,
+              );
               return;
             }
           } else {
             if (!p.dni || !p.nombre || !p.apellido || !p.fechaNacimiento) {
-              toast.error(`Por favor completa todos los datos del Pasajero ${pIdx + 1} en Habitación ${rIdx + 1}`);
+              toast.error(
+                `Por favor completa todos los datos del Pasajero ${pIdx + 1} en Habitación ${rIdx + 1}`,
+              );
               return;
             }
           }
@@ -331,21 +388,25 @@ function Paso3Content() {
       if (tipoReserva === "bloqueo") {
         // Generar pasajeros sin datos (placeholders) para la cantidad de Semicama
         for (let i = 1; i <= (bloqueoData.cantSemicama || 0); i++) {
-          const newPass = await apiClient.createParameter("create_passengers", {
-            name: "",
-            last_name: "",
-            dni: null,
-            date_of_birth: null,
-            sex: null,
-            phone: null
-          }, user.iweb_client_id);
+          const newPass = await apiClient.createParameter(
+            "create_passengers",
+            {
+              name: "",
+              last_name: "",
+              dni: null,
+              date_of_birth: null,
+              sex: null,
+              phone: null,
+            },
+            user.iweb_client_id,
+          );
 
           passengersPayload.push({
             pasajero_id: newPass.id,
             pasajero_type: "ADL",
             butaca_number: null,
             butaca_type: "semicama",
-            lugar_carga_id: null
+            lugar_carga_id: null,
           });
 
           allPassengersList.push({
@@ -353,27 +414,31 @@ function Paso3Content() {
             apellido: `${i}`,
             dni: "-",
             fechaNacimiento: "",
-            puntoAscenso: ""
+            puntoAscenso: "",
           });
         }
 
         // Generar pasajeros sin datos (placeholders) para la cantidad de Cama
         for (let i = 1; i <= (bloqueoData.cantCama || 0); i++) {
-          const newPass = await apiClient.createParameter("create_passengers", {
-            name: "",
-            last_name: "",
-            dni: null,
-            date_of_birth: null,
-            sex: null,
-            phone: null
-          }, user.iweb_client_id);
+          const newPass = await apiClient.createParameter(
+            "create_passengers",
+            {
+              name: "",
+              last_name: "",
+              dni: null,
+              date_of_birth: null,
+              sex: null,
+              phone: null,
+            },
+            user.iweb_client_id,
+          );
 
           passengersPayload.push({
             pasajero_id: newPass.id,
             pasajero_type: "ADL",
             butaca_number: null,
             butaca_type: "cama",
-            lugar_carga_id: null
+            lugar_carga_id: null,
           });
 
           allPassengersList.push({
@@ -381,7 +446,7 @@ function Paso3Content() {
             apellido: `${i}`,
             dni: "-",
             fechaNacimiento: "",
-            puntoAscenso: ""
+            puntoAscenso: "",
           });
         }
       } else {
@@ -391,21 +456,27 @@ function Paso3Content() {
             let passengerId = "";
 
             if (p.dni) {
-              const existing = await apiClient.getPassengerByDNI(user.iweb_client_id, p.dni).catch(() => []);
+              const existing = await apiClient
+                .getPassengerByDNI(user.iweb_client_id, p.dni)
+                .catch(() => []);
               if (existing && existing.length > 0) {
                 passengerId = existing[0].id;
               }
             }
 
             if (!passengerId) {
-              const newPass = await apiClient.createParameter("create_passengers", {
-                name: p.nombre,
-                last_name: p.apellido,
-                dni: p.dni ? Number(p.dni) : null,
-                date_of_birth: p.fechaNacimiento || null,
-                sex: null,
-                phone: null
-              }, user.iweb_client_id);
+              const newPass = await apiClient.createParameter(
+                "create_passengers",
+                {
+                  name: p.nombre,
+                  last_name: p.apellido,
+                  dni: p.dni ? Number(p.dni) : null,
+                  date_of_birth: p.fechaNacimiento || null,
+                  sex: null,
+                  phone: p.phone || null,
+                },
+                user.iweb_client_id,
+              );
               passengerId = newPass.id;
             }
 
@@ -415,7 +486,8 @@ function Paso3Content() {
               butaca_number: null,
               butaca_type: p.tipoButaca || "semicama",
               lugar_carga_id: p.puntoAscenso || null,
-              room_index: rIdx
+              room_index: rIdx,
+              phone: p.phone || null,
             });
 
             allPassengersList.push({
@@ -423,7 +495,8 @@ function Paso3Content() {
               apellido: p.apellido,
               dni: p.dni || "-",
               fechaNacimiento: p.fechaNacimiento || "",
-              puntoAscenso: p.puntoAscenso || ""
+              puntoAscenso: p.puntoAscenso || "",
+              phone: p.phone || "",
             });
           }
         }
@@ -431,7 +504,9 @@ function Paso3Content() {
 
       // Room type representation JSON string array e.g. ["doble_matrimonial_estandar","simple_individual_estandar"]
       const roomTypesJoined = JSON.stringify(
-        roomsConfig.map((rm) => `${rm.tipoCama}_${rm.distribucion}_${rm.tipoHabitacion}`)
+        roomsConfig.map(
+          (rm) => `${rm.tipoCama}_${rm.distribucion}_${rm.tipoHabitacion}`,
+        ),
       );
 
       const primaryHotelId = roomsConfig[0]?.hotel || hotelIdParam || null;
@@ -439,32 +514,46 @@ function Paso3Content() {
 
       // Fetch client commission if client_id is present
       let clientCommPct = 0;
-      const matchedClient = clientes.find((c: any) => c.id === clienteId) ||
-        (Array.isArray(clientes) ? clientes.find((c: any) => c.id === clienteId) : null);
-      if (matchedClient && matchedClient.commission !== null && matchedClient.commission !== undefined) {
+      const matchedClient =
+        clientes.find((c: any) => c.id === clienteId) ||
+        (Array.isArray(clientes)
+          ? clientes.find((c: any) => c.id === clienteId)
+          : null);
+      if (
+        matchedClient &&
+        matchedClient.commission !== null &&
+        matchedClient.commission !== undefined
+      ) {
         clientCommPct = Number(matchedClient.commission) || 0;
       } else if (clienteId && user?.iweb_client_id) {
-        const freshClients = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
-        const fc = Array.isArray(freshClients) ? freshClients.find((c: any) => c.id === clienteId) : null;
+        const freshClients = await apiClient
+          .getParameters("get_clients", user.iweb_client_id)
+          .catch(() => []);
+        const fc = Array.isArray(freshClients)
+          ? freshClients.find((c: any) => c.id === clienteId)
+          : null;
         if (fc && fc.commission !== null && fc.commission !== undefined) {
           clientCommPct = Number(fc.commission) || 0;
         }
       }
 
-      const createdReserva = await apiClient.createReserva(user.iweb_client_id, {
-        salida_id: actualSalidaId,
-        package_id: actualPaqueteId,
-        client_id: clienteId || null,
-        lugar_carga_id: primaryLugarCargaId,
-        hotel_id: primaryHotelId,
-        room_type: roomTypesJoined,
-        observations: tituloReserva || null,
-        venciment: fechaVencimiento || null,
-        passengers: passengersPayload,
-        commission: clientCommPct,
-        liberados: bloqueoData.cantLiberados || 0,
-        type: tipoReserva === "bloqueo" ? "bloqueo_grupo" : "tradicional",
-      });
+      const createdReserva = await apiClient.createReserva(
+        user.iweb_client_id,
+        {
+          salida_id: actualSalidaId,
+          package_id: actualPaqueteId,
+          client_id: clienteId || null,
+          lugar_carga_id: primaryLugarCargaId,
+          hotel_id: primaryHotelId,
+          room_type: roomTypesJoined,
+          observations: tituloReserva || null,
+          venciment: fechaVencimiento || null,
+          passengers: passengersPayload,
+          commission: clientCommPct,
+          liberados: bloqueoData.cantLiberados || 0,
+          type: tipoReserva === "bloqueo" ? "bloqueo_grupo" : "tradicional",
+        },
+      );
 
       // Calculate and save Liquidacion with total_amount, total_commission, and gastos
       try {
@@ -472,15 +561,22 @@ function Paso3Content() {
         let gastosReserva = 0;
         let montoComisionable = 0;
 
-        const totalNonInfantPax = passengersPayload.filter((p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF").length || 1;
-        const totalCamaPax = passengersPayload.filter((p: any) => (p.butaca_type || "").toLowerCase() === "cama").length;
+        const totalNonInfantPax =
+          passengersPayload.filter(
+            (p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF",
+          ).length || 1;
+        const totalCamaPax = passengersPayload.filter(
+          (p: any) => (p.butaca_type || "").toLowerCase() === "cama",
+        ).length;
 
         if (paqueteInfo) {
           const unitGastos = Number(paqueteInfo.gastos) || 0;
           const unitAdicional = Number(paqueteInfo.adicional) || 0;
           gastosReserva = unitGastos * totalNonInfantPax;
           const adicionalCama = unitAdicional * totalCamaPax;
-          const isPorHabitacion = (paqueteInfo.pricing_type || "").toLowerCase().includes("habitacion");
+          const isPorHabitacion = (paqueteInfo.pricing_type || "")
+            .toLowerCase()
+            .includes("habitacion");
           const defaultPrice = Number(paqueteInfo.price) || 0;
 
           if (roomsConfig && roomsConfig.length > 0) {
@@ -501,23 +597,46 @@ function Paso3Content() {
               } else if (tc.includes("quintuple") || tc.includes("5")) {
                 capacity = 5;
                 tariff = Number(paqueteInfo.tarifa_quintuple) || defaultPrice;
-              } else if (tc.includes("single") || tc.includes("individual") || tc.includes("1")) {
+              } else if (
+                tc.includes("single") ||
+                tc.includes("individual") ||
+                tc.includes("1")
+              ) {
                 capacity = 1;
                 tariff = Number(paqueteInfo.tarifa_single) || defaultPrice;
               }
 
               if (paqueteInfo.hotels && Array.isArray(paqueteInfo.hotels)) {
-                const matchedHotel = paqueteInfo.hotels.find((h: any) => h.hotel_id === rm.hotel || h.id === rm.hotel);
+                const matchedHotel = paqueteInfo.hotels.find(
+                  (h: any) => h.hotel_id === rm.hotel || h.id === rm.hotel,
+                );
                 if (matchedHotel) {
-                  if ((tc.includes("doble") || tc.includes("2")) && matchedHotel.tarifa_doble) {
+                  if (
+                    (tc.includes("doble") || tc.includes("2")) &&
+                    matchedHotel.tarifa_doble
+                  ) {
                     tariff = Number(matchedHotel.tarifa_doble);
-                  } else if ((tc.includes("triple") || tc.includes("3")) && matchedHotel.tarifa_triple) {
+                  } else if (
+                    (tc.includes("triple") || tc.includes("3")) &&
+                    matchedHotel.tarifa_triple
+                  ) {
                     tariff = Number(matchedHotel.tarifa_triple);
-                  } else if ((tc.includes("cuadruple") || tc.includes("4")) && matchedHotel.tarifa_cuadruple) {
+                  } else if (
+                    (tc.includes("cuadruple") || tc.includes("4")) &&
+                    matchedHotel.tarifa_cuadruple
+                  ) {
                     tariff = Number(matchedHotel.tarifa_cuadruple);
-                  } else if ((tc.includes("quintuple") || tc.includes("5")) && matchedHotel.tarifa_quintuple) {
+                  } else if (
+                    (tc.includes("quintuple") || tc.includes("5")) &&
+                    matchedHotel.tarifa_quintuple
+                  ) {
                     tariff = Number(matchedHotel.tarifa_quintuple);
-                  } else if ((tc.includes("single") || tc.includes("individual") || tc.includes("1")) && matchedHotel.tarifa_single) {
+                  } else if (
+                    (tc.includes("single") ||
+                      tc.includes("individual") ||
+                      tc.includes("1")) &&
+                    matchedHotel.tarifa_single
+                  ) {
                     tariff = Number(matchedHotel.tarifa_single);
                   }
                 }
@@ -542,22 +661,37 @@ function Paso3Content() {
           }
         } else {
           precioPaquete = Number(bloqueoData.precioPaquete) || 0;
-          gastosReserva = (Number(bloqueoData.gastosReserva) || 0) * totalNonInfantPax;
+          gastosReserva =
+            (Number(bloqueoData.gastosReserva) || 0) * totalNonInfantPax;
           let totalPax = 0;
           if (tipoReserva === "bloqueo") {
-            const rawSeats = (Number(bloqueoData.cantSemicama) || 0) + (Number(bloqueoData.cantCama) || 0);
-            totalPax = Math.max(0, rawSeats - (Number(bloqueoData.cantLiberados) || 0));
+            const rawSeats =
+              (Number(bloqueoData.cantSemicama) || 0) +
+              (Number(bloqueoData.cantCama) || 0);
+            totalPax = Math.max(
+              0,
+              rawSeats - (Number(bloqueoData.cantLiberados) || 0),
+            );
           }
           if (totalPax === 0 && tipoReserva !== "bloqueo") {
             totalPax = totalNonInfantPax;
           }
-          if (totalPax === 0 && passengersPayload.length > 0 && tipoReserva !== "bloqueo") {
+          if (
+            totalPax === 0 &&
+            passengersPayload.length > 0 &&
+            tipoReserva !== "bloqueo"
+          ) {
             totalPax = passengersPayload.length;
           }
           montoComisionable = precioPaquete * totalPax;
         }
 
-        const totalBruto = montoComisionable + gastosReserva + (paqueteInfo?.comisionable ? 0 : ((Number(paqueteInfo?.adicional) || 0) * totalCamaPax));
+        const totalBruto =
+          montoComisionable +
+          gastosReserva +
+          (paqueteInfo?.comisionable
+            ? 0
+            : (Number(paqueteInfo?.adicional) || 0) * totalCamaPax);
 
         const commAmount = (montoComisionable * clientCommPct) / 100;
 
@@ -567,20 +701,30 @@ function Paso3Content() {
           total_amout: totalBruto,
           total_commission: montoComisionable,
           commission: commAmount,
-          gastos: gastosReserva > 0 ? [{
-            name: "Gastos administrativos",
-            amount: gastosReserva,
-            iweb_client_id: user.iweb_client_id
-          }] : []
+          gastos:
+            gastosReserva > 0
+              ? [
+                  {
+                    name: "Gastos administrativos",
+                    amount: gastosReserva,
+                    iweb_client_id: user.iweb_client_id,
+                  },
+                ]
+              : [],
         };
 
         if (createdReserva?.id) {
           await apiClient.createLiquidacion(liqPayload).catch(() => {
-            return apiClient.getLiquidacionByBooking(createdReserva.id).then((existingLiq) => {
-              if (existingLiq?.id) {
-                return apiClient.updateLiquidacion(existingLiq.id, liqPayload);
-              }
-            });
+            return apiClient
+              .getLiquidacionByBooking(createdReserva.id)
+              .then((existingLiq) => {
+                if (existingLiq?.id) {
+                  return apiClient.updateLiquidacion(
+                    existingLiq.id,
+                    liqPayload,
+                  );
+                }
+              });
           });
         }
         console.log("Reserva creada", createdReserva);
@@ -590,9 +734,7 @@ function Paso3Content() {
       }
 
       toast.success("¡Reserva creada con éxito!");
-      router.push(
-        `/web/reservas`
-      );
+      router.push(`/web/reservas`);
     } catch (error) {
       console.error(error);
       toast.error("Error al registrar la reserva");
@@ -605,7 +747,9 @@ function Paso3Content() {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <Loader />
-        <p className="mt-4 font-semibold md:text-xl">Registrando reserva, pasajeros, liquidacion...</p>
+        <p className="mt-4 font-semibold md:text-xl">
+          Registrando reserva, pasajeros, liquidacion...
+        </p>
       </div>
     );
   }
@@ -614,8 +758,12 @@ function Paso3Content() {
   const destinoObj = destinos.find((d) => d.id === destinoId);
   const clienteObj = clientes.find((c) => c.id === clienteId);
   const destinoNombre = destinoObj?.name || destinoObj?.nombre || "General";
-  const clienteNombre = clienteObj?.complete_name || clienteObj?.name_system || (clienteId === "as" ? "En Espera" : "Cliente sin asignar");
-  const fechaSalidaText = salidaInfo?.date_of_out || paqueteInfo?.name || "Fecha a confirmar";
+  const clienteNombre =
+    clienteObj?.complete_name ||
+    clienteObj?.name_system ||
+    (clienteId === "as" ? "En Espera" : "Cliente sin asignar");
+  const fechaSalidaText =
+    salidaInfo?.date_of_out || paqueteInfo?.name || "Fecha a confirmar";
   const siglaText = destinoObj?.sigla || "DEST";
 
   return (
@@ -625,15 +773,21 @@ function Paso3Content() {
         <ArrowLeft />
         <h1 className="font-bold md:text-xl">Volver al menú</h1>
       </Link>
-      <Link className="flex items-center my-3 justify-start gap-2" href="/web/reservas">
+      <Link
+        className="flex items-center my-3 justify-start gap-2"
+        href="/web/reservas">
         <ArrowLeft color="#6005F7" />
-        <p className="text-secondary font-semibold md:text-lg">Volver a Reservas</p>
+        <p className="text-secondary font-semibold md:text-lg">
+          Volver a Reservas
+        </p>
       </Link>
       <Link
         className="flex items-center my-3 justify-start gap-2"
         href={`/web/reservas/crear-reserva/paso-2?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}`}>
         <ArrowLeft />
-        <p className="text-primary font-semibold md:text-lg">Volver a Habitación</p>
+        <p className="text-primary font-semibold md:text-lg">
+          Volver a Habitación
+        </p>
       </Link>
 
       <h2 className="font-semibold text-black text-center mx-auto md:text-lg mt-5">
@@ -656,57 +810,105 @@ function Paso3Content() {
 
         {/* Dynamic Header Summary */}
         <div className="flex flex-col gap-2 text-black items-start w-full font-medium p-4 rounded-xl ">
-          <p className="text-base font-medium">{destinoNombre} - {clienteNombre}</p>
-          {tipoReserva === "tradicional" && <p className="text-sm font-medium">{fechaSalidaText} ({siglaText})</p>}
+          <p className="text-base font-medium">
+            {destinoNombre} - {clienteNombre}
+          </p>
+          {tipoReserva === "tradicional" && (
+            <p className="text-sm font-medium">
+              {fechaSalidaText} ({siglaText})
+            </p>
+          )}
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col w-full gap-6 px-2">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col w-full gap-6 px-2">
           {/* Datos Generales (Título de Reserva & Fecha de Vencimiento) */}
-
 
           {tipoReserva === "bloqueo" ? (
             <div className="flex flex-col gap-4 p-5 rounded-xl ">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold text-gray-700">
-                  Cantidad de pasajeros Semicama {(salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama) !== undefined && `(Disp: ${salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama})`}
+                  Cantidad de pasajeros Semicama{" "}
+                  {(salidaInfo?.semicama_disponibles ??
+                    salidaInfo?.semicama) !== undefined &&
+                    `(Disp: ${salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama})`}
                 </label>
                 <input
                   type="number"
                   min="0"
-                  max={salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama ?? 999}
-                  disabled={(salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama) === 0}
-                  placeholder={(salidaInfo?.semicama_disponibles ?? salidaInfo?.semicama) === 0 ? "Sin butacas semicama disponibles" : "Cantidad de pasajeros semicama"}
+                  max={
+                    salidaInfo?.semicama_disponibles ??
+                    salidaInfo?.semicama ??
+                    999
+                  }
+                  disabled={
+                    (salidaInfo?.semicama_disponibles ??
+                      salidaInfo?.semicama) === 0
+                  }
+                  placeholder={
+                    (salidaInfo?.semicama_disponibles ??
+                      salidaInfo?.semicama) === 0
+                      ? "Sin butacas semicama disponibles"
+                      : "Cantidad de pasajeros semicama"
+                  }
                   value={bloqueoData.cantSemicama}
-                  onChange={(e) => setBloqueoData({ ...bloqueoData, cantSemicama: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setBloqueoData({
+                      ...bloqueoData,
+                      cantSemicama: Number(e.target.value),
+                    })
+                  }
                   className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold text-gray-700">
-                  Cantidad de pasajeros Cama {(salidaInfo?.cama_disponibles ?? salidaInfo?.cama) !== undefined && `(Disp: ${salidaInfo?.cama_disponibles ?? salidaInfo?.cama})`}
+                  Cantidad de pasajeros Cama{" "}
+                  {(salidaInfo?.cama_disponibles ?? salidaInfo?.cama) !==
+                    undefined &&
+                    `(Disp: ${salidaInfo?.cama_disponibles ?? salidaInfo?.cama})`}
                 </label>
                 <input
                   type="number"
                   min="0"
                   max={salidaInfo?.cama_disponibles ?? salidaInfo?.cama ?? 999}
-                  disabled={(salidaInfo?.cama_disponibles ?? salidaInfo?.cama) === 0}
-                  placeholder={(salidaInfo?.cama_disponibles ?? salidaInfo?.cama) === 0 ? "Sin butacas cama disponibles" : "Cantidad de pasajeros cama"}
+                  disabled={
+                    (salidaInfo?.cama_disponibles ?? salidaInfo?.cama) === 0
+                  }
+                  placeholder={
+                    (salidaInfo?.cama_disponibles ?? salidaInfo?.cama) === 0
+                      ? "Sin butacas cama disponibles"
+                      : "Cantidad de pasajeros cama"
+                  }
                   value={bloqueoData.cantCama}
-                  onChange={(e) => setBloqueoData({ ...bloqueoData, cantCama: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setBloqueoData({
+                      ...bloqueoData,
+                      cantCama: Number(e.target.value),
+                    })
+                  }
                   className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-gray-700">Cantidad de liberados (opcional)</label>
+                <label className="text-xs font-bold text-gray-700">
+                  Cantidad de liberados (opcional)
+                </label>
                 <input
                   type="number"
                   min="0"
                   placeholder="Cantidad de liberados"
                   value={bloqueoData.cantLiberados}
-                  onChange={(e) => setBloqueoData({ ...bloqueoData, cantLiberados: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setBloqueoData({
+                      ...bloqueoData,
+                      cantLiberados: Number(e.target.value),
+                    })
+                  }
                   className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -715,22 +917,36 @@ function Paso3Content() {
               {!paqueteInfo && (
                 <>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-gray-700">Precio paquete</label>
+                    <label className="text-xs font-bold text-gray-700">
+                      Precio paquete
+                    </label>
                     <input
                       type="number"
                       placeholder="Precio paquete"
                       value={bloqueoData.precioPaquete}
-                      onChange={(e) => setBloqueoData({ ...bloqueoData, precioPaquete: Number(e.target.value) })}
+                      onChange={(e) =>
+                        setBloqueoData({
+                          ...bloqueoData,
+                          precioPaquete: Number(e.target.value),
+                        })
+                      }
                       className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-gray-700">Gastos de reserva (opcional)</label>
+                    <label className="text-xs font-bold text-gray-700">
+                      Gastos de reserva (opcional)
+                    </label>
                     <input
                       type="number"
                       placeholder="Gastos de reserva"
                       value={bloqueoData.gastosReserva}
-                      onChange={(e) => setBloqueoData({ ...bloqueoData, gastosReserva: Number(e.target.value) })}
+                      onChange={(e) =>
+                        setBloqueoData({
+                          ...bloqueoData,
+                          gastosReserva: Number(e.target.value),
+                        })
+                      }
                       className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                     />
                   </div>
@@ -756,23 +972,32 @@ function Paso3Content() {
               {roomsConfig.map((rm, rIdx) => {
                 const hotelObj = hotels.find((h) => h.id === rm.hotel);
                 const hotelName = hotelObj?.name || hotelObj?.nombre || "Hotel";
-                const camaLabel = (rm.tipoCama || "doble").toUpperCase().slice(0, 3);
-                const distLabel = rm.distribucion === "matrimonial" ? "MAT" : "TWIN";
-                const habLabel = (rm.tipoHabitacion || "estandar").toUpperCase().slice(0, 3);
+                const camaLabel = (rm.tipoCama || "doble")
+                  .toUpperCase()
+                  .slice(0, 3);
+                const distLabel =
+                  rm.distribucion === "matrimonial" ? "MAT" : "TWIN";
+                const habLabel = (rm.tipoHabitacion || "estandar")
+                  .toUpperCase()
+                  .slice(0, 3);
                 const roomTitle = `${hotelName} - ${camaLabel} ${distLabel} - ${habLabel}`;
 
                 return (
-                  <div key={rIdx} className="flex flex-col gap-4  p-5 rounded-xl ">
+                  <div
+                    key={rIdx}
+                    className="flex flex-col gap-4  p-5 rounded-xl ">
                     <h3 className="font-medium text-base pb-2">{roomTitle}</h3>
                     {roomPassengers[rIdx]?.map((passenger, pIdx) => (
-                      <div key={pIdx} className="flex flex-col gap-3 py-4  rounded-lg  relative">
+                      <div
+                        key={pIdx}
+                        className="flex flex-col gap-3 py-4  rounded-lg  relative">
                         <div className="flex justify-between items-center">
                           <p className="font-medium text-sm">
-                            {passenger.isInfoa ? `Pasajero INFOA (Bebé)` : `Pasajero ${pIdx + 1}`}
+                            {passenger.isInfoa
+                              ? `Pasajero INFOA (Bebé)`
+                              : `Pasajero ${pIdx + 1}`}
                           </p>
                         </div>
-
-
 
                         {/* DNI */}
                         <div className="flex flex-col gap-1">
@@ -780,8 +1005,17 @@ function Paso3Content() {
                             placeholder="DNI"
                             className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                             value={passenger.dni}
-                            onChange={(e) => handlePassengerChange(rIdx, pIdx, "dni", e.target.value)}
-                            onBlur={(e) => handleDniBlur(rIdx, pIdx, e.target.value)}
+                            onChange={(e) =>
+                              handlePassengerChange(
+                                rIdx,
+                                pIdx,
+                                "dni",
+                                e.target.value,
+                              )
+                            }
+                            onBlur={(e) =>
+                              handleDniBlur(rIdx, pIdx, e.target.value)
+                            }
                             type="text"
                           />
                         </div>
@@ -792,9 +1026,16 @@ function Paso3Content() {
                             type="text"
                             required
                             className="w-full border border-gray-300 uppercase bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
-                            placeholder="Ingrese Nombre"
+                            placeholder="Nombre"
                             value={passenger.nombre}
-                            onChange={(e) => handlePassengerChange(rIdx, pIdx, "nombre", e.target.value)}
+                            onChange={(e) =>
+                              handlePassengerChange(
+                                rIdx,
+                                pIdx,
+                                "nombre",
+                                e.target.value,
+                              )
+                            }
                           />
                         </div>
 
@@ -804,9 +1045,16 @@ function Paso3Content() {
                             type="text"
                             required
                             className="w-full border border-gray-300 uppercase bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
-                            placeholder="Ingrese Apellido"
+                            placeholder="apellido"
                             value={passenger.apellido}
-                            onChange={(e) => handlePassengerChange(rIdx, pIdx, "apellido", e.target.value)}
+                            onChange={(e) =>
+                              handlePassengerChange(
+                                rIdx,
+                                pIdx,
+                                "apellido",
+                                e.target.value,
+                              )
+                            }
                           />
                         </div>
 
@@ -817,7 +1065,31 @@ function Paso3Content() {
                             required
                             className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                             value={passenger.fechaNacimiento}
-                            onChange={(e) => handlePassengerChange(rIdx, pIdx, "fechaNacimiento", e.target.value)}
+                            onChange={(e) =>
+                              handlePassengerChange(
+                                rIdx,
+                                pIdx,
+                                "fechaNacimiento",
+                                e.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="text"
+                            required
+                            className="w-full border border-gray-300 uppercase bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                            placeholder="phone"
+                            value={passenger.phone}
+                            onChange={(e) =>
+                              handlePassengerChange(
+                                rIdx,
+                                pIdx,
+                                "phone",
+                                e.target.value,
+                              )
+                            }
                           />
                         </div>
 
@@ -827,11 +1099,19 @@ function Paso3Content() {
                             <select
                               className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                               value={passenger.puntoAscenso}
-                              onChange={(e) => handlePassengerChange(rIdx, pIdx, "puntoAscenso", e.target.value)}
-                            >
+                              onChange={(e) =>
+                                handlePassengerChange(
+                                  rIdx,
+                                  pIdx,
+                                  "puntoAscenso",
+                                  e.target.value,
+                                )
+                              }>
                               <option value="">Punto de ascenso</option>
                               {lugaresCarga.map((l: any) => (
-                                <option key={l.id} value={l.id}>{l.name || l.nombre || l.lugar}</option>
+                                <option key={l.id} value={l.id}>
+                                  {l.name || l.nombre || l.lugar}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -843,8 +1123,14 @@ function Paso3Content() {
                             <select
                               className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                               value={passenger.tipoButaca || "semicama"}
-                              onChange={(e) => handlePassengerChange(rIdx, pIdx, "tipoButaca", e.target.value)}
-                            >
+                              onChange={(e) =>
+                                handlePassengerChange(
+                                  rIdx,
+                                  pIdx,
+                                  "tipoButaca",
+                                  e.target.value,
+                                )
+                              }>
                               <option value="semicama">Semicama</option>
                               <option value="cama">Cama</option>
                             </select>
@@ -857,8 +1143,7 @@ function Paso3Content() {
                     <button
                       type="button"
                       onClick={() => handleAddInfoa(rIdx)}
-                      className="py-2 px-4 flex items-center gap-2 font-semibold justify-end rounded-lg text-sm text-primary  transition-all cursor-pointer  border-primary"
-                    >
+                      className="py-2 px-4 flex items-center gap-2 font-semibold justify-end rounded-lg text-sm text-primary  transition-all cursor-pointer  border-primary">
                       <span>Agregar INFOA</span>
                       <AddVioleta color="#0546f7" />
                     </button>
@@ -871,8 +1156,7 @@ function Paso3Content() {
           {/* Confirmar */}
           <button
             type="submit"
-            className="w-full bg-primary text-white text-center font-semibold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-all cursor-pointer mt-3"
-          >
+            className="w-full bg-primary text-white text-center font-semibold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-all cursor-pointer mt-3">
             Confirmar Reserva
           </button>
         </form>
@@ -883,9 +1167,13 @@ function Paso3Content() {
 
 export default function Paso3Page() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-screen">
+          <Loader />
+        </div>
+      }>
       <Paso3Content />
     </Suspense>
   );
 }
-

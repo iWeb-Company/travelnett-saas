@@ -83,7 +83,10 @@ export default function ClientesPage() {
   const pageSize = 5;
 
   const totalPages = Math.ceil(clientesFiltered.length / pageSize);
-  const paginatedClientes = clientesFiltered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedClientes = clientesFiltered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
 
   const handleClickPut = (cliente: Client) => {
     setClientesData({
@@ -142,7 +145,12 @@ export default function ClientesPage() {
         client_type_id: clientesData.client_type,
       };
 
-      await apiClient.updateParameter("update_clients", clientesData.id!, payload, clientId);
+      await apiClient.updateParameter(
+        "update_clients",
+        clientesData.id!,
+        payload,
+        clientId,
+      );
       toast.success("Cliente actualizado correctamente");
       setModalOpenPut(false);
       getData();
@@ -153,7 +161,8 @@ export default function ClientesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("¿Está seguro de que desea eliminar este cliente?")) return;
+    if (!window.confirm("¿Está seguro de que desea eliminar este cliente?"))
+      return;
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
@@ -170,10 +179,18 @@ export default function ClientesPage() {
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
-      await apiClient.createParameter("create_clients_type", clientTypeData, clientId);
+      await apiClient.createParameter(
+        "create_clients_type",
+        clientTypeData,
+        clientId,
+      );
       toast.success("Tipo de cliente creado correctamente");
       setModalOpenAddClientType(false);
-      setClientTypeData({ name: "", adminForSellers: false, admin_clients: "" });
+      setClientTypeData({
+        name: "",
+        adminForSellers: false,
+        admin_clients: "",
+      });
       getData();
       r.refresh();
     } catch (error: any) {
@@ -185,7 +202,12 @@ export default function ClientesPage() {
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
-      await apiClient.updateParameter("update_clients_type", clientTypeData.id!, clientTypeData, clientId);
+      await apiClient.updateParameter(
+        "update_clients_type",
+        clientTypeData.id!,
+        clientTypeData,
+        clientId,
+      );
       toast.success("Tipo de cliente actualizado correctamente");
       setModalOpenPutClientType(false);
       getData();
@@ -196,7 +218,12 @@ export default function ClientesPage() {
   };
 
   const handleDeleteClientType = async (id: string) => {
-    if (!window.confirm("¿Está seguro de que desea eliminar este tipo de cliente?")) return;
+    if (
+      !window.confirm(
+        "¿Está seguro de que desea eliminar este tipo de cliente?",
+      )
+    )
+      return;
     try {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
@@ -376,7 +403,11 @@ export default function ClientesPage() {
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-        <img src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"} className="size-50 object-contain" alt="Logo Empresa" />
+        <img
+          src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"}
+          className="size-50 object-contain"
+          alt="Logo Empresa"
+        />
       </div>
       {modalOpenClientType && (
         <ModalLayout
@@ -424,9 +455,15 @@ export default function ClientesPage() {
           </button>
           <div className="w-full mt-2">
             <div className="flex items-center justify-end gap-0 pr-2 mb-1">
-              <span className="text-xs font-semibold text-black/70 w-14 text-center">Editar</span>
-              <span className="text-xs font-semibold text-black/70 w-14 text-center">Borrar</span>
-              <span className="text-xs font-semibold text-black/70 w-14 text-center">Admin</span>
+              <span className="text-xs font-semibold text-black/70 w-14 text-center">
+                Editar
+              </span>
+              <span className="text-xs font-semibold text-black/70 w-14 text-center">
+                Borrar
+              </span>
+              <span className="text-xs font-semibold text-black/70 w-14 text-center">
+                Admin
+              </span>
             </div>
             <ul className="rounded-lg overflow-hidden divide-y divide-gray-200">
               {clientTypes.map((tipo) => (
@@ -467,7 +504,13 @@ export default function ClientesPage() {
                         />
                       </svg>
                     </button>
-                    <input type="radio" checked={tipo.adminForSellers || false} readOnly name={`admin-${tipo.id}`} id={`admin-${tipo.id}`} />
+                    <input
+                      type="radio"
+                      checked={tipo.adminForSellers || false}
+                      readOnly
+                      name={`admin-${tipo.id}`}
+                      id={`admin-${tipo.id}`}
+                    />
                   </div>
                 </li>
               ))}
@@ -506,26 +549,47 @@ export default function ClientesPage() {
                 type="text"
                 placeholder="Nombre"
                 value={clientTypeData.name || ""}
-                onChange={(e) => setClientTypeData({ ...clientTypeData, name: e.target.value })}
+                onChange={(e) =>
+                  setClientTypeData({ ...clientTypeData, name: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <div
-                onClick={() => setClientTypeData({ ...clientTypeData, adminForSellers: !clientTypeData.adminForSellers })}
+                onClick={() =>
+                  setClientTypeData({
+                    ...clientTypeData,
+                    adminForSellers: !clientTypeData.adminForSellers,
+                  })
+                }
                 className="flex items-center justify-between w-full border bg-white cursor-pointer rounded-sm p-2 pr-4 shadow-sm">
-                <span className="text-black/90 font-medium">Administrador para vendedores</span>
-                <span className={`inline-block w-4 h-4 rounded-full border-2 ${clientTypeData.adminForSellers
-                    ? "bg-black border-black"
-                    : "bg-white border-blue-500"
-                  }`} />
+                <span className="text-black/90 font-medium">
+                  Administrador para vendedores
+                </span>
+                <span
+                  className={`inline-block w-4 h-4 rounded-full border-2 ${
+                    clientTypeData.adminForSellers
+                      ? "bg-black border-black"
+                      : "bg-white border-blue-500"
+                  }`}
+                />
               </div>
-              <p className="text-white/80 text-sm font-medium self-start">Si es Admin 👇</p>
+              <p className="text-white/80 text-sm font-medium self-start">
+                Si es Admin 👇
+              </p>
               <select
                 value={clientTypeData.admin_clients || ""}
-                onChange={(e) => setClientTypeData({ ...clientTypeData, admin_clients: e.target.value })}
+                onChange={(e) =>
+                  setClientTypeData({
+                    ...clientTypeData,
+                    admin_clients: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
                 <option value="">Cliente (Ninguno)</option>
-                {clientes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name_system}</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name_system}
+                  </option>
                 ))}
               </select>
             </div>
@@ -563,28 +627,47 @@ export default function ClientesPage() {
                 type="text"
                 placeholder="Nombre"
                 value={clientTypeData.name || ""}
-                onChange={(e) => setClientTypeData({ ...clientTypeData, name: e.target.value })}
+                onChange={(e) =>
+                  setClientTypeData({ ...clientTypeData, name: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <div
-                onClick={() => setClientTypeData({ ...clientTypeData, adminForSellers: !clientTypeData.adminForSellers })}
+                onClick={() =>
+                  setClientTypeData({
+                    ...clientTypeData,
+                    adminForSellers: !clientTypeData.adminForSellers,
+                  })
+                }
                 className="flex items-center justify-between w-full border bg-white cursor-pointer rounded-sm p-2 pr-4 shadow-sm">
-                <span className="text-black/90 font-medium">Administrador para vendedores</span>
+                <span className="text-black/90 font-medium">
+                  Administrador para vendedores
+                </span>
                 <span
-                  className={`inline-block w-4 h-4 rounded-full border-2 ${clientTypeData.adminForSellers
-                    ? "bg-black border-black"
-                    : "bg-white border-blue-500"
-                    }`}
+                  className={`inline-block w-4 h-4 rounded-full border-2 ${
+                    clientTypeData.adminForSellers
+                      ? "bg-black border-black"
+                      : "bg-white border-blue-500"
+                  }`}
                 />
               </div>
-              <p className="text-white/80 text-sm font-medium self-start">Si es Admin 👇</p>
+              <p className="text-white/80 text-sm font-medium self-start">
+                Si es Admin 👇
+              </p>
               <select
                 value={clientTypeData.admin_clients || ""}
-                onChange={(e) => setClientTypeData({ ...clientTypeData, admin_clients: e.target.value })}
+                onChange={(e) =>
+                  setClientTypeData({
+                    ...clientTypeData,
+                    admin_clients: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
                 <option value="">Cliente (Ninguno)</option>
-                {clientes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name_system}</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name_system}
+                  </option>
                 ))}
               </select>
             </div>
@@ -622,74 +705,130 @@ export default function ClientesPage() {
                 type="text"
                 placeholder="Nombre en sistema"
                 value={clientesData.name_system || ""}
-                onChange={(e) => setClientesData({ ...clientesData, name_system: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    name_system: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Nombre completo"
                 value={clientesData.complete_name || ""}
-                onChange={(e) => setClientesData({ ...clientesData, complete_name: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    complete_name: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="number"
-                placeholder="DNI"
+                placeholder="DNI o CUIT"
                 value={clientesData.dni || ""}
-                onChange={(e) => setClientesData({ ...clientesData, dni: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    dni: e.target.value ? parseInt(e.target.value) : undefined,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="date"
                 placeholder="Fecha de nacimiento"
                 value={clientesData.birthday || ""}
-                onChange={(e) => setClientesData({ ...clientesData, birthday: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({ ...clientesData, birthday: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="email"
-                placeholder="E-mail"
+                placeholder="E-mail o Usuario"
                 value={clientesData.email || ""}
-                onChange={(e) => setClientesData({ ...clientesData, email: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({ ...clientesData, email: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="password"
                 placeholder="Contraseña"
                 value={clientesData.hashed_password || ""}
-                onChange={(e) => setClientesData({ ...clientesData, hashed_password: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    hashed_password: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <select
                 value={clientesData.client_type || ""}
-                onChange={(e) => setClientesData({ ...clientesData, client_type: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    client_type: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
-                <option value="" disabled>Tipo de cliente</option>
+                <option value="" disabled>
+                  Tipo de cliente
+                </option>
                 {clientTypes.map((tipo) => (
-                  <option key={tipo.id} value={tipo.id}>{tipo.name}</option>
+                  <option key={tipo.id} value={tipo.id}>
+                    {tipo.name}
+                  </option>
                 ))}
               </select>
               <select
                 value={clientesData.parent_client_id || ""}
-                onChange={(e) => setClientesData({ ...clientesData, parent_client_id: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    parent_client_id: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
                 <option value="">Cliente Padre (Ninguno)</option>
-                {clientes.filter(c => c.id !== clientesData.id).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name_system}</option>
-                ))}
+                {clientes
+                  .filter((c) => c.id !== clientesData.id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name_system}
+                    </option>
+                  ))}
               </select>
               <input
                 type="number"
                 placeholder="Telefono de contacto"
                 value={clientesData.phone || ""}
-                onChange={(e) => setClientesData({ ...clientesData, phone: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    phone: e.target.value
+                      ? parseInt(e.target.value)
+                      : undefined,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <select
                 value={clientesData.payment_method || ""}
-                onChange={(e) => setClientesData({ ...clientesData, payment_method: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    payment_method: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
-                <option value="" disabled>Forma de pago</option>
+                <option value="" disabled>
+                  Forma de pago
+                </option>
                 <option value="cuenta_corriente">Cuenta Corriente</option>
                 <option value="contado">Contado</option>
               </select>
@@ -698,7 +837,14 @@ export default function ClientesPage() {
                   type="number"
                   placeholder="Comision"
                   value={clientesData.commission || ""}
-                  onChange={(e) => setClientesData({ ...clientesData, commission: e.target.value ? parseInt(e.target.value) : undefined })}
+                  onChange={(e) =>
+                    setClientesData({
+                      ...clientesData,
+                      commission: e.target.value
+                        ? parseInt(e.target.value)
+                        : undefined,
+                    })
+                  }
                   className="border-none focus:outline-none flex-1"
                 />
                 <span>%</span>
@@ -738,74 +884,130 @@ export default function ClientesPage() {
                 type="text"
                 placeholder="Nombre en sistema"
                 value={clientesData.name_system || ""}
-                onChange={(e) => setClientesData({ ...clientesData, name_system: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    name_system: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Nombre completo"
                 value={clientesData.complete_name || ""}
-                onChange={(e) => setClientesData({ ...clientesData, complete_name: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    complete_name: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="number"
                 placeholder="DNI"
                 value={clientesData.dni || ""}
-                onChange={(e) => setClientesData({ ...clientesData, dni: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    dni: e.target.value ? parseInt(e.target.value) : undefined,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="date"
                 placeholder="Fecha de nacimiento"
                 value={clientesData.birthday || ""}
-                onChange={(e) => setClientesData({ ...clientesData, birthday: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({ ...clientesData, birthday: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="email"
                 placeholder="E-mail"
                 value={clientesData.email || ""}
-                onChange={(e) => setClientesData({ ...clientesData, email: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({ ...clientesData, email: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="password"
                 placeholder="Contraseña"
                 value={clientesData.hashed_password || ""}
-                onChange={(e) => setClientesData({ ...clientesData, hashed_password: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    hashed_password: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <select
                 value={clientesData.client_type || ""}
-                onChange={(e) => setClientesData({ ...clientesData, client_type: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    client_type: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
-                <option value="" disabled>Tipo de cliente</option>
+                <option value="" disabled>
+                  Tipo de cliente
+                </option>
                 {clientTypes.map((tipo) => (
-                  <option key={tipo.id} value={tipo.id}>{tipo.name}</option>
+                  <option key={tipo.id} value={tipo.id}>
+                    {tipo.name}
+                  </option>
                 ))}
               </select>
               <select
                 value={clientesData.parent_client_id || ""}
-                onChange={(e) => setClientesData({ ...clientesData, parent_client_id: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    parent_client_id: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
                 <option value="">Cliente Padre (Ninguno)</option>
-                {clientes.filter(c => c.id !== clientesData.id).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name_system}</option>
-                ))}
+                {clientes
+                  .filter((c) => c.id !== clientesData.id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name_system}
+                    </option>
+                  ))}
               </select>
               <input
                 type="number"
                 placeholder="Telefono de contacto"
                 value={clientesData.phone || ""}
-                onChange={(e) => setClientesData({ ...clientesData, phone: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    phone: e.target.value
+                      ? parseInt(e.target.value)
+                      : undefined,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <select
                 value={clientesData.payment_method || ""}
-                onChange={(e) => setClientesData({ ...clientesData, payment_method: e.target.value })}
+                onChange={(e) =>
+                  setClientesData({
+                    ...clientesData,
+                    payment_method: e.target.value,
+                  })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
-                <option value="" disabled>Forma de pago</option>
+                <option value="" disabled>
+                  Forma de pago
+                </option>
                 <option value="cuenta_corriente">Cuenta Corriente</option>
                 <option value="contado">Contado</option>
               </select>
@@ -814,7 +1016,14 @@ export default function ClientesPage() {
                   type="number"
                   placeholder="Comision"
                   value={clientesData.commission || ""}
-                  onChange={(e) => setClientesData({ ...clientesData, commission: e.target.value ? parseInt(e.target.value) : undefined })}
+                  onChange={(e) =>
+                    setClientesData({
+                      ...clientesData,
+                      commission: e.target.value
+                        ? parseInt(e.target.value)
+                        : undefined,
+                    })
+                  }
                   className="border-none focus:outline-none flex-1"
                 />
                 <span>%</span>
