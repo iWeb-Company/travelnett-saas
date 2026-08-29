@@ -1,9 +1,15 @@
-'use client';
+"use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiClient } from '@/lib/api';
-import { useRouter, usePathname } from 'next/navigation';
-import toast from 'react-hot-toast';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { apiClient } from "@/lib/api";
+import { useRouter, usePathname } from "next/navigation";
+import toast from "react-hot-toast";
 
 export interface UserPermissions {
   salidas: boolean;
@@ -67,14 +73,20 @@ const defaultEmptyPermissions: UserPermissions = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const normalizeText = (str: string) =>
-  (str || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  (str || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [iwebClient, setIwebClient] = useState<IwebClient | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [permissions, setPermissions] = useState<UserPermissions>(defaultEmptyPermissions);
+  const [permissions, setPermissions] = useState<UserPermissions>(
+    defaultEmptyPermissions,
+  );
   const router = useRouter();
   const pathname = usePathname();
 
@@ -91,19 +103,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const permsList = await apiClient.getPermissions(u.iweb_client_id).catch(() => []);
-      const matched = permsList.find(
-        (p: any) => {
-          const normPName = normalizeText(p.name || "");
-          const normPId = normalizeText(p.id || "");
-          return (
-            normPName === userRoleNorm ||
-            (p.id || "") === rawRole ||
-            normPId === userRoleNorm ||
-            normPName.replace("adminstr", "administr") === userRoleNorm.replace("adminstr", "administr")
-          );
-        }
-      );
+      const permsList = await apiClient
+        .getPermissions(u.iweb_client_id)
+        .catch(() => []);
+      const matched = permsList.find((p: any) => {
+        const normPName = normalizeText(p.name || "");
+        const normPId = normalizeText(p.id || "");
+        return (
+          normPName === userRoleNorm ||
+          (p.id || "") === rawRole ||
+          normPId === userRoleNorm ||
+          normPName.replace("adminstr", "administr") ===
+            userRoleNorm.replace("adminstr", "administr")
+        );
+      });
 
       if (matched) {
         setPermissions({
@@ -140,34 +153,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && permissionsLoaded) {
-      if (!user && pathname !== '/login') {
-        router.replace('/login');
+      if (!user && pathname !== "/login") {
+        router.replace("/login");
         return;
       }
-      if (user && pathname === '/login') {
-        router.replace('/dashboard');
+      if (user && pathname === "/login") {
+        router.replace("/dashboard");
         return;
       }
 
       if (user) {
-        const isAdmin = user.username === 'iweb_admin' || normalizeText(user.rol || '') === 'admin';
+        const isAdmin =
+          user.username === "iweb_admin" ||
+          normalizeText(user.rol || "") === "admin";
         if (!isAdmin) {
           let allowed = true;
-          if (pathname.startsWith('/salidas') && !permissions.salidas) allowed = false;
-          else if (pathname.startsWith('/paquetes') && !permissions.paquetes) allowed = false;
-          else if (pathname.startsWith('/administracion') && !permissions.administracion) allowed = false;
-          else if (pathname.startsWith('/parametros') && !permissions.parametros) allowed = false;
-          else if (pathname.startsWith('/web') && !permissions.web) allowed = false;
-          else if (pathname.startsWith('/usuarios') && !permissions.permisos_users) allowed = false;
+          if (pathname.startsWith("/salidas") && !permissions.salidas)
+            allowed = false;
+          else if (pathname.startsWith("/paquetes") && !permissions.paquetes)
+            allowed = false;
+          else if (
+            pathname.startsWith("/administracion") &&
+            !permissions.administracion
+          )
+            allowed = false;
+          else if (
+            pathname.startsWith("/parametros") &&
+            !permissions.parametros
+          )
+            allowed = false;
+          else if (pathname.startsWith("/web") && !permissions.web)
+            allowed = false;
+          else if (
+            pathname.startsWith("/usuarios") &&
+            !permissions.permisos_users
+          )
+            allowed = false;
 
           if (!allowed) {
             toast.error("No tienes permisos para acceder a esta sección");
-            const targetRedirect = permissions.administracion ? '/administracion' :
-                                  permissions.salidas ? '/salidas' :
-                                  permissions.paquetes ? '/paquetes' :
-                                  permissions.parametros ? '/parametros' :
-                                  permissions.web ? '/web' :
-                                  permissions.permisos_users ? '/usuarios' : '/dashboard';
+            const targetRedirect = permissions.administracion
+              ? "/administracion"
+              : permissions.salidas
+                ? "/salidas"
+                : permissions.paquetes
+                  ? "/paquetes"
+                  : permissions.parametros
+                    ? "/parametros"
+                    : permissions.web
+                      ? "/web"
+                      : permissions.permisos_users
+                        ? "/usuarios"
+                        : "/dashboard";
             router.replace(targetRedirect);
           }
         }
@@ -179,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const restoreSession = async () => {
       setIsLoading(true);
       try {
-        const storedClient = localStorage.getItem('iweb_client');
+        const storedClient = localStorage.getItem("iweb_client");
 
         // Relies on HTTP-Only cookie automatically sent by the browser
         const userData = await apiClient.getMe();
@@ -190,17 +227,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             setIwebClient(JSON.parse(storedClient));
           } catch {
-            localStorage.removeItem('iweb_client');
+            localStorage.removeItem("iweb_client");
           }
         }
       } catch {
         setUser(null);
         setIwebClient(null);
-        localStorage.removeItem('iweb_client');
-        if (typeof window !== 'undefined') {
-          document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-          if (pathname !== '/login') {
-            window.location.href = '/login';
+        localStorage.removeItem("iweb_client");
+        if (typeof window !== "undefined") {
+          document.cookie =
+            "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          if (pathname !== "/login") {
+            window.location.href = "/login";
           }
         }
       } finally {
@@ -217,7 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (result.iweb_client) {
         setIwebClient(result.iweb_client);
-        localStorage.setItem('iweb_client', JSON.stringify(result.iweb_client));
+        localStorage.setItem("iweb_client", JSON.stringify(result.iweb_client));
       }
       const userData = await apiClient.getMe();
       setUser(userData);
@@ -225,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       setUser(null);
       setIwebClient(null);
-      localStorage.removeItem('iweb_client');
+      localStorage.removeItem("iweb_client");
       throw error;
     } finally {
       setIsLoading(false);
@@ -235,9 +273,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     setIwebClient(null);
-    localStorage.removeItem('iweb_client');
+    localStorage.removeItem("iweb_client");
     apiClient.logout().finally(() => {
-      window.location.href = '/login';
+      window.location.href = "/login";
     });
   };
 
@@ -252,8 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         permissions,
         login,
         logout,
-      }}
-    >
+      }}>
       {children}
     </AuthContext.Provider>
   );
@@ -262,7 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

@@ -37,13 +37,19 @@ export default function HotelesPage() {
   const pageSize = 5;
 
   const totalPages = Math.ceil(hoteles.length / pageSize);
-  const paginatedHoteles = hoteles.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedHoteles = hoteles.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
 
   useEffect(() => {
     const loadDestinos = async () => {
       if (!user?.iweb_client_id) return;
       try {
-        const data = await apiClient.getParameters("get_destinos", user.iweb_client_id);
+        const data = await apiClient.getParameters(
+          "get_destinos",
+          user.iweb_client_id,
+        );
         setDestinos(data);
       } catch (err) {
         console.error("Error loading destinos:", err);
@@ -57,7 +63,9 @@ export default function HotelesPage() {
       setPreviews([]);
       return;
     }
-    const urls = Array.from(selectedFiles).map((file) => URL.createObjectURL(file));
+    const urls = Array.from(selectedFiles).map((file) =>
+      URL.createObjectURL(file),
+    );
     setPreviews(urls);
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [selectedFiles]);
@@ -75,7 +83,10 @@ export default function HotelesPage() {
     if (!user?.iweb_client_id) return;
     setIsUpdating(true);
     try {
-      const data = await apiClient.getParameters("get_hotels", user.iweb_client_id);
+      const data = await apiClient.getParameters(
+        "get_hotels",
+        user.iweb_client_id,
+      );
       const queryNorm = normalizeText(search);
 
       if (!queryNorm) {
@@ -96,7 +107,8 @@ export default function HotelesPage() {
         const rawDest = e.destino || "";
 
         const destObj = destinos.find(
-          (d: any) => d.id === rawDest || d.name === rawDest || d.nombre === rawDest
+          (d: any) =>
+            d.id === rawDest || d.name === rawDest || d.nombre === rawDest,
         );
 
         if (destObj) {
@@ -123,6 +135,24 @@ export default function HotelesPage() {
     }
   };
 
+  const getDestinoSigla = (hotel: Hotel) => {
+    if (!hotel.destino) return "-";
+    const rawDest = hotel.destino;
+    const destObj = destinos.find(
+      (d: any) =>
+        d.id === rawDest || d.name === rawDest || d.nombre === rawDest,
+    );
+    if (destObj) {
+      return (
+        destObj.sigla ||
+        destObj.name ||
+        destObj.nombre ||
+        "-"
+      ).toUpperCase();
+    }
+    return rawDest.slice(0, 3).toUpperCase();
+  };
+
   useEffect(() => {
     if (user?.iweb_client_id) {
       getHoteles();
@@ -138,18 +168,22 @@ export default function HotelesPage() {
   const handleSubmitAdd = async () => {
     try {
       const formData = new FormData();
-      formData.append('name', hotelData.name);
-      formData.append('destino', hotelData.destino);
-      formData.append('address', hotelData.address);
-      formData.append('web', hotelData.web);
+      formData.append("name", hotelData.name);
+      formData.append("destino", hotelData.destino);
+      formData.append("address", hotelData.address);
+      formData.append("web", hotelData.web);
 
       if (selectedFiles) {
         Array.from(selectedFiles).forEach((file) => {
-          formData.append('images', file);
+          formData.append("images", file);
         });
       }
 
-      await apiClient.createParameter("create_hotels", formData, user?.iweb_client_id);
+      await apiClient.createParameter(
+        "create_hotels",
+        formData,
+        user?.iweb_client_id,
+      );
       toast.success("Hotel agregado correctamente");
       setModalOpenAdd(false);
       setHotelData({
@@ -170,18 +204,23 @@ export default function HotelesPage() {
   const handleSubmitPut = async () => {
     try {
       const formData = new FormData();
-      formData.append('name', hotelData.name);
-      formData.append('destino', hotelData.destino);
-      formData.append('address', hotelData.address);
-      formData.append('web', hotelData.web);
+      formData.append("name", hotelData.name);
+      formData.append("destino", hotelData.destino);
+      formData.append("address", hotelData.address);
+      formData.append("web", hotelData.web);
 
       if (selectedFiles) {
         Array.from(selectedFiles).forEach((file) => {
-          formData.append('images', file);
+          formData.append("images", file);
         });
       }
 
-      await apiClient.updateParameter("update_hotels", hotelData.id!, formData, user?.iweb_client_id);
+      await apiClient.updateParameter(
+        "update_hotels",
+        hotelData.id!,
+        formData,
+        user?.iweb_client_id,
+      );
       toast.success("Hotel actualizado correctamente");
       setModalOpenPut(false);
       getHoteles();
@@ -194,12 +233,18 @@ export default function HotelesPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await apiClient.deleteParameter("delete_hotels", id, user?.iweb_client_id);
+      await apiClient.deleteParameter(
+        "delete_hotels",
+        id,
+        user?.iweb_client_id,
+      );
       toast.success("Hotel eliminado correctamente");
       getHoteles();
       r.refresh();
     } catch (error: any) {
-      toast.error(error?.message || error?.detail || "Error al eliminar el hotel");
+      toast.error(
+        error?.message || error?.detail || "Error al eliminar el hotel",
+      );
       console.error("Error deleting hotel:", error);
     }
   };
@@ -221,8 +266,7 @@ export default function HotelesPage() {
       </Link>
       <button
         onClick={() => r.push("/parametros")}
-        className="flex items-center my-3 justify-start gap-3"
-      >
+        className="flex items-center my-3 justify-start gap-3">
         <ArrowLeft color="#6005F7" />
         <h2 className="font-semibold text-secondary hover:underline">
           Volver al Panel
@@ -244,15 +288,13 @@ export default function HotelesPage() {
             setSelectedFiles(null);
             setModalOpenAdd(true);
           }}
-          className="flex items-center gap-2  text-primary font-medium px-4 py-2 rounded-lg"
-        >
+          className="flex items-center gap-2  text-primary font-medium px-4 py-2 rounded-lg">
           <svg
             width="22"
             height="22"
             viewBox="0 0 22 22"
             fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
+            xmlns="http://www.w3.org/2000/svg">
             <path
               fillRule="evenodd"
               clipRule="evenodd"
@@ -272,8 +314,7 @@ export default function HotelesPage() {
               height="15"
               viewBox="0 0 15 15"
               fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
+              xmlns="http://www.w3.org/2000/svg">
               <path
                 d="M5.41667 10.8333C3.90278 10.8333 2.62167 10.3089 1.57333 9.26C0.525 8.21111 0.000555996 6.93 4.40917e-07 5.41667C-0.000555115 3.90333 0.523889 2.62222 1.57333 1.57333C2.62278 0.524444 3.90389 0 5.41667 0C6.92944 0 8.21083 0.524444 9.26083 1.57333C10.3108 2.62222 10.835 3.90333 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L14.4167 13.25C14.5694 13.4028 14.6458 13.5972 14.6458 13.8333C14.6458 14.0694 14.5694 14.2639 14.4167 14.4167C14.2639 14.5694 14.0694 14.6458 13.8333 14.6458C13.5972 14.6458 13.4028 14.5694 13.25 14.4167L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333ZM5.41667 9.16667C6.45833 9.16667 7.34389 8.80222 8.07333 8.07333C8.80278 7.34444 9.16722 6.45889 9.16667 5.41667C9.16611 4.37444 8.80167 3.48917 8.07333 2.76083C7.345 2.0325 6.45944 1.66778 5.41667 1.66667C4.37389 1.66556 3.48861 2.03028 2.76083 2.76083C2.03306 3.49139 1.66833 4.37667 1.66667 5.41667C1.665 6.45667 2.02972 7.34222 2.76083 8.07333C3.49195 8.80444 4.37722 9.16889 5.41667 9.16667Z"
                 fill="black"
@@ -286,74 +327,98 @@ export default function HotelesPage() {
             placeholder="Buscar (nombre del hotel, sigla o nombre del destino)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-4 text-black/60 font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full border border-gray-400 bg-[#F5F5F5] rounded-md py-2 pl-9 pr-4 text-black font-normal shadow-sm focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-gray-500"
           />
         </div>
 
-        <ul className="border border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-200 bg-white">
-          {isUpdating ? (
-            <li className="py-12 flex flex-col items-center justify-center gap-3">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-              <p className="text-sm text-gray-500 animate-pulse font-medium">Buscando hoteles...</p>
-            </li>
-          ) : hoteles.length === 0 ? (
-            <li className="py-12 text-center text-gray-500 text-sm flex flex-col items-center gap-2">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-300">
-                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <span>No se encontraron resultados</span>
-            </li>
-          ) : (
-            paginatedHoteles.map((hotel) => (
-              <li
-                key={hotel.id}
-                className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50"
-              >
-                <span className="font-medium text-gray-800">{hotel.name}</span>
-                <div className="flex items-center gap-3">
-                  {/* BOTON EDITAR */}
-                  <button
-                    onClick={() => handleClickPut(hotel)}
-                    title="Editar"
-                    className="text-gray-600 hover:text-primary"
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 13 13"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M8.6821 0.655196C9.10147 0.23574 9.67029 5.8616e-05 10.2634 1.09323e-08C10.8566 -5.85942e-05 11.4255 0.23551 11.8449 0.654884C12.2644 1.07426 12.5 1.64308 12.5001 2.23622C12.5002 2.82937 12.2646 3.39824 11.8452 3.8177L11.2877 4.37582L8.12522 1.2127L8.6821 0.655196ZM7.46272 1.87582L1.21272 8.1252C0.958684 8.37897 0.780167 8.69836 0.697097 9.0477L0.0127222 11.9239C-0.00580801 12.0019 -0.00407066 12.0832 0.0177686 12.1602C0.039608 12.2373 0.0808211 12.3075 0.137477 12.3641C0.194133 12.4206 0.264344 12.4618 0.341412 12.4835C0.41848 12.5053 0.499837 12.5069 0.577722 12.4883L3.45335 11.8033C3.80291 11.7204 4.12252 11.5418 4.37647 11.2877L10.6252 5.03832L7.46272 1.87582Z"
-                        fill="black"
-                      />
-                    </svg>
-                  </button>
-                  {/* BOTON ELIMINAR */}
-                  <button
-                    onClick={() => handleDelete(hotel.id!)}
-                    title="Eliminar"
-                    className="text-gray-600 hover:text-red-500"
-                  >
-                    <svg
-                      width="9"
-                      height="12"
-                      viewBox="0 0 9 12"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M8.75 0.625H6.5625L5.9375 0H2.8125L2.1875 0.625H0V1.875H8.75M0.625 10C0.625 10.3315 0.756696 10.6495 0.991117 10.8839C1.22554 11.1183 1.54348 11.25 1.875 11.25H6.875C7.20652 11.25 7.52446 11.1183 7.75888 10.8839C7.9933 10.6495 8.125 10.3315 8.125 10V2.5H0.625V10Z"
-                        fill="black"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
+        {isUpdating ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 border border-gray-400 rounded-lg bg-white">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+            <p className="text-sm text-gray-500 animate-pulse font-medium">
+              Buscando hoteles...
+            </p>
+          </div>
+        ) : hoteles.length === 0 ? (
+          <div className="py-12 text-center text-gray-500 text-sm flex flex-col items-center gap-2 border border-gray-400 rounded-lg bg-white">
+            <svg
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              className="text-gray-300">
+              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span>No se encontraron resultados</span>
+          </div>
+        ) : (
+          <ul className="flex flex-col w-full">
+            {paginatedHoteles.map((hotel, index) => {
+              const isFirst = index === 0;
+              const isLast = index === paginatedHoteles.length - 1;
+              const sigla = getDestinoSigla(hotel);
+
+              return (
+                <li key={hotel.id} className="flex items-stretch gap-3 w-full">
+                  {/* Destino Sigla Badge */}
+                  <div
+                    className={`w-20 sm:w-24 flex items-center justify-center px-3 py-3 bg-[#D8E2FD] border-x border-gray-400 text-black font-medium text-sm text-center shrink-0 ${
+                      isFirst ? "border-t rounded-t-md" : "border-t"
+                    } ${isLast ? "border-b rounded-b-md" : ""}`}>
+                    {sigla}
+                  </div>
+
+                  {/* Hotel Name Item */}
+                  <div
+                    className={`flex-1 flex items-center justify-between px-4 py-3 bg-[#F5F5F5] hover:bg-[#EFEFEF] transition-colors border-x border-gray-400 text-black text-sm ${
+                      isFirst ? "border-t rounded-t-md" : "border-t"
+                    } ${isLast ? "border-b rounded-b-md" : ""}`}>
+                    <span className="font-normal text-gray-900">
+                      {hotel.name}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      {/* BOTON EDITAR */}
+                      <button
+                        onClick={() => handleClickPut(hotel)}
+                        title="Editar"
+                        className="text-black hover:text-primary transition-colors cursor-pointer">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 13 13"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg">
+                          <path
+                            d="M8.6821 0.655196C9.10147 0.23574 9.67029 5.8616e-05 10.2634 1.09323e-08C10.8566 -5.85942e-05 11.4255 0.23551 11.8449 0.654884C12.2644 1.07426 12.5 1.64308 12.5001 2.23622C12.5002 2.82937 12.2646 3.39824 11.8452 3.8177L11.2877 4.37582L8.12522 1.2127L8.6821 0.655196ZM7.46272 1.87582L1.21272 8.1252C0.958684 8.37897 0.780167 8.69836 0.697097 9.0477L0.0127222 11.9239C-0.00580801 12.0019 -0.00407066 12.0832 0.0177686 12.1602C0.039608 12.2373 0.0808211 12.3075 0.137477 12.3641C0.194133 12.4206 0.264344 12.4618 0.341412 12.4835C0.41848 12.5053 0.499837 12.5069 0.577722 12.4883L3.45335 11.8033C3.80291 11.7204 4.12252 11.5418 4.37647 11.2877L10.6252 5.03832L7.46272 1.87582Z"
+                            fill="black"
+                          />
+                        </svg>
+                      </button>
+                      {/* BOTON ELIMINAR */}
+                      <button
+                        onClick={() => handleDelete(hotel.id!)}
+                        title="Eliminar"
+                        className="text-black hover:text-red-500 transition-colors cursor-pointer">
+                        <svg
+                          width="10"
+                          height="13"
+                          viewBox="0 0 9 12"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg">
+                          <path
+                            d="M8.75 0.625H6.5625L5.9375 0H2.8125L2.1875 0.625H0V1.875H8.75M0.625 10C0.625 10.3315 0.756696 10.6495 0.991117 10.8839C1.22554 11.1183 1.54348 11.25 1.875 11.25H6.875C7.20652 11.25 7.52446 11.1183 7.75888 10.8839C7.9933 10.6495 8.125 10.3315 8.125 10V2.5H0.625V10Z"
+                            fill="black"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
         <Pagination
           currentPage={currentPage}
@@ -365,7 +430,11 @@ export default function HotelesPage() {
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-        <img src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"} className="size-50 object-contain" alt="Logo Empresa" />
+        <img
+          src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"}
+          className="size-50 object-contain"
+          alt="Logo Empresa"
+        />
       </div>
       {modalOpenAdd && (
         <ModalLayout
@@ -378,8 +447,7 @@ export default function HotelesPage() {
               height="19"
               viewBox="0 0 19 19"
               fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
+              xmlns="http://www.w3.org/2000/svg">
               <path
                 fillRule="evenodd"
                 clipRule="evenodd"
@@ -387,42 +455,57 @@ export default function HotelesPage() {
                 fill="#F1F1F1"
               />
             </svg>
-          }
-        >
+          }>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col items-center gap-3">
               <select
-                onChange={(e) => setHotelData({ ...hotelData, destino: e.target.value })}
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, destino: e.target.value })
+                }
                 value={hotelData.destino || ""}
-                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-              >
-                <option className="text-black/90" value="" disabled>Destino</option>
+                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
+                <option className="text-black/90" value="" disabled>
+                  Destino
+                </option>
                 {destinos.map((d: any) => (
-                  <option key={d.id} className="text-black/90" value={d.name || d.nombre}>{d.name || d.nombre}</option>
+                  <option
+                    key={d.id}
+                    className="text-black/90"
+                    value={d.name || d.nombre}>
+                    {d.name || d.nombre}
+                  </option>
                 ))}
               </select>
               <input
                 type="text"
                 placeholder="Nombre"
-                onChange={(e) => setHotelData({ ...hotelData, name: e.target.value })}
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, name: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Dirección"
-                onChange={(e) => setHotelData({ ...hotelData, address: e.target.value })}
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, address: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Telefono de contacto"
-                onChange={(e) => setHotelData({ ...hotelData, phone: Number(e.target.value) })}
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, phone: Number(e.target.value) })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
                 placeholder="Web"
-                onChange={(e) => setHotelData({ ...hotelData, web: e.target.value })}
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, web: e.target.value })
+                }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
@@ -435,8 +518,14 @@ export default function HotelesPage() {
               {previews.length > 0 && (
                 <div className="grid grid-cols-4 gap-2 w-full mt-2">
                   {previews.map((url, idx) => (
-                    <div key={idx} className="relative aspect-square border rounded overflow-hidden">
-                      <img src={url} alt="Preview" className="w-full h-full object-cover" />
+                    <div
+                      key={idx}
+                      className="relative aspect-square border rounded overflow-hidden">
+                      <img
+                        src={url}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   ))}
                 </div>
@@ -456,8 +545,7 @@ export default function HotelesPage() {
               height="19"
               viewBox="0 0 19 19"
               fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
+              xmlns="http://www.w3.org/2000/svg">
               <path
                 fillRule="evenodd"
                 clipRule="evenodd"
@@ -465,24 +553,30 @@ export default function HotelesPage() {
                 fill="#F1F1F1"
               />
             </svg>
-          }
-        >
+          }>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col items-center gap-3">
               <select
                 value={hotelData?.destino || ""}
-                onChange={(e) => setHotelData({ ...hotelData, destino: e.target.value })}
-                className="w-full border bg-white rounded-sm p-2 text-black/60 font-semibold shadow-sm focus:outline-none"
-              >
-                <option value="" disabled>Selecciona un destino</option>
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, destino: e.target.value })
+                }
+                className="w-full border bg-white rounded-sm p-2 text-black/60 font-semibold shadow-sm focus:outline-none">
+                <option value="" disabled>
+                  Selecciona un destino
+                </option>
                 {destinos.map((d: any) => (
-                  <option key={d.id} value={d.name || d.nombre}>{d.name || d.nombre}</option>
+                  <option key={d.id} value={d.name || d.nombre}>
+                    {d.name || d.nombre}
+                  </option>
                 ))}
               </select>
               <input
                 type="text"
                 value={hotelData.name}
-                onChange={(e) => setHotelData({ ...hotelData, name: e.target.value })}
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, name: e.target.value })
+                }
                 placeholder="Nombre"
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
@@ -490,13 +584,17 @@ export default function HotelesPage() {
               <input
                 type="text"
                 value={hotelData?.address}
-                onChange={(e) => setHotelData({ ...hotelData, address: e.target.value })}
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, address: e.target.value })
+                }
                 placeholder="Dirección"
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
                 type="text"
-                onChange={(e) => setHotelData({ ...hotelData, web: e.target.value })}
+                onChange={(e) =>
+                  setHotelData({ ...hotelData, web: e.target.value })
+                }
                 placeholder="Web"
                 value={hotelData?.web}
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
@@ -511,18 +609,34 @@ export default function HotelesPage() {
               <div className="grid grid-cols-4 gap-2 w-full mt-2">
                 {/* Imágenes actuales en el servidor */}
                 {hotelData.images?.map((url, idx) => (
-                  <div key={`current-${idx}`} className="relative aspect-square border rounded overflow-hidden group">
-                    <img src={url} alt="Current" className="w-full h-full object-cover" />
+                  <div
+                    key={`current-${idx}`}
+                    className="relative aspect-square border rounded overflow-hidden group">
+                    <img
+                      src={url}
+                      alt="Current"
+                      className="w-full h-full object-cover"
+                    />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-[10px] text-white font-bold uppercase">Actual</span>
+                      <span className="text-[10px] text-white font-bold uppercase">
+                        Actual
+                      </span>
                     </div>
                   </div>
                 ))}
                 {/* Nuevas imágenes seleccionadas */}
                 {previews.map((url, idx) => (
-                  <div key={`new-${idx}`} className="relative aspect-square border-2 border-primary border-dashed rounded overflow-hidden">
-                    <img src={url} alt="New Preview" className="w-full h-full object-cover" />
-                    <div className="absolute top-0 right-0 bg-primary text-white text-[8px] px-1 font-bold">NUEVA</div>
+                  <div
+                    key={`new-${idx}`}
+                    className="relative aspect-square border-2 border-primary border-dashed rounded overflow-hidden">
+                    <img
+                      src={url}
+                      alt="New Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-0 right-0 bg-primary text-white text-[8px] px-1 font-bold">
+                      NUEVA
+                    </div>
                   </div>
                 ))}
               </div>

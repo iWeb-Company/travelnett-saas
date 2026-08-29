@@ -45,7 +45,9 @@ function ResultContent() {
   const filterPaquete = searchParams.get("paquete") || "";
   const filterActivoParam = searchParams.get("activo");
 
-  const [onlyActive, setOnlyActive] = useState<boolean>(filterActivoParam === null ? true : filterActivoParam === "true");
+  const [onlyActive, setOnlyActive] = useState<boolean>(
+    filterActivoParam === null ? true : filterActivoParam === "true",
+  );
 
   const [pasajeros, setPasajeros] = useState<Passenger[]>([]);
 
@@ -59,28 +61,32 @@ function ResultContent() {
     try {
       const [resList, salList] = await Promise.all([
         apiClient.getReservas(user.iweb_client_id).catch(() => []),
-        apiClient.getSalidas(user.iweb_client_id).catch(() => [])
+        apiClient.getSalidas(user.iweb_client_id).catch(() => []),
       ]);
 
       setSalidasList(salList || []);
 
       // Map reservations
       const list = (resList || []).map((r: any) => {
-        const pasajerosMap = r.reservation_passengers && r.reservation_passengers.length > 0
-          ? r.reservation_passengers.map((rp: any) => ({
-            nombre: rp.name || rp.last_name
-              ? formatPassengerName(rp.name, rp.last_name)
-              : formatFullName(rp.nombre_completo),
-            dni: rp.dni ? String(rp.dni) : "-",
-            telefono: rp.telefono || "-",
-            email: "-",
-          }))
-          : [{
-            nombre: formatFullName(r.nombre_completo),
-            dni: r.dni ? String(r.dni) : "-",
-            telefono: r.telefono || "-",
-            email: "-",
-          }];
+        const pasajerosMap =
+          r.reservation_passengers && r.reservation_passengers.length > 0
+            ? r.reservation_passengers.map((rp: any) => ({
+                nombre:
+                  rp.name || rp.last_name
+                    ? formatPassengerName(rp.name, rp.last_name)
+                    : formatFullName(rp.nombre_completo),
+                dni: rp.dni ? String(rp.dni) : "-",
+                telefono: rp.telefono || "-",
+                email: "-",
+              }))
+            : [
+                {
+                  nombre: formatFullName(r.nombre_completo),
+                  dni: r.dni ? String(r.dni) : "-",
+                  telefono: r.telefono || "-",
+                  email: "-",
+                },
+              ];
 
         return {
           id: r.id,
@@ -88,7 +94,8 @@ function ResultContent() {
           salida_id: r.salida_id || null,
           package_id: r.package_id || null,
           codigo_reserva: r.codigo_reserva,
-          numero: r.codigo_reserva || `RES-${r.id.substring(0, 6).toUpperCase()}`,
+          numero:
+            r.codigo_reserva || `RES-${r.id.substring(0, 6).toUpperCase()}`,
           destino: r.destino || r.lugar_carga_nombre || "General",
           cliente: (r.client_nombre || "Particular").toUpperCase(),
           client_nombre: r.client_nombre || "",
@@ -98,7 +105,7 @@ function ResultContent() {
           nombre_completo: formatFullName(r.nombre_completo),
           reservation_passengers: r.reservation_passengers || [],
           pasajeros: pasajerosMap,
-          active: r.active
+          active: r.active,
         };
       });
 
@@ -152,11 +159,10 @@ function ResultContent() {
   // Filtered reservations
   const filteredReservas = useMemo(() => {
     return rawReservas.filter((r) => {
-      const isActive = r.active !== false && r.active !== 0 && r.active !== null;
-      if (onlyActive !== isActive) {
-        return false;
-      }
-      if (filterNumero && !r.numero.toLowerCase().includes(filterNumero.toLowerCase())) {
+      if (
+        filterNumero &&
+        !r.numero.toLowerCase().includes(filterNumero.toLowerCase())
+      ) {
         return false;
       }
       if (filterCliente && r.client_id !== filterCliente) {
@@ -172,7 +178,10 @@ function ResultContent() {
         const d = new Date(r.fechaRaw + "T00:00:00");
         if (!isNaN(d.getTime())) {
           const now = new Date();
-          if (filterRango === "hoy" && d.toDateString() !== now.toDateString()) {
+          if (
+            filterRango === "hoy" &&
+            d.toDateString() !== now.toDateString()
+          ) {
             return false;
           }
           if (filterRango === "ultimos_7") {
@@ -185,20 +194,35 @@ function ResultContent() {
             limit.setDate(now.getDate() - 30);
             if (d < limit) return false;
           }
-          if (filterRango === "este_mes" && (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear())) {
+          if (
+            filterRango === "este_mes" &&
+            (d.getMonth() !== now.getMonth() ||
+              d.getFullYear() !== now.getFullYear())
+          ) {
             return false;
           }
         }
       }
       return true;
     });
-  }, [rawReservas, filterNumero, filterCliente, filterPaquete, selectedSalidaFilter, filterRango, onlyActive]);
+  }, [
+    rawReservas,
+    filterNumero,
+    filterCliente,
+    filterPaquete,
+    selectedSalidaFilter,
+    filterRango,
+    onlyActive,
+  ]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
 
   const totalPages = Math.ceil(filteredReservas.length / pageSize);
-  const paginatedReservas = filteredReservas.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedReservas = filteredReservas.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
 
   if (loadingList) {
     return (
@@ -232,7 +256,11 @@ function ResultContent() {
       <section className="flex flex-col w-full max-w-7xl xl:mx-auto gap-5">
         <div className="flex flex-col w-full gap-10">
           {paginatedReservas.map((reserva) => (
-            <ReservasCard key={reserva.id} reserva={reserva} onRefresh={fetchReservas} />
+            <ReservasCard
+              key={reserva.id}
+              reserva={reserva}
+              onRefresh={fetchReservas}
+            />
           ))}
           {filteredReservas.length === 0 && (
             <p className="text-center text-gray-500 font-semibold py-10">
@@ -249,8 +277,6 @@ function ResultContent() {
           onPageChange={setCurrentPage}
         />
       </section>
-
-
     </Container>
   );
 }

@@ -16,7 +16,10 @@ export default function SalidasPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [tipoSalida, setTipoSalida] = useState<TipoSalida>(null);
-  
+  const [alcance, setAlcance] = useState<"argentina" | "internacional" | null>(
+    "argentina",
+  );
+
   const [destinos, setDestinos] = useState<any[]>([]);
   const [transportes, setTransportes] = useState<any[]>([]);
   const [periodos, setPeriodos] = useState<any[]>([]);
@@ -35,9 +38,15 @@ export default function SalidasPage() {
       if (!user?.iweb_client_id) return;
       try {
         const [destData, transData, periodData] = await Promise.all([
-          apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_transport_companies", user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_periods", user.iweb_client_id).catch(() => []),
+          apiClient
+            .getParameters("get_destinos", user.iweb_client_id)
+            .catch(() => []),
+          apiClient
+            .getParameters("get_transport_companies", user.iweb_client_id)
+            .catch(() => []),
+          apiClient
+            .getParameters("get_periods", user.iweb_client_id)
+            .catch(() => []),
         ]);
         setDestinos(destData);
         setTransportes(transData);
@@ -61,7 +70,7 @@ export default function SalidasPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     router.push(
-      `/salidas/result?tipo=${tipoSalida}&destino=${data.destino}&empresa=${data.empresa}&rango=${data.rango}&periodo=${data.periodo}&active=${activeOnly}`,
+      `/salidas/result?tipo=${tipoSalida}&destino=${data.destino}&empresa=${data.empresa}&rango=${data.rango}&periodo=${data.periodo}&active=${activeOnly}&alcance=${alcance || ""}`,
     );
   };
 
@@ -84,35 +93,51 @@ export default function SalidasPage() {
       </Link>
       {!tipoSalida ? (
         <>
-          <h2 className="text-black font-semibold text-center md:text-xl my-10">
-            Selecciona una opción
+          <h2 className="text-black font-semibold text-center text-xl md:text-2xl my-8">
+            Seleccione una opción
           </h2>
-          <div className="flex flex-col md:flex-row justify-center items-center gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 max-w-5xl mx-auto w-full px-4 mb-10">
             <button
               onClick={() => setTipoSalida("aereo")}
-              className="relative overflow-hidden rounded-xl shadow-md shadow-black/30 size-80 md:size-100">
+              className="group relative overflow-hidden aspect-[4/3] w-full cursor-pointer shadow-md transition-all duration-300 hover:shadow-xl focus:outline-none">
               <img
                 src="/salida-aereo.png"
                 alt="Salidas en aéreo"
-                className="w-full h-full size-40 object-cover"
+                className="w-full h-full object-cover transition-all duration-300 group-hover:blur-md group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-primary/40" />
-              <h3 className="absolute top-1/2 left-1/2 -translate-x-1/2 md:text-nowrap md:text-3xl -translate-y-1/2 text-white text-2xl font-bold italic drop-shadow-lg">
-                SALIDAS EN AÉREO
-              </h3>
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300" />
+              <div className="absolute inset-0 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <h3
+                  className="text-white text-2xl sm:text-3xl md:text-4xl font-extrabold italic tracking-wider text-center uppercase"
+                  style={{
+                    WebkitTextStroke: "1.5px black",
+                    paintOrder: "stroke fill",
+                    filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.7))",
+                  }}>
+                  SALIDAS EN AÉREO
+                </h3>
+              </div>
             </button>
             <button
               onClick={() => setTipoSalida("bus")}
-              className="relative overflow-hidden rounded-xl shadow-md shadow-black/30 size-80 md:size-100">
+              className="group relative overflow-hidden aspect-[4/3] w-full cursor-pointer shadow-md transition-all duration-300 hover:shadow-xl focus:outline-none">
               <img
                 src="/salida-bus.png"
                 alt="Salidas en bus"
-                className="w-full h-full size-40 object-cover"
+                className="w-full h-full object-cover transition-all duration-300 group-hover:blur-md group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-primary/40" />
-              <h3 className="absolute top-1/2 left-1/2 -translate-x-1/2 md:text-nowrap md:text-3xl -translate-y-1/2 text-white text-2xl font-bold italic drop-shadow-lg">
-                SALIDAS EN BUS
-              </h3>
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300" />
+              <div className="absolute inset-0 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <h3
+                  className="text-white text-2xl sm:text-3xl md:text-4xl font-extrabold italic tracking-wider text-center uppercase"
+                  style={{
+                    WebkitTextStroke: "1.5px black",
+                    paintOrder: "stroke fill",
+                    filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.7))",
+                  }}>
+                  SALIDAS EN BUS
+                </h3>
+              </div>
             </button>
           </div>
         </>
@@ -128,17 +153,20 @@ export default function SalidasPage() {
               {tipoSalida === "aereo" ? "Aéreo" : "Bus"}
             </span>
           </div>
-          <h2 className="text-black font-semibold mb-5 text-center md:text-xl">Filtros de Salidas</h2>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3 md:gap-5 max-w-3xl md:justify-start items-start mx-auto w-full">
+          <h2 className="text-black font-semibold mb-5 text-center text-xl md:text-2xl">
+            Filtros
+          </h2>
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-3 md:gap-5 max-w-3xl md:justify-start items-start mx-auto w-full">
             {/* Destino */}
             <select
               className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
               name="destino"
               id="destino"
               onChange={handleChange}
-              value={data.destino}
-            >
-              <option value="">Cualquier Destino</option>
+              value={data.destino}>
+              <option value="">Destino</option>
               {destinos.map((d: any) => (
                 <option key={d.id} className="bg-[#f1f1f1]" value={d.id}>
                   {d.name || d.nombre}
@@ -152,9 +180,8 @@ export default function SalidasPage() {
               name="empresa"
               id="empresa"
               onChange={handleChange}
-              value={data.empresa}
-            >
-              <option value="">Cualquier Empresa</option>
+              value={data.empresa}>
+              <option value="">Empresa de Transporte</option>
               {transportes
                 .filter((t: any) => !tipoSalida || t.type === tipoSalida)
                 .map((t: any) => (
@@ -170,9 +197,8 @@ export default function SalidasPage() {
               name="rango"
               id="rango"
               onChange={handleChange}
-              value={data.rango}
-            >
-              <option value="">Rango de fechas (Todos)</option>
+              value={data.rango}>
+              <option value="">Rango de fechas (Desde - Hasta)</option>
               <option className="bg-[#f1f1f1]" value="proximos">
                 Próximos 30 días
               </option>
@@ -184,9 +210,8 @@ export default function SalidasPage() {
               name="periodo"
               id="periodo"
               onChange={handleChange}
-              value={data.periodo}
-            >
-              <option value="">Cualquier Periodo</option>
+              value={data.periodo}>
+              <option value="">Periodo</option>
               {periodos.map((p: any) => (
                 <option key={p.id} className="bg-[#f1f1f1]" value={p.id}>
                   {p.name || p.nombre || p.description}
@@ -194,8 +219,47 @@ export default function SalidasPage() {
               ))}
             </select>
 
-            <ToggleActiveFilters checked={activeOnly} onChange={setActiveOnly} />
-            <button className="w-full bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl">
+            {/* Filtros de Alcance: Argentina / Internacional */}
+            <div className="w-full flex rounded-sm overflow-hidden  shadow-md shadow-gray-500 h-12 sm:h-14">
+              <button
+                type="button"
+                onClick={() =>
+                  setAlcance(alcance === "argentina" ? null : "argentina")
+                }
+                className="relative w-1/2 h-full p-0 border-none cursor-pointer overflow-hidden focus:outline-none">
+                <img
+                  src="/argentina.png"
+                  alt="Argentina"
+                  className="w-full h-full object-cover"
+                />
+                {alcance === "argentina" && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 h-[70%] w-3 bg-[#00c6ff] rounded-full shadow-sm" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setAlcance(
+                    alcance === "internacional" ? null : "internacional",
+                  )
+                }
+                className="relative w-1/2 h-full p-0 border-none cursor-pointer overflow-hidden focus:outline-none">
+                <img
+                  src="/internacional.png"
+                  alt="Internacional"
+                  className="w-full h-full object-cover"
+                />
+                {alcance === "internacional" && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 h-[70%] w-3 bg-secondary rounded-full shadow-sm" />
+                )}
+              </button>
+            </div>
+
+            <ToggleActiveFilters
+              checked={activeOnly}
+              onChange={setActiveOnly}
+            />
+            <button className="w-full bg-primary cursor-pointer text-white font-medium text-center py-2.5 rounded-xl text-lg shadow-md hover:bg-primary/90 transition-colors">
               Buscar
             </button>
           </form>
@@ -204,4 +268,3 @@ export default function SalidasPage() {
     </Container>
   );
 }
-
