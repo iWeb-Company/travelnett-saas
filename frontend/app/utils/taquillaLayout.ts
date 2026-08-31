@@ -35,11 +35,29 @@ function takeSeatRow(nextSeat: { value: number }, totalSeats: number, columns: n
   });
 }
 
-function buildSemicamaRows(totalSeats: number, columns: number): TaquillaRow[] {
+function buildSemicamaRows(
+  totalSeats: number,
+  columns: number,
+  hasPanoramicSeats: boolean,
+): TaquillaRow[] {
   const nextSeat = { value: 1 };
   const rows: TaquillaRow[] = [];
 
   if (totalSeats <= 0) return rows;
+
+  if (!hasPanoramicSeats) {
+    rows.push({
+      seats: Array.from({ length: columns }, () => null),
+      logoStartColumn: 2,
+      logoRowSpan: 2,
+    });
+    rows.push({ seats: Array.from({ length: columns }, () => null) });
+
+    while (nextSeat.value <= totalSeats) {
+      rows.push({ seats: takeSeatRow(nextSeat, totalSeats, columns) });
+    }
+    return rows;
+  }
 
   rows.push({ seats: takeSeatRow(nextSeat, totalSeats, columns) });
 
@@ -83,10 +101,15 @@ export function buildTaquillaLayout({
   panoramicosQuantity: number | string | null | undefined;
 }): TaquillaLayout {
   const columns = getTaquillaColumns(panoramicosQuantity);
+  const hasPanoramicSeats = normalizeQuantity(panoramicosQuantity) >= 3;
 
   return {
     columns,
-    semicamaRows: buildSemicamaRows(normalizeQuantity(semicamaQuantity), columns),
+    semicamaRows: buildSemicamaRows(
+      normalizeQuantity(semicamaQuantity),
+      columns,
+      hasPanoramicSeats,
+    ),
     camaRows: buildCamaRows(normalizeQuantity(camaQuantity), columns),
   };
 }

@@ -27,7 +27,8 @@ function ResultContent() {
   const destinoFilter = searchParams.get("destino") || "";
   const empresaFilter = searchParams.get("empresa") || "";
   const periodFilter = searchParams.get("periodo") || "";
-  const rangoFilter = searchParams.get("rango") || "";
+  const fechaDesdeFilter = searchParams.get("fecha_desde") || "";
+  const fechaHastaFilter = searchParams.get("fecha_hasta") || "";
   const activeFilter = searchParams.get("active") || "";
   const alcanceFilter = searchParams.get("alcance") || "";
 
@@ -73,14 +74,13 @@ function ResultContent() {
     if (activeFilter === "true" && !s.active) {
       return false;
     }
-    if (rangoFilter === "proximos" && s.date_of_out) {
-      const depDate = new Date(s.date_of_out + "T00:00:00");
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const targetDate = new Date();
-      targetDate.setDate(today.getDate() + 30);
-      targetDate.setHours(23, 59, 59, 999);
-      if (depDate < today || depDate > targetDate) {
+    if (fechaDesdeFilter && fechaHastaFilter) {
+      const departureDate = String(s.date_of_out || "").split("T")[0].split(" ")[0];
+      if (
+        !departureDate ||
+        departureDate < fechaDesdeFilter ||
+        departureDate > fechaHastaFilter
+      ) {
         return false;
       }
     }

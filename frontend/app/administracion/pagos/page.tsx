@@ -7,10 +7,14 @@ import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Pagination from "@/app/components/Pagination";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
+import {
+  filterAndSortClients,
+  getClientDisplayName,
+} from "@/app/utils/clientSearch";
 
 type PaymentMethod = "efectivo" | "tarjeta" | "transferencia" | "devolucion";
 
@@ -36,6 +40,7 @@ export default function PagosPage() {
 
   const [reservaBusqueda, setReservaBusqueda] = useState("");
   const [clienteSelect, setClienteSelect] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
   const [searched, setSearched] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("tarjeta");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,6 +69,10 @@ export default function PagosPage() {
   const paginatedReservas = filteredReservas.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
+  );
+  const filteredClients = useMemo(
+    () => filterAndSortClients(realClients, clientSearch),
+    [realClients, clientSearch],
   );
 
   // Selected receipt for electronic receipt popup
@@ -248,6 +257,7 @@ export default function PagosPage() {
   const handleClear = () => {
     setReservaBusqueda("");
     setClienteSelect("");
+    setClientSearch("");
     setSearched(false);
     setFilteredReservas([]);
   };
@@ -314,7 +324,9 @@ export default function PagosPage() {
         inputMetodoDevolucion === "transferencia" &&
         !inputCuentaBancoDevolucion
       ) {
-        toast.error("Por favor seleccione una cuenta bancaria para la devolución");
+        toast.error(
+          "Por favor seleccione una cuenta bancaria para la devolución",
+        );
         return;
       }
     } else if (paymentMethod === "tarjeta") {
@@ -450,18 +462,21 @@ export default function PagosPage() {
       formData.append("reserva_id", selectedReserva.id);
       formData.append("payment_method", tipoStr);
       formData.append("date_pay", inputFecha);
-      formData.append(
-        "amount",
-        String(-Math.abs(Math.round(amountNum))),
-      );
+      formData.append("amount", String(-Math.abs(Math.round(amountNum))));
       formData.append("currency", inputMoneda);
-      formData.append("observations", inputObservaciones || "Devolución de Dinero");
+      formData.append(
+        "observations",
+        inputObservaciones || "Devolución de Dinero",
+      );
       if (
         inputMetodoDevolucion === "transferencia" &&
         inputCuentaBancoDevolucion
       )
         formData.append("account_id", inputCuentaBancoDevolucion);
-      formData.append("titular", inputTitular || selectedReserva.nombre_completo || "Cliente");
+      formData.append(
+        "titular",
+        inputTitular || selectedReserva.nombre_completo || "Cliente",
+      );
       await apiClient.createPago(user.iweb_client_id, formData);
       toast.success("Devolución registrada correctamente");
       setInputMonto("");
@@ -777,19 +792,31 @@ export default function PagosPage() {
             className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2.5 px-3 text-black/80 font-medium  focus:outline-none focus:ring-2 focus:ring-primary bg-white"
           />
           {loadingClients ? (
-            <div className="w-full h-11 bg-gray-200 animate-pulse rounded-sm border border-black shadow-md"></div>
+            <div className="flex flex-col gap-4">
+              <div className="w-full h-11 bg-gray-200 animate-pulse rounded-sm border border-black shadow-md"></div>
+              <div className="w-full h-11 bg-gray-200 animate-pulse rounded-sm border border-black shadow-md"></div>
+            </div>
           ) : (
-            <select
-              value={clienteSelect}
-              onChange={(e) => setClienteSelect(e.target.value)}
-              className="w-full border border-black shadow-md text-black/80 shadow-black/40 rounded-sm py-2.5 px-3  font-medium  focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-              <option value="">Filtrar por Cliente</option>
-              {realClients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.complete_name || c.name_system}
-                </option>
-              ))}
-            </select>
+            <>
+              <input
+                type="text"
+                placeholder="Filtrar clientes"
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="w-full border border-black shadow-md shadow-black/40 rounded-sm py-2.5 px-3 text-black/80 font-medium focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              />
+              <select
+                value={clienteSelect}
+                onChange={(e) => setClienteSelect(e.target.value)}
+                className="w-full border border-black shadow-md text-black/80 shadow-black/40 rounded-sm py-2.5 px-3 font-medium focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+                <option value="">Filtrar por Cliente</option>
+                {filteredClients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {getClientDisplayName(c)}
+                  </option>
+                ))}
+              </select>
+            </>
           )}
           <button
             type="submit"
@@ -819,7 +846,12 @@ export default function PagosPage() {
                     </p>
                     <div className="flex-1 flex justify-between items-center py-2.5 pl-4 text-start">
                       <p className="font-bold text-gray-800">
-                        {res.nombre_completo || "Pasajero Desconocido"}
+                        {res.titulo?.trim() ||
+                          res.client_nombre ||
+                          getClientDisplayName(
+                            realClients.find((client) => client.id === res.client_id),
+                          ) ||
+                          "Cliente desconocido"}
                       </p>
                       <button
                         onClick={() => handleOpenPagoModal(res)}
@@ -1140,7 +1172,7 @@ export default function PagosPage() {
                         ? "bg-primary text-white"
                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                     }`}>
-                    ⏪ devolucion
+                    ⏪ Devolución
                   </button>
                 </div>
 
@@ -1459,7 +1491,11 @@ export default function PagosPage() {
                 </thead>
                 <tbody>
                   {pagos.map((pago) => {
-                    const isDevolucion = (pago.amount || 0) < 0 || (pago.payment_method || "").toLowerCase().includes("devoluc");
+                    const isDevolucion =
+                      (pago.amount || 0) < 0 ||
+                      (pago.payment_method || "")
+                        .toLowerCase()
+                        .includes("devoluc");
                     return (
                       <tr
                         key={pago.id}
@@ -1468,11 +1504,15 @@ export default function PagosPage() {
                           {formatDateDisplay(pago.date_pay)}
                         </td>
                         <td className="py-2">
-                          <span className={isDevolucion ? "text-red-600 font-semibold" : ""}>
+                          <span
+                            className={
+                              isDevolucion ? "text-red-600 font-semibold" : ""
+                            }>
                             {pago.payment_method}
                           </span>
                         </td>
-                        <td className={`py-2 font-medium ${isDevolucion ? "text-red-600 font-bold" : "text-black"}`}>
+                        <td
+                          className={`py-2 font-medium ${isDevolucion ? "text-red-600 font-bold" : "text-black"}`}>
                           {pago.amount < 0
                             ? `-${formatMonto(Math.abs(pago.amount), getMoneda(pago))}`
                             : formatMonto(pago.amount, getMoneda(pago))}
@@ -1555,7 +1595,9 @@ export default function PagosPage() {
               </svg>
             </div>
             <h4 className="text-lg font-bold text-gray-900 mb-1">
-              {paymentMethod === "devolucion" ? "¿Confirmar Devolución?" : "¿Confirmar Operación?"}
+              {paymentMethod === "devolucion"
+                ? "¿Confirmar Devolución?"
+                : "¿Confirmar Operación?"}
             </h4>
             <p className="text-gray-600 text-sm mb-4">
               {paymentMethod === "devolucion" ? (

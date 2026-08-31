@@ -26,6 +26,8 @@ export default function ClientesPage() {
   const [search, setSearch] = useState("");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loadingPassword, setLoadingPassword] = useState(false);
+  const [legacyPassword, setLegacyPassword] = useState(false);
 
   const [clientTypes, setClientTypes] = useState<ClientsType[]>([]);
   const [clientes, setClientes] = useState<Client[]>([]);
@@ -132,13 +134,36 @@ export default function ClientesPage() {
     currentPage * pageSize,
   );
 
-  const handleClickPut = (cliente: Client) => {
+  const handleClickPut = async (cliente: Client) => {
     setClientesData({
       ...cliente,
+      hashed_password: "",
       client_type: cliente.client_type || (cliente as any).client_type_id || "",
       parent_client_id: cliente.parent_client_id || "",
     });
+    setShowPassword(false);
+    setLegacyPassword(false);
     setModalOpenPut(true);
+    const clientId = user?.iweb_client_id;
+    if (!clientId || !cliente.id) return;
+
+    setLoadingPassword(true);
+    try {
+      const passwordData = await apiClient.getParameters(
+        `get_client_password/${cliente.id}`,
+        clientId,
+      );
+      setLegacyPassword(Boolean(passwordData.legacy_hashed));
+      setClientesData((current) => ({
+        ...current,
+        hashed_password: passwordData.password || "",
+      }));
+    } catch (error) {
+      console.error("Error loading client password:", error);
+      toast.error("No se pudo cargar la contraseña del cliente");
+    } finally {
+      setLoadingPassword(false);
+    }
   };
 
   const handleClickPutClientType = (tipo: ClientsType) => {
@@ -153,6 +178,7 @@ export default function ClientesPage() {
 
       const payload = {
         ...clientesData,
+        birthday: clientesData.birthday || null,
         client_type_id: clientesData.client_type,
       };
 
@@ -184,10 +210,14 @@ export default function ClientesPage() {
       const clientId = user?.iweb_client_id;
       if (!clientId) return;
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         ...clientesData,
+        birthday: clientesData.birthday || null,
         client_type_id: clientesData.client_type,
       };
+      if (!clientesData.hashed_password) {
+        delete payload.hashed_password;
+      }
 
       await apiClient.updateParameter(
         "update_clients",
@@ -338,6 +368,8 @@ export default function ClientesPage() {
               commission: undefined,
               parent_client_id: "",
             });
+            setShowPassword(false);
+            setLegacyPassword(false);
             setModalOpenAdd(true);
           }}
           className="flex items-center gap-2  text-primary font-semibold px-4 py-2 rounded-lg">
@@ -1032,27 +1064,36 @@ export default function ClientesPage() {
                 }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
-              <div className="relative w-full">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Contraseña"
-                  value={clientesData.hashed_password || ""}
-                  onChange={(e) =>
-                    setClientesData({
-                      ...clientesData,
-                      hashed_password: e.target.value,
-                    })
-                  }
-                  className="w-full border bg-white rounded-sm p-2 pr-10 text-black/90 font-medium shadow-sm focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1 text-sm select-none"
-                  title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}>
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
-                </button>
-              </div>
+              {loadingPassword ? (
+                <div className="w-full h-10 rounded-sm bg-gray-200 animate-pulse" />
+              ) : (
+                <div className="relative w-full">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder={
+                      legacyPassword
+                        ? "Contraseña anterior protegida: ingrese una nueva"
+                        : "Contraseña"
+                    }
+                    value={clientesData.hashed_password || ""}
+                    onChange={(e) => {
+                      setLegacyPassword(false);
+                      setClientesData({
+                        ...clientesData,
+                        hashed_password: e.target.value,
+                      });
+                    }}
+                    className="w-full border bg-white rounded-sm p-2 pr-10 text-black/90 font-medium shadow-sm focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1 text-sm select-none"
+                    title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}>
+                    {showPassword ? "👁️" : "👁️‍🗨️"}
+                  </button>
+                </div>
+              )}
               <select
                 value={clientesData.client_type || ""}
                 onChange={(e) =>

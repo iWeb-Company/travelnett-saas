@@ -46,11 +46,14 @@ export default function SalidasIDPage() {
   // Horarios modal states
   const [tempCoordinadorNombre, setTempCoordinadorNombre] = useState("");
   const [tempCoordinadorTelefono, setTempCoordinadorTelefono] = useState("");
-  const [tempHorarios, setTempHorarios] = useState<string[]>([]);
+  const [tempHorarios, setTempHorarios] = useState<Record<string, string>>({});
   const [isSavingHorarios, setIsSavingHorarios] = useState(false);
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [packageHotelCount, setPackageHotelCount] = useState<number>(0);
+  const salidaCargas = Array.isArray(salida?.cargas)
+    ? salida.cargas.filter((carga: any) => carga?.id)
+    : [];
 
   const loadData = async () => {
     if (!user?.iweb_client_id || !id) return;
@@ -98,7 +101,11 @@ export default function SalidasIDPage() {
     setTempCoordinadorNombre(salida?.coordinador_nombre || "");
     setTempCoordinadorTelefono(salida?.coordinador_telefono || "");
     // Solo mostramos los lugares de carga asociados a la salida
-    setTempHorarios((salida?.cargas || []).map((c: any) => c.horario || ""));
+    setTempHorarios(
+      Object.fromEntries(
+        salidaCargas.map((carga: any) => [carga.id, carga.horario || ""]),
+      ),
+    );
     setShowRelojModal(true);
   };
 
@@ -148,12 +155,13 @@ export default function SalidasIDPage() {
     setIsSavingHorarios(true);
     try {
       // Guardamos solo los lugares de carga asociados a la salida
-      const cargasIds: string[] = (salida?.cargas || []).map((lc: any) => lc.id).filter(Boolean);
+      const cargasIds: string[] = salidaCargas.map((lc: any) => lc.id);
+      const horarios = cargasIds.map((cargaId) => tempHorarios[cargaId] || "");
 
       await apiClient.updateSalida(user.iweb_client_id, id, {
         ...(tempCoordinadorNombre !== undefined ? { coordinador_nombre: tempCoordinadorNombre } : {}),
         ...(tempCoordinadorTelefono !== undefined ? { coordinador_telefono: tempCoordinadorTelefono } : {}),
-        ...(cargasIds.length > 0 ? { cargas_ids: cargasIds, horarios: tempHorarios } : {}),
+        ...(cargasIds.length > 0 ? { cargas_ids: cargasIds, horarios } : {}),
       });
       toast.success("Horarios y Coordinador actualizados");
       setShowRelojModal(false);
@@ -694,7 +702,6 @@ export default function SalidasIDPage() {
                   </thead>
                   <tbody>
                     {(() => {
-                      const salidaCargas = salida?.cargas || [];
                       if (salidaCargas.length === 0) {
                         return (
                           <tr className="bg-gray-600">
@@ -703,11 +710,11 @@ export default function SalidasIDPage() {
                         );
                       }
 
-                      return salidaCargas.map((lc: any, i: number) => {
+                      return salidaCargas.map((lc: any) => {
                         const lcName = (lc.name || lc.nombre || "").toLowerCase();
                         const count = mappedPasajeros.filter((p) => p.lugar_carga_id === lc.id || (lcName && (p.ascenso || "").toLowerCase() === lcName)).length;
                         return (
-                          <tr key={i} className="bg-gray-600 border-t border-gray-700">
+                          <tr key={lc.id} className="bg-gray-600 border-t border-gray-700">
                             <td className="py-1.5 px-2">{count}</td>
                             <td className="py-1.5 px-2 text-center font-semibold truncate" title={lc.name || lc.nombre}>
                               {lc.name || lc.nombre}
@@ -715,12 +722,13 @@ export default function SalidasIDPage() {
                             <td className="py-1.5 px-2 flex justify-center">
                               <input
                                 type="text"
-                                value={tempHorarios[i] || ""}
-                                onChange={(e) => {
-                                  const copy = [...tempHorarios];
-                                  copy[i] = e.target.value;
-                                  setTempHorarios(copy);
-                                }}
+                                value={tempHorarios[lc.id] || ""}
+                                onChange={(e) =>
+                                  setTempHorarios((current) => ({
+                                    ...current,
+                                    [lc.id]: e.target.value,
+                                  }))
+                                }
                                 className="bg-gray-700 text-white text-[11px] font-semibold border border-gray-600 rounded p-1 text-center focus:outline-none focus:ring-1 focus:ring-secondary"
                                 placeholder="hh:mm"
                               />

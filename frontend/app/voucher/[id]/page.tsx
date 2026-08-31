@@ -16,6 +16,7 @@ import Hotel from "@/app/components/icons/salidas/Hotel";
 import { formatRoomType } from "@/lib/formatRooms";
 import { formatDateDDMMYY } from "@/lib/formatDate";
 import { Voucher } from "@/app/types";
+import { useSinglePagePrint } from "@/app/utils/useSinglePagePrint";
 
 export default function VoucherPage() {
   const params = useParams();
@@ -28,6 +29,7 @@ export default function VoucherPage() {
   const id = params.id as string;
   const [voucherData, setVoucherData] = useState<Voucher | null>(null);
   const [loading, setLoading] = useState(true);
+  const { printRef, printSinglePage } = useSinglePagePrint<HTMLDivElement>();
   console.log(iwebClient, "esto es iwebClient");
 
   const loadVoucher = async () => {
@@ -82,13 +84,26 @@ export default function VoucherPage() {
   }
 
   const isAereo = voucherData.tipo_transporte?.toLowerCase() === "aereo";
+  const hasExcursion = Boolean(
+    voucherData.excursion_id || voucherData.excursion_name?.trim(),
+  );
 
   return (
     <Container>
       <ToggleSalidas />
 
       <style>{`
+        @page {
+          size: A4 portrait;
+          margin: 6mm;
+        }
         @media print {
+          html, body {
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            overflow: hidden !important;
+          }
           body * {
             visibility: hidden !important;
           }
@@ -99,15 +114,18 @@ export default function VoucherPage() {
             visibility: visible !important;
           }
           .print-voucher {
-            position: absolute !important;
+            position: fixed !important;
             left: 0 !important;
             top: 0 !important;
-            width: 100% !important;
+            width: var(--print-source-width) !important;
             margin: 0 !important;
-            padding: 10px !important;
-            border: none !important;
+            padding: 0 !important;
             box-shadow: none !important;
             background: white !important;
+            zoom: var(--print-scale, 1);
+            break-inside: avoid-page !important;
+            page-break-inside: avoid !important;
+            overflow: visible !important;
           }
         }
       `}</style>
@@ -153,7 +171,7 @@ export default function VoucherPage() {
               <span>Enviar por email</span>
             </button>
             <button
-              onClick={() => window.print()}
+              onClick={printSinglePage}
               className="flex items-center gap-1.5 hover:opacity-80 text-secondary cursor-pointer px-3 py-2 rounded-lg bg-gray-100 md:bg-transparent">
               <svg
                 width="22"
@@ -172,7 +190,7 @@ export default function VoucherPage() {
         </div>
 
         {/* Contenedor Principal del Voucher */}
-        <div className="max-w-4xl mx-auto bg-white shadow-lg border border-black overflow-hidden print-voucher w-full text-black">
+        <div ref={printRef} className="max-w-4xl mx-auto bg-white shadow-lg border border-black overflow-hidden print-voucher w-full text-black">
           {/* Header  */}
           <div
             className={`text-black py-4 px-4 sm:px-6 md:px-10 flex flex-col md:flex-row items-center justify-between border-b border-b-black gap-3 md:gap-0`}>
@@ -413,6 +431,7 @@ export default function VoucherPage() {
           </div>
 
           {/* BLOQUE EXCURSIONES */}
+          {hasExcursion && (
           <div className="border-black py-5 px-4 sm:px-6 md:px-10 border-b flex flex-col gap-6 md:gap-8">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-5">
               <div className="flex items-center gap-2">
@@ -482,6 +501,7 @@ export default function VoucherPage() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Bloque Observaciones */}
           <div

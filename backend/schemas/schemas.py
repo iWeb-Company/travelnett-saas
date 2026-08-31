@@ -1,10 +1,17 @@
 import email
 from http import client
 from fastapi import File, UploadFile
-from pydantic import BaseModel
-from typing import Optional, Union, Any, List
+from pydantic import BaseModel, BeforeValidator
+from typing import Annotated, Optional, Union, Any, List
 from datetime import datetime, date
 PyDate = date
+
+
+def _empty_date_to_none(value: Any) -> Any:
+    return None if value == "" else value
+
+
+OptionalDate = Annotated[Optional[date], BeforeValidator(_empty_date_to_none)]
 
 # Schemas for authentication and user management
 
@@ -59,7 +66,7 @@ class ClientsCreatePayload(BaseModel):
     client_type: Optional[str] = None
     parent_client_id: Optional[str] = None
     dni: Optional[int] = None
-    birthday: Optional[date] = None
+    birthday: OptionalDate = None
     email: Optional[str] = None
     phone: Optional[int] = None
     payment_method: Optional[str] = None
@@ -149,7 +156,7 @@ class CreateClientsRequest(BaseModel):
     client_type_id: Optional[str] = None
     parent_client_id: Optional[str] = None
     dni: Optional[int] = None
-    birthday: Optional[date] = None
+    birthday: OptionalDate = None
     email: Optional[str] = None
     phone: Optional[int] = None
     payment_method: Optional[str] = None
@@ -241,7 +248,7 @@ class UpdateClientsRequest(BaseModel):
     client_type_id: Optional[str] = None
     parent_client_id: Optional[str] = None
     dni: Optional[int] = None
-    birthday: Optional[date] = None
+    birthday: OptionalDate = None
     email: Optional[str] = None
     phone: Optional[int] = None
     payment_method: Optional[str] = None
@@ -1158,6 +1165,7 @@ class CreateLugaresCargaRequest(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     address: Optional[str] = None
+    is_essential: Optional[bool] = False
     
 class CreateClientsTypeRequest(BaseModel):
     id: Optional[str] = None
@@ -1172,7 +1180,7 @@ class CreateClientsRequest(BaseModel):
     client_type_id: Optional[str] = None
     parent_client_id: Optional[str] = None
     dni: Optional[int] = None
-    birthday: Optional[date] = None
+    birthday: OptionalDate = None
     email: Optional[str] = None
     phone: Optional[int] = None
     payment_method: Optional[str] = None
@@ -1248,6 +1256,7 @@ class UpdateLugaresCargaRequest(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     address: Optional[str] = None
+    is_essential: Optional[bool] = None
     
 class UpdateClientsTypeRequest(BaseModel):
     id: Optional[str] = None
@@ -1262,7 +1271,7 @@ class UpdateClientsRequest(BaseModel):
     client_type_id: Optional[str] = None
     parent_client_id: Optional[str] = None
     dni: Optional[int] = None
-    birthday: Optional[date] = None
+    birthday: OptionalDate = None
     email: Optional[str] = None
     phone: Optional[Union[str, int]] = None
     payment_method: Optional[str] = None

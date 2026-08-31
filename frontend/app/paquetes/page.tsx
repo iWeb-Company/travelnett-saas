@@ -9,6 +9,9 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "../components/Loader";
+import DateRangePicker, {
+  formatDateRangeParam,
+} from "../components/DateRangePicker";
 
 export default function PaquetesPage() {
   const router = useRouter();
@@ -17,10 +20,11 @@ export default function PaquetesPage() {
   const [periodos, setPeriodos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const loadedRef = useRef<string | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
 
   const [data, setData] = useState({
     destino: "",
-    rango: "",
     periodo: "",
   });
   const [activeOnly, setActiveOnly] = useState(true);
@@ -49,8 +53,10 @@ export default function PaquetesPage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const fechaDesde = startDate && endDate ? formatDateRangeParam(startDate) : "";
+    const fechaHasta = startDate && endDate ? formatDateRangeParam(endDate) : "";
     router.push(
-      `/paquetes/result?destino=${data.destino}&rango=${data.rango}&periodo=${data.periodo}&active=${activeOnly}`,
+      `/paquetes/result?destino=${data.destino}&fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}&periodo=${data.periodo}&active=${activeOnly}`,
     );
   };
 
@@ -104,21 +110,14 @@ export default function PaquetesPage() {
           </select>
 
           {/* Rango de fechas */}
-          <select
-            className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
-            name="rango"
-            id="rango"
-            onChange={handleChange}
-            value={data.rango}
-          >
-            <option value="">Rango de fechas (Todos)</option>
-            <option className="bg-[#f1f1f1]" value="proximos">
-              Próximos 30 días
-            </option>
-            <option className="bg-[#f1f1f1]" value="temporada_alta">
-              Temporada Alta (Julio - Agosto)
-            </option>
-          </select>
+          <DateRangePicker
+            startDate={startDate}
+            endDate={endDate}
+            onChange={([start, end]) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+          />
 
           {/* Periodo */}
           <select

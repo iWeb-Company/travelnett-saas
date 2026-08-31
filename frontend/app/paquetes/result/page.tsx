@@ -29,6 +29,8 @@ function ResultContent() {
 
   const destinoFilter = searchParams.get("destino") || "";
   const periodFilter = searchParams.get("periodo") || "";
+  const fechaDesdeFilter = searchParams.get("fecha_desde") || "";
+  const fechaHastaFilter = searchParams.get("fecha_hasta") || "";
 
   useEffect(() => {
     const loadAll = async () => {
@@ -58,7 +60,6 @@ function ResultContent() {
     loadAll();
   }, [user?.iweb_client_id]);
 
-  const rangoFilter = searchParams.get("rango") || "";
   // activeFilter: "true" = only actives, "false" = show all (no restriction)
   const activeFilter = searchParams.get("active") || "";
 
@@ -94,32 +95,21 @@ function ResultContent() {
     }
 
     // ── 4. Filtro Rango de fechas ────────────────────────────────────────
-    if (rangoFilter) {
+    if (fechaDesdeFilter && fechaHastaFilter) {
       const dates: string[] = Array.isArray(p.dates) ? p.dates : [];
-      if (dates.length === 0) return false; // no dates assigned → exclude
+      if (dates.length === 0) return false;
 
-      // Find the earliest departure date among all assigned salidas
       const departureDates = dates
         .map((dId: string) => salidas.find((s: any) => s.id === dId))
         .filter((s: any) => s && s.date_of_out)
-        .map((s: any) => new Date(s.date_of_out + "T00:00:00"));
+        .map((s: any) => String(s.date_of_out).split("T")[0].split(" ")[0]);
 
       if (departureDates.length === 0) return false;
-
-      const earliest = departureDates.reduce((min, d) => (d < min ? d : min));
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (rangoFilter === "proximos") {
-        const limit = new Date();
-        limit.setDate(today.getDate() + 30);
-        limit.setHours(23, 59, 59, 999);
-        if (earliest < today || earliest > limit) return false;
-      } else if (rangoFilter === "temporada_alta") {
-        // July (6) or August (7)
-        const month = earliest.getMonth();
-        if (month !== 6 && month !== 7) return false;
-      }
+      const hasDepartureInRange = departureDates.some(
+        (departureDate) =>
+          departureDate >= fechaDesdeFilter && departureDate <= fechaHastaFilter,
+      );
+      if (!hasDepartureInRange) return false;
     }
 
     return true;
