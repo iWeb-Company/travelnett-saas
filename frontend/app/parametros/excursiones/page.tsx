@@ -5,7 +5,7 @@ import { Loader } from "@/app/components/Loader";
 import ModalLayout from "@/app/components/ModalLayout";
 import Pagination from "@/app/components/Pagination";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
-import { Excursion } from "@/app/types";
+import { Destino, Excursion } from "@/app/types";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -21,7 +21,7 @@ export default function ExcursionesPage() {
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [excursiones, setExcursiones] = useState<Excursion[]>([]);
-  const [destinos, setDestinos] = useState([]);
+  const [destinos, setDestinos] = useState<Destino[]>([]);
   const [search, setSearch] = useState("");
   const [excursionData, setExcursionData] = useState<Excursion>({
     name: "",
@@ -33,21 +33,20 @@ export default function ExcursionesPage() {
   const pageSize = 5;
 
   const totalPages = Math.ceil(excursiones.length / pageSize);
-  const paginatedExcursiones = excursiones.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedExcursiones = excursiones.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
 
   const getDestinoSigla = (excursion: Excursion) => {
     if (!excursion.destino) return "-";
     const rawDest = excursion.destino;
     const destObj = destinos.find(
-      (d: any) => d.id === rawDest || d.name === rawDest || d.nombre === rawDest
+      (d: any) =>
+        d.id === rawDest || d.name === rawDest || d.nombre === rawDest,
     );
     if (destObj) {
-      return (
-        destObj.sigla ||
-        destObj.name ||
-        destObj.nombre ||
-        "-"
-      ).toUpperCase();
+      return (destObj.sigla || destObj.name || "-").toUpperCase();
     }
     return rawDest.slice(0, 3).toUpperCase();
   };
@@ -72,7 +71,8 @@ export default function ExcursionesPage() {
         let destSigla = "";
         const rawDest = e.destino || "";
         const destObj = destinosData.find(
-          (d: any) => d.id === rawDest || d.name === rawDest || d.nombre === rawDest
+          (d: any) =>
+            d.id === rawDest || d.name === rawDest || d.nombre === rawDest,
         );
         if (destObj) {
           destName = (destObj.name || destObj.nombre || "").toLowerCase();
@@ -110,7 +110,11 @@ export default function ExcursionesPage() {
 
   const handleSubmitAdd = async () => {
     try {
-      await apiClient.createParameter("create_excursions", excursionData, user?.iweb_client_id);
+      await apiClient.createParameter(
+        "create_excursions",
+        excursionData,
+        user?.iweb_client_id,
+      );
       toast.success("Excursión agregada correctamente");
       setModalOpenAdd(false);
       setExcursionData({ name: "", description: "", destino: "" });
@@ -124,7 +128,12 @@ export default function ExcursionesPage() {
 
   const handleSubmitPut = async () => {
     try {
-      await apiClient.updateParameter("update_excursions", excursionData.id!, excursionData, user?.iweb_client_id);
+      await apiClient.updateParameter(
+        "update_excursions",
+        excursionData.id!,
+        excursionData,
+        user?.iweb_client_id,
+      );
       toast.success("Excursión actualizada correctamente");
       setModalOpenPut(false);
       getData();
@@ -136,14 +145,21 @@ export default function ExcursionesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("¿Está seguro de que desea eliminar esta excursión?")) return;
+    if (!window.confirm("¿Está seguro de que desea eliminar esta excursión?"))
+      return;
     try {
-      await apiClient.deleteParameter("delete_excursions", id, user?.iweb_client_id);
+      await apiClient.deleteParameter(
+        "delete_excursions",
+        id,
+        user?.iweb_client_id,
+      );
       toast.success("Excursión eliminada correctamente");
       getData();
       r.refresh();
     } catch (error: any) {
-      toast.error(error?.message || error?.detail || "Error al eliminar la excursión");
+      toast.error(
+        error?.message || error?.detail || "Error al eliminar la excursión",
+      );
       console.error("Error deleting excursion:", error);
     }
   };
@@ -165,8 +181,7 @@ export default function ExcursionesPage() {
       </Link>
       <button
         onClick={() => r.push("/parametros")}
-        className="flex items-center my-3 justify-start gap-3"
-      >
+        className="flex items-center my-3 justify-start gap-3">
         <ArrowLeft color="#6005F7" />
         <h2 className="font-semibold text-secondary hover:underline">
           Volver al Panel
@@ -181,15 +196,13 @@ export default function ExcursionesPage() {
             setExcursionData({ name: "", description: "", destino: "" });
             setModalOpenAdd(true);
           }}
-          className="flex items-center gap-2  text-primary font-medium px-4 py-2 rounded-lg"
-        >
+          className="flex items-center gap-2  text-primary font-medium px-4 py-2 rounded-lg">
           <svg
             width="22"
             height="22"
             viewBox="0 0 22 22"
             fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
+            xmlns="http://www.w3.org/2000/svg">
             <path
               fillRule="evenodd"
               clipRule="evenodd"
@@ -209,8 +222,7 @@ export default function ExcursionesPage() {
               height="15"
               viewBox="0 0 15 15"
               fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
+              xmlns="http://www.w3.org/2000/svg">
               <path
                 d="M5.41667 10.8333C3.90278 10.8333 2.62167 10.3089 1.57333 9.26C0.525 8.21111 0.000555996 6.93 4.40917e-07 5.41667C-0.000555115 3.90333 0.523889 2.62222 1.57333 1.57333C2.62278 0.524444 3.90389 0 5.41667 0C6.92944 0 8.21083 0.524444 9.26083 1.57333C10.3108 2.62222 10.835 3.90333 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L14.4167 13.25C14.5694 13.4028 14.6458 13.5972 14.6458 13.8333C14.6458 14.0694 14.5694 14.2639 14.4167 14.4167C14.2639 14.5694 14.0694 14.6458 13.8333 14.6458C13.5972 14.6458 13.4028 14.5694 13.25 14.4167L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333ZM5.41667 9.16667C6.45833 9.16667 7.34389 8.80222 8.07333 8.07333C8.80278 7.34444 9.16722 6.45889 9.16667 5.41667C9.16611 4.37444 8.80167 3.48917 8.07333 2.76083C7.345 2.0325 6.45944 1.66778 5.41667 1.66667C4.37389 1.66556 3.48861 2.03028 2.76083 2.76083C2.03306 3.49139 1.66833 4.37667 1.66667 5.41667C1.665 6.45667 2.02972 7.34222 2.76083 8.07333C3.49195 8.80444 4.37722 9.16889 5.41667 9.16667Z"
                 fill="black"
@@ -230,11 +242,20 @@ export default function ExcursionesPage() {
         {isUpdating ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3 border border-gray-400 rounded-lg bg-white">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-            <p className="text-sm text-gray-500 animate-pulse font-medium">Buscando excursiones...</p>
+            <p className="text-sm text-gray-500 animate-pulse font-medium">
+              Buscando excursiones...
+            </p>
           </div>
         ) : excursiones.length === 0 ? (
           <div className="py-12 text-center text-gray-500 text-sm flex flex-col items-center gap-2 border border-gray-400 rounded-lg bg-white">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-300">
+            <svg
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              className="text-gray-300">
               <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <span>No se encontraron resultados</span>
@@ -247,13 +268,14 @@ export default function ExcursionesPage() {
               const sigla = getDestinoSigla(excursion);
 
               return (
-                <li key={excursion.id} className="flex items-stretch gap-3 w-full">
+                <li
+                  key={excursion.id}
+                  className="flex items-stretch gap-3 w-full">
                   {/* Destino Sigla Badge */}
                   <div
                     className={`w-20 sm:w-24 flex items-center justify-center px-3 py-3 bg-[#D8E2FD] border-x border-gray-400 text-black font-medium text-sm text-center shrink-0 ${
                       isFirst ? "border-t rounded-t-md" : "border-t"
-                    } ${isLast ? "border-b rounded-b-md" : ""}`}
-                  >
+                    } ${isLast ? "border-b rounded-b-md" : ""}`}>
                     {sigla}
                   </div>
 
@@ -261,23 +283,22 @@ export default function ExcursionesPage() {
                   <div
                     className={`flex-1 flex items-center justify-between px-4 py-3 bg-[#F5F5F5] hover:bg-[#EFEFEF] transition-colors border-x border-gray-400 text-black text-sm ${
                       isFirst ? "border-t rounded-t-md" : "border-t"
-                    } ${isLast ? "border-b rounded-b-md" : ""}`}
-                  >
-                    <span className="font-normal text-gray-900">{excursion.name}</span>
+                    } ${isLast ? "border-b rounded-b-md" : ""}`}>
+                    <span className="font-normal text-gray-900">
+                      {excursion.name}
+                    </span>
                     <div className="flex items-center gap-3">
                       {/* BOTON EDITAR */}
                       <button
                         onClick={() => handleClickPut(excursion)}
                         title="Editar"
-                        className="text-black hover:text-primary transition-colors cursor-pointer"
-                      >
+                        className="text-black hover:text-primary transition-colors cursor-pointer">
                         <svg
                           width="14"
                           height="14"
                           viewBox="0 0 13 13"
                           fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
+                          xmlns="http://www.w3.org/2000/svg">
                           <path
                             d="M8.6821 0.655196C9.10147 0.23574 9.67029 5.8616e-05 10.2634 1.09323e-08C10.8566 -5.85942e-05 11.4255 0.23551 11.8449 0.654884C12.2644 1.07426 12.5 1.64308 12.5001 2.23622C12.5002 2.82937 12.2646 3.39824 11.8452 3.8177L11.2877 4.37582L8.12522 1.2127L8.6821 0.655196ZM7.46272 1.87582L1.21272 8.1252C0.958684 8.37897 0.780167 8.69836 0.697097 9.0477L0.0127222 11.9239C-0.00580801 12.0019 -0.00407066 12.0832 0.0177686 12.1602C0.039608 12.2373 0.0808211 12.3075 0.137477 12.3641C0.194133 12.4206 0.264344 12.4618 0.341412 12.4835C0.41848 12.5053 0.499837 12.5069 0.577722 12.4883L3.45335 11.8033C3.80291 11.7204 4.12252 11.5418 4.37647 11.2877L10.6252 5.03832L7.46272 1.87582Z"
                             fill="black"
@@ -288,15 +309,13 @@ export default function ExcursionesPage() {
                       <button
                         onClick={() => handleDelete(excursion.id!)}
                         title="Eliminar"
-                        className="text-black hover:text-red-500 transition-colors cursor-pointer"
-                      >
+                        className="text-black hover:text-red-500 transition-colors cursor-pointer">
                         <svg
                           width="10"
                           height="13"
                           viewBox="0 0 9 12"
                           fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
+                          xmlns="http://www.w3.org/2000/svg">
                           <path
                             d="M8.75 0.625H6.5625L5.9375 0H2.8125L2.1875 0.625H0V1.875H8.75M0.625 10C0.625 10.3315 0.756696 10.6495 0.991117 10.8839C1.22554 11.1183 1.54348 11.25 1.875 11.25H6.875C7.20652 11.25 7.52446 11.1183 7.75888 10.8839C7.9933 10.6495 8.125 10.3315 8.125 10V2.5H0.625V10Z"
                             fill="black"
@@ -321,7 +340,11 @@ export default function ExcursionesPage() {
       </div>
 
       <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-        <img src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"} className="size-50 object-contain" alt="Logo Empresa" />
+        <img
+          src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png"}
+          className="size-50 object-contain"
+          alt="Logo Empresa"
+        />
       </div>
 
       {modalOpenAdd && (
@@ -330,20 +353,33 @@ export default function ExcursionesPage() {
           setModalOpen={() => setModalOpenAdd(false)}
           title="Agregar Excursión"
           svg={
-            <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18.8568 7.92582L15.4768 3.98777C15.3654 3.85461 15.2261 3.74752 15.0687 3.67404C14.9114 3.60056 14.7398 3.56249 14.5662 3.5625H2.375C2.06006 3.5625 1.75801 3.68761 1.53531 3.91031C1.31261 4.13301 1.1875 4.43506 1.1875 4.75V13.0625C1.1875 13.3774 1.31261 13.6795 1.53531 13.9022C1.75801 14.1249 2.06006 14.25 2.375 14.25H3.63672C3.76752 14.7609 4.06464 15.2137 4.48122 15.537C4.8978 15.8604 5.41015 16.0359 5.9375 16.0359C6.46485 16.0359 6.9772 15.8604 7.39378 15.537C7.81037 15.2137 8.10748 14.7609 8.23828 14.25H11.9492C12.08 14.7609 12.3771 15.2137 12.7937 15.537C13.2103 15.8604 13.7226 16.0359 14.25 16.0359C14.7774 16.0359 15.2897 15.8604 15.7063 15.537C16.1229 15.2137 16.42 14.7609 16.5508 14.25H17.8125C18.1274 14.25 18.4295 14.1249 18.6522 13.9022C18.8749 13.6795 19 13.3774 19 13.0625V8.3125C19 8.17063 18.9492 8.03346 18.8568 7.92582ZM2.375 7.71875V4.75H6.53125V7.71875H2.375ZM5.9375 14.8438C5.70263 14.8438 5.47304 14.7741 5.27776 14.6436C5.08248 14.5131 4.93027 14.3277 4.84039 14.1107C4.75051 13.8937 4.727 13.6549 4.77282 13.4246C4.81864 13.1942 4.93174 12.9826 5.09781 12.8166C5.26389 12.6505 5.47548 12.5374 5.70583 12.4916C5.93618 12.4457 6.17495 12.4693 6.39194 12.5591C6.60892 12.649 6.79439 12.8012 6.92487 12.9965C7.05535 13.1918 7.125 13.4214 7.125 13.6562C7.125 13.9712 6.99989 14.2732 6.77719 14.4959C6.55449 14.7186 6.25244 14.8438 5.9375 14.8438ZM11.875 7.71875H7.71875V4.75H11.875V7.71875ZM14.25 14.8438C14.0151 14.8438 13.7855 14.7741 13.5903 14.6436C13.395 14.5131 13.2428 14.3277 13.1529 14.1107C13.063 13.8937 13.0395 13.6549 13.0853 13.4246C13.1311 13.1942 13.2442 12.9826 13.4103 12.8166C13.5764 12.6505 13.788 12.5374 14.0183 12.4916C14.2487 12.4457 14.4874 12.4693 14.7044 12.5591C14.9214 12.649 15.1069 12.8012 15.2374 12.9965C15.3679 13.1918 15.4375 13.4214 15.4375 13.6562C15.4375 13.9712 15.3124 14.2732 15.0897 14.4959C14.867 14.7186 14.5649 14.8438 14.25 14.8438ZM13.0625 7.71875V4.75H14.5662L17.1141 7.71875H13.0625Z" fill="#F1F1F1" />
+            <svg
+              width="19"
+              height="19"
+              viewBox="0 0 19 19"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M18.8568 7.92582L15.4768 3.98777C15.3654 3.85461 15.2261 3.74752 15.0687 3.67404C14.9114 3.60056 14.7398 3.56249 14.5662 3.5625H2.375C2.06006 3.5625 1.75801 3.68761 1.53531 3.91031C1.31261 4.13301 1.1875 4.43506 1.1875 4.75V13.0625C1.1875 13.3774 1.31261 13.6795 1.53531 13.9022C1.75801 14.1249 2.06006 14.25 2.375 14.25H3.63672C3.76752 14.7609 4.06464 15.2137 4.48122 15.537C4.8978 15.8604 5.41015 16.0359 5.9375 16.0359C6.46485 16.0359 6.9772 15.8604 7.39378 15.537C7.81037 15.2137 8.10748 14.7609 8.23828 14.25H11.9492C12.08 14.7609 12.3771 15.2137 12.7937 15.537C13.2103 15.8604 13.7226 16.0359 14.25 16.0359C14.7774 16.0359 15.2897 15.8604 15.7063 15.537C16.1229 15.2137 16.42 14.7609 16.5508 14.25H17.8125C18.1274 14.25 18.4295 14.1249 18.6522 13.9022C18.8749 13.6795 19 13.3774 19 13.0625V8.3125C19 8.17063 18.9492 8.03346 18.8568 7.92582ZM2.375 7.71875V4.75H6.53125V7.71875H2.375ZM5.9375 14.8438C5.70263 14.8438 5.47304 14.7741 5.27776 14.6436C5.08248 14.5131 4.93027 14.3277 4.84039 14.1107C4.75051 13.8937 4.727 13.6549 4.77282 13.4246C4.81864 13.1942 4.93174 12.9826 5.09781 12.8166C5.26389 12.6505 5.47548 12.5374 5.70583 12.4916C5.93618 12.4457 6.17495 12.4693 6.39194 12.5591C6.60892 12.649 6.79439 12.8012 6.92487 12.9965C7.05535 13.1918 7.125 13.4214 7.125 13.6562C7.125 13.9712 6.99989 14.2732 6.77719 14.4959C6.55449 14.7186 6.25244 14.8438 5.9375 14.8438ZM11.875 7.71875H7.71875V4.75H11.875V7.71875ZM14.25 14.8438C14.0151 14.8438 13.7855 14.7741 13.5903 14.6436C13.395 14.5131 13.2428 14.3277 13.1529 14.1107C13.063 13.8937 13.0395 13.6549 13.0853 13.4246C13.1311 13.1942 13.2442 12.9826 13.4103 12.8166C13.5764 12.6505 13.788 12.5374 14.0183 12.4916C14.2487 12.4457 14.4874 12.4693 14.7044 12.5591C14.9214 12.649 15.1069 12.8012 15.2374 12.9965C15.3679 13.1918 15.4375 13.4214 15.4375 13.6562C15.4375 13.9712 15.3124 14.2732 15.0897 14.4959C14.867 14.7186 14.5649 14.8438 14.25 14.8438ZM13.0625 7.71875V4.75H14.5662L17.1141 7.71875H13.0625Z"
+                fill="#F1F1F1"
+              />
             </svg>
-          }
-        >
+          }>
           <div className="flex flex-col gap-4">
             <select
               value={excursionData.destino}
-              onChange={(e) => setExcursionData({ ...excursionData, destino: e.target.value })}
-              className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-            >
-              <option className="text-black/90" value="">Destino</option>
+              onChange={(e) =>
+                setExcursionData({ ...excursionData, destino: e.target.value })
+              }
+              className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
+              <option className="text-black/90" value="">
+                Destino
+              </option>
               {destinos.map((destino: any) => (
-                <option className="text-black/90" key={destino.id} value={destino.name}>
+                <option
+                  className="text-black/90"
+                  key={destino.id}
+                  value={destino.name}>
                   {destino.name}
                 </option>
               ))}
@@ -352,14 +388,21 @@ export default function ExcursionesPage() {
               type="text"
               placeholder="Nombre de la excursión"
               value={excursionData.name}
-              onChange={(e) => setExcursionData({ ...excursionData, name: e.target.value })}
+              onChange={(e) =>
+                setExcursionData({ ...excursionData, name: e.target.value })
+              }
               className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
             />
 
             <textarea
               placeholder="Descripción"
               value={excursionData.description}
-              onChange={(e) => setExcursionData({ ...excursionData, description: e.target.value })}
+              onChange={(e) =>
+                setExcursionData({
+                  ...excursionData,
+                  description: e.target.value,
+                })
+              }
               className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none min-h-[100px]"
             />
           </div>
@@ -372,20 +415,33 @@ export default function ExcursionesPage() {
           setModalOpen={() => setModalOpenPut(false)}
           title="Editar Excursión"
           svg={
-            <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18.8568 7.92582L15.4768 3.98777C15.3654 3.85461 15.2261 3.74752 15.0687 3.67404C14.9114 3.60056 14.7398 3.56249 14.5662 3.5625H2.375C2.06006 3.5625 1.75801 3.68761 1.53531 3.91031C1.31261 4.13301 1.1875 4.43506 1.1875 4.75V13.0625C1.1875 13.3774 1.31261 13.6795 1.53531 13.9022C1.75801 14.1249 2.06006 14.25 2.375 14.25H3.63672C3.76752 14.7609 4.06464 15.2137 4.48122 15.537C4.8978 15.8604 5.41015 16.0359 5.9375 16.0359C6.46485 16.0359 6.9772 15.8604 7.39378 15.537C7.81037 15.2137 8.10748 14.7609 8.23828 14.25H11.9492C12.08 14.7609 12.3771 15.2137 12.7937 15.537C13.2103 15.8604 13.7226 16.0359 14.25 16.0359C14.7774 16.0359 15.2897 15.8604 15.7063 15.537C16.1229 15.2137 16.42 14.7609 16.5508 14.25H17.8125C18.1274 14.25 18.4295 14.1249 18.6522 13.9022C18.8749 13.6795 19 13.3774 19 13.0625V8.3125C19 8.17063 18.9492 8.03346 18.8568 7.92582ZM2.375 7.71875V4.75H6.53125V7.71875H2.375ZM5.9375 14.8438C5.70263 14.8438 5.47304 14.7741 5.27776 14.6436C5.08248 14.5131 4.93027 14.3277 4.84039 14.1107C4.75051 13.8937 4.727 13.6549 4.77282 13.4246C4.81864 13.1942 4.93174 12.9826 5.09781 12.8166C5.26389 12.6505 5.47548 12.5374 5.70583 12.4916C5.93618 12.4457 6.17495 12.4693 6.39194 12.5591C6.60892 12.649 6.79439 12.8012 6.92487 12.9965C7.05535 13.1918 7.125 13.4214 7.125 13.6562C7.125 13.9712 6.99989 14.2732 6.77719 14.4959C6.55449 14.7186 6.25244 14.8438 5.9375 14.8438ZM11.875 7.71875H7.71875V4.75H11.875V7.71875ZM14.25 14.8438C14.0151 14.8438 13.7855 14.7741 13.5903 14.6436C13.395 14.5131 13.2428 14.3277 13.1529 14.1107C13.063 13.8937 13.0395 13.6549 13.0853 13.4246C13.1311 13.1942 13.2442 12.9826 13.4103 12.8166C13.5764 12.6505 13.788 12.5374 14.0183 12.4916C14.2487 12.4457 14.4874 12.4693 14.7044 12.5591C14.9214 12.649 15.1069 12.8012 15.2374 12.9965C15.3679 13.1918 15.4375 13.4214 15.4375 13.6562C15.4375 13.9712 15.3124 14.2732 15.0897 14.4959C14.867 14.7186 14.5649 14.8438 14.25 14.8438ZM13.0625 7.71875V4.75H14.5662L17.1141 7.71875H13.0625Z" fill="#F1F1F1" />
+            <svg
+              width="19"
+              height="19"
+              viewBox="0 0 19 19"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M18.8568 7.92582L15.4768 3.98777C15.3654 3.85461 15.2261 3.74752 15.0687 3.67404C14.9114 3.60056 14.7398 3.56249 14.5662 3.5625H2.375C2.06006 3.5625 1.75801 3.68761 1.53531 3.91031C1.31261 4.13301 1.1875 4.43506 1.1875 4.75V13.0625C1.1875 13.3774 1.31261 13.6795 1.53531 13.9022C1.75801 14.1249 2.06006 14.25 2.375 14.25H3.63672C3.76752 14.7609 4.06464 15.2137 4.48122 15.537C4.8978 15.8604 5.41015 16.0359 5.9375 16.0359C6.46485 16.0359 6.9772 15.8604 7.39378 15.537C7.81037 15.2137 8.10748 14.7609 8.23828 14.25H11.9492C12.08 14.7609 12.3771 15.2137 12.7937 15.537C13.2103 15.8604 13.7226 16.0359 14.25 16.0359C14.7774 16.0359 15.2897 15.8604 15.7063 15.537C16.1229 15.2137 16.42 14.7609 16.5508 14.25H17.8125C18.1274 14.25 18.4295 14.1249 18.6522 13.9022C18.8749 13.6795 19 13.3774 19 13.0625V8.3125C19 8.17063 18.9492 8.03346 18.8568 7.92582ZM2.375 7.71875V4.75H6.53125V7.71875H2.375ZM5.9375 14.8438C5.70263 14.8438 5.47304 14.7741 5.27776 14.6436C5.08248 14.5131 4.93027 14.3277 4.84039 14.1107C4.75051 13.8937 4.727 13.6549 4.77282 13.4246C4.81864 13.1942 4.93174 12.9826 5.09781 12.8166C5.26389 12.6505 5.47548 12.5374 5.70583 12.4916C5.93618 12.4457 6.17495 12.4693 6.39194 12.5591C6.60892 12.649 6.79439 12.8012 6.92487 12.9965C7.05535 13.1918 7.125 13.4214 7.125 13.6562C7.125 13.9712 6.99989 14.2732 6.77719 14.4959C6.55449 14.7186 6.25244 14.8438 5.9375 14.8438ZM11.875 7.71875H7.71875V4.75H11.875V7.71875ZM14.25 14.8438C14.0151 14.8438 13.7855 14.7741 13.5903 14.6436C13.395 14.5131 13.2428 14.3277 13.1529 14.1107C13.063 13.8937 13.0395 13.6549 13.0853 13.4246C13.1311 13.1942 13.2442 12.9826 13.4103 12.8166C13.5764 12.6505 13.788 12.5374 14.0183 12.4916C14.2487 12.4457 14.4874 12.4693 14.7044 12.5591C14.9214 12.649 15.1069 12.8012 15.2374 12.9965C15.3679 13.1918 15.4375 13.4214 15.4375 13.6562C15.4375 13.9712 15.3124 14.2732 15.0897 14.4959C14.867 14.7186 14.5649 14.8438 14.25 14.8438ZM13.0625 7.71875V4.75H14.5662L17.1141 7.71875H13.0625Z"
+                fill="#F1F1F1"
+              />
             </svg>
-          }
-        >
+          }>
           <div className="flex flex-col gap-4">
             <select
               value={excursionData.destino}
-              onChange={(e) => setExcursionData({ ...excursionData, destino: e.target.value })}
-              className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
-            >
-              <option className="text-black/90" value="">Destino</option>
+              onChange={(e) =>
+                setExcursionData({ ...excursionData, destino: e.target.value })
+              }
+              className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none">
+              <option className="text-black/90" value="">
+                Destino
+              </option>
               {destinos.map((destino: any) => (
-                <option className="text-black/90" key={destino.id} value={destino.name}>
+                <option
+                  className="text-black/90"
+                  key={destino.id}
+                  value={destino.name}>
                   {destino.name}
                 </option>
               ))}
@@ -394,13 +450,20 @@ export default function ExcursionesPage() {
               type="text"
               placeholder="Nombre de la excursión"
               value={excursionData.name}
-              onChange={(e) => setExcursionData({ ...excursionData, name: e.target.value })}
+              onChange={(e) =>
+                setExcursionData({ ...excursionData, name: e.target.value })
+              }
               className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
             />
             <textarea
               placeholder="Descripción"
               value={excursionData.description}
-              onChange={(e) => setExcursionData({ ...excursionData, description: e.target.value })}
+              onChange={(e) =>
+                setExcursionData({
+                  ...excursionData,
+                  description: e.target.value,
+                })
+              }
               className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none min-h-[100px]"
             />
           </div>
