@@ -136,6 +136,7 @@ class Clients(Base):
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     active: Mapped[bool] = mapped_column(BOOLEAN, default=True, nullable=False, server_default="1")
+    allow_reservas: Mapped[bool] = mapped_column(BOOLEAN, default=True, nullable=False, server_default="1")
 
 
 class Regimenes(Base):
@@ -242,6 +243,8 @@ class Salidas(Base):
     coordinador_telefono: Mapped[str | None] = mapped_column(String(50), nullable=True)
     hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     regimen_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    alcance: Mapped[str | None] = mapped_column(String(50), nullable=True, default="argentina")
+    vouchers_online: Mapped[bool] = mapped_column(BOOLEAN, default=False, nullable=False, server_default="0")
 
 
 class SalidasLugaresCarga(Base):
@@ -371,6 +374,14 @@ class Vouchers(Base):
     coordinador_nombre: Mapped[str | None] = mapped_column(String(255), nullable=True)
     coordinador_telefono: Mapped[str | None] = mapped_column(String(50), nullable=True)
     hotel_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    hotel_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hotel_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    codigo_reserva: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    fecha_regreso: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    excursion_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    excursion_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    excursion_description: Mapped[str | None] = mapped_column(String(510), nullable=True)
     room_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     passengers_names: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     regimen_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

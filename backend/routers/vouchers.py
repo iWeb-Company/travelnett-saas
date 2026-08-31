@@ -6,11 +6,11 @@ from db.database import get_db
 from models.models import (
     Vouchers, Reservas, Passengers, Salidas, Packages,
     PackagesDatesOfExit, PackageHotels, Destinos, LugaresCarga, SalidasLugaresCarga,
-    Hotels, Regimenes, ReservationPassengers, TransportCompany
+    Hotels, Regimenes, ReservationPassengers, TransportCompany, Excursions
 )
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/vouchers", tags=["Vouchers CRUD"])
 
@@ -90,6 +90,7 @@ class VoucherResponseSchema(BaseModel):
     id: str
     iweb_client_id: str
     reserva_id: str
+    codigo_reserva: Optional[str] = None
     salida_id: Optional[str] = None
     package_id: Optional[str] = None
     destino_name: Optional[str] = None
@@ -97,6 +98,7 @@ class VoucherResponseSchema(BaseModel):
     titular_dni: Optional[str] = None
     total_passengers: Optional[int] = None
     fecha_salida: Optional[str] = None
+    fecha_regreso: Optional[str] = None
     tipo_transporte: Optional[str] = None
     tipo_butaca: Optional[str] = None
     lugar_carga: Optional[str] = None
@@ -104,7 +106,13 @@ class VoucherResponseSchema(BaseModel):
     empresa_transporte: Optional[str] = None
     coordinador_nombre: Optional[str] = None
     coordinador_telefono: Optional[str] = None
+    hotel_id: Optional[str] = None
     hotel_name: Optional[str] = None
+    hotel_address: Optional[str] = None
+    hotel_phone: Optional[str] = None
+    excursion_id: Optional[str] = None
+    excursion_name: Optional[str] = None
+    excursion_description: Optional[str] = None
     room_type: Optional[str] = None
     passengers_names: Optional[str] = None
     regimen_name: Optional[str] = None
@@ -244,6 +252,8 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
 
     # Resolver hotel_id: reserva → salida → primer package_hotel
     hotel_name = ""
+    hotel_address = ""
+    hotel_phone = ""
     hotel_id = reserva.hotel_id or (salida.hotel_id if salida else None)
     if not hotel_id and package:
         ph_fallback = db.query(PackageHotels).filter(
@@ -253,13 +263,18 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         if ph_fallback:
             hotel_id = ph_fallback.hotel_id
 
+    hotel_obj = None
     if hotel_id:
         hotel_obj = db.query(Hotels).filter(
             Hotels.id == hotel_id,
             Hotels.iweb_client_id == iweb_client_id
         ).first()
+        if not hotel_obj:
+            hotel_obj = db.query(Hotels).filter(Hotels.id == hotel_id).first()
         if hotel_obj:
-            hotel_name = hotel_obj.name
+            hotel_name = hotel_obj.name or ""
+            hotel_address = hotel_obj.address or ""
+            hotel_phone = str(hotel_obj.phone) if hotel_obj.phone else ""
         else:
             hotel_name = hotel_id
 
@@ -315,20 +330,60 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
     dias_val = (noches_val + 1) if (noches_val is not None) else None
 
     fecha_salida_str = ""
+    fecha_regreso_str = ""
     if salida and salida.date_of_out:
         try:
             raw_d = str(salida.date_of_out).split(" ")[0]
             dt = datetime.strptime(raw_d, "%Y-%m-%d")
             fecha_salida_str = dt.strftime("%d/%m/%Y")
+            if matching_ph and matching_ph.hotel_fecha_out:
+                try:
+                    raw_out = str(matching_ph.hotel_fecha_out).split(" ")[0]
+                    dt_out = datetime.strptime(raw_out, "%Y-%m-%d")
+                    fecha_regreso_str = dt_out.strftime("%d/%m/%Y")
+                except Exception:
+                    fecha_regreso_str = str(matching_ph.hotel_fecha_out)
+            elif noches_val:
+                dt_reg = dt + timedelta(days=noches_val)
+                fecha_regreso_str = dt_reg.strftime("%d/%m/%Y")
+            else:
+                fecha_regreso_str = fecha_salida_str
         except Exception:
             fecha_salida_str = str(salida.date_of_out)
+            fecha_regreso_str = fecha_salida_str
+    elif matching_ph and matching_ph.hotel_fecha_out:
+        fecha_regreso_str = str(matching_ph.hotel_fecha_out)
+
+    # Resolver Excursión
+    excursion_id = None
+    excursion_name = ""
+    excursion_description = ""
+    if package and package.excursiones:
+        exc_ids = [x.strip() for x in str(package.excursiones).split(",") if x.strip()]
+        if exc_ids:
+            first_exc_id = exc_ids[0]
+            exc_obj = db.query(Excursions).filter(
+                Excursions.id == first_exc_id,
+                Excursions.iweb_client_id == iweb_client_id
+            ).first()
+            if not exc_obj:
+                exc_obj = db.query(Excursions).filter(Excursions.id == first_exc_id).first()
+            if exc_obj:
+                excursion_id = exc_obj.id
+                excursion_name = exc_obj.name or ""
+                excursion_description = exc_obj.description or ""
+            else:
+                excursion_id = first_exc_id
+                excursion_name = first_exc_id
 
     room_type_formatted = format_room_type_label(reserva.room_type)
+    codigo_reserva_val = reserva.codigo_reserva or f"RES-{reserva.id[:5].upper()}"
 
     voucher = Vouchers(
         id=str(uuid.uuid4()),
         iweb_client_id=iweb_client_id,
         reserva_id=reserva_id,
+        codigo_reserva=codigo_reserva_val,
         salida_id=salida_id,
         package_id=package_id,
         destino_name=destino_name,
@@ -336,6 +391,7 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         titular_dni=titular_dni,
         total_passengers=len(rp_list),
         fecha_salida=fecha_salida_str,
+        fecha_regreso=fecha_regreso_str,
         tipo_transporte=tipo_transporte,
         tipo_butaca=tipo_butaca,
         lugar_carga=lugar_carga_name,
@@ -343,7 +399,13 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         empresa_transporte=empresa_transporte_name,
         coordinador_nombre=salida.coordinador_nombre if salida else "",
         coordinador_telefono=salida.coordinador_telefono if salida else "",
+        hotel_id=hotel_id,
         hotel_name=hotel_name,
+        hotel_address=hotel_address,
+        hotel_phone=hotel_phone,
+        excursion_id=excursion_id,
+        excursion_name=excursion_name,
+        excursion_description=excursion_description,
         room_type=room_type_formatted,
         passengers_names=passengers_names_str,
         regimen_name=regimen_name,

@@ -63,6 +63,45 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
     }
   };
 
+  const handleViewVoucher = async () => {
+    if (!user?.iweb_client_id || !reserva.id) return;
+    try {
+      // 1. If salida_id exists, check if vouchers_online is enabled on salida
+      if (reserva.salida_id) {
+        const salida = await apiClient.getSalida(user.iweb_client_id, reserva.salida_id).catch(() => null);
+        if (salida && salida.vouchers_online === false) {
+          toast.error("Los vouchers online aún no han sido habilitados para esta salida.");
+          return;
+        }
+      }
+
+      // 2. Check client payment method and remaining balance
+      if (reserva.client_id) {
+        const clients = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
+        const clientObj = Array.isArray(clients) ? clients.find((c: any) => c.id === reserva.client_id) : null;
+        const paymentMethod = clientObj?.payment_method || (reserva as any).payment_method || "";
+
+        if (paymentMethod === "contado") {
+          const liq = await apiClient.getLiquidacionByBooking(reserva.id).catch(() => null);
+          const pagos = await apiClient.getPagosReserva(user.iweb_client_id, reserva.id).catch(() => []);
+          const totalLiq = liq?.total_amout || 0;
+          const totalPagado = Array.isArray(pagos) ? pagos.reduce((acc: number, p: any) => acc + (p.amount || 0), 0) : 0;
+          const saldo = totalLiq - totalPagado;
+
+          if (saldo > 0) {
+            toast.error(`Para la forma de pago Contado, el voucher solo se habilita con saldo en $0. Saldo restante: $${saldo}`);
+            return;
+          }
+        }
+      }
+
+      window.open(`/voucher/${reserva.id}`, "_blank");
+    } catch (err) {
+      console.error(err);
+      window.open(`/voucher/${reserva.id}`, "_blank");
+    }
+  };
+
   return (
     <div className="flex flex-col">
       {/* ===== DESKTOP LAYOUT (md+) ===== */}
@@ -99,7 +138,7 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
               </svg>
             </button>
             {/* Print */}
-            <button>
+            <button onClick={handleViewVoucher} title="Ver Voucher de Servicios">
               <svg
                 width="25"
                 height="25"
@@ -208,7 +247,7 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
             </div>
             <div className="flex items-center gap-2 pt-2">
               {/* Print */}
-              <button>
+              <button onClick={handleViewVoucher} title="Ver Voucher de Servicios">
                 <svg
                   width="18"
                   height="18"
