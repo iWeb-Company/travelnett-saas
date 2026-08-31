@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { TaquillaLayout, TaquillaRow } from "./taquillaLayout";
 
 export interface PasajeroTaquilla {
   id: string;
@@ -15,352 +15,287 @@ export interface ExportTaquillaData {
   transportCompany?: string | null;
   destinoName?: string | null;
   salidaDate?: string | null;
+  logoUrl?: string | null;
   asignaciones: Record<string, PasajeroTaquilla>;
+  layout: TaquillaLayout;
 }
 
-// ─── Layouts ───────────────────────────────────────────────────────────────
-// Each row: [leftWindow, leftAisle, rightSeat]  (number = seat, null = empty)
-// For semicama we use the standard 2+1 layout:
-//   COL B = left-window passenger name/ascenso
-//   COL E = left-aisle  passenger name/ascenso
-//   COL J = right       passenger name/ascenso
-// Seat numbers to key lookup: S-<n>
-
-const semicamaSeats: { lw: number | null; la: number | null; r: number | null }[] = [
-  { lw: 1, la: 2, r: 3 },
-  { lw: 5, la: 6, r: null }, // logo row
-  { lw: 7, la: 8, r: null },
-  { lw: null, la: null, r: null }, // spacer
-  { lw: 9, la: 10, r: 11 },
-  { lw: 13, la: 14, r: 15 },
-  { lw: 17, la: 18, r: 19 },
-  { lw: null, la: null, r: null }, // spacer
-  { lw: 21, la: 22, r: 23 },
-  { lw: 25, la: 26, r: 27 },
-  { lw: 29, la: 30, r: 31 },
-  { lw: 33, la: 34, r: 35 },
-  { lw: 37, la: 38, r: 39 },
-  { lw: 41, la: 42, r: 43 },
-  { lw: 45, la: 46, r: 47 },
-  { lw: 49, la: 50, r: 51 },
-];
-
-// Paired twin seats (right side has col 4 = nil in example)
-const semicamaRightPaired: Record<number, number> = {
-  3: 4, 11: 12, 15: 16, 19: 20, 23: 24, 27: 28,
-  31: 32, 35: 36, 39: 40, 43: 44, 47: 48, 51: 52
-};
-
-const camaSeats: { lw: number | null; la: number | null; r: number | null }[] = [
-  { lw: 1, la: 2, r: 3 },
-  { lw: 4, la: 5, r: null },
-  { lw: 6, la: 7, r: null },
-  { lw: 8, la: 9, r: 10 },
-];
-
-// ─── Style helpers ──────────────────────────────────────────────────────────
-
 const THIN = { style: "thin" as const };
-const RED_FONT = {
-  name: "Arial", size: 8, bold: true,
-  color: { argb: "FFFF0000" }
-};
-const NAME_FONT = { name: "Calibri", size: 11 };
-const COORD_FONT = {
-  name: "Calibri", size: 11, bold: true,
-  color: { argb: "FFFF0000" }
-};
-const HEADER_FONT = { name: "Calibri", size: 11, bold: true };
 
 function borderBox(): Partial<ExcelJS.Borders> {
   return { top: THIN, left: THIN, right: THIN, bottom: THIN };
 }
 
-// Write a passenger "slot" starting at given row, col (name row, +1 = ascenso)
-function writePax(
-  ws: ExcelJS.Worksheet,
+function writeSeat(
+  worksheet: ExcelJS.Worksheet,
   row: number,
-  col: number,
-  pax: PasajeroTaquilla | null | undefined,
-  isCoord = false
+  column: number,
+  seat: number | null,
+  passenger: PasajeroTaquilla | undefined
 ) {
-  const nameCell = ws.getCell(row, col);
-  const ascCell = ws.getCell(row + 1, col);
+  const numberCell = worksheet.getCell(row, column);
+  const nameCell = worksheet.getCell(row, column + 1);
+  const localityCell = worksheet.getCell(row + 1, column + 1);
 
-  // Both cells get a box border
+  numberCell.border = borderBox();
   nameCell.border = borderBox();
-  ascCell.border = borderBox();
+  localityCell.border = borderBox();
+  numberCell.alignment = { horizontal: "center", vertical: "middle" };
+  nameCell.alignment = { vertical: "middle" };
+  localityCell.alignment = { vertical: "middle" };
 
-  if (pax) {
-    nameCell.value = pax.nombre.toUpperCase();
-    nameCell.font = isCoord ? COORD_FONT : NAME_FONT;
-
-    ascCell.value = pax.localidad.toUpperCase();
-    ascCell.font = isCoord
-      ? { ...COORD_FONT }
-      : RED_FONT;
+  if (seat !== null) {
+    numberCell.value = seat;
+    numberCell.font = { name: "Calibri", size: 9, bold: true };
+  }
+  if (passenger) {
+    nameCell.value = passenger.nombre.toUpperCase();
+    nameCell.font = { name: "Calibri", size: 10 };
+    localityCell.value = passenger.localidad.toUpperCase();
+    localityCell.font = { name: "Arial", size: 8, bold: true, color: { argb: "FFFF0000" } };
   }
 }
 
-// ─── EXCEL EXPORT ───────────────────────────────────────────────────────────
+function writeExcelRows(
+  worksheet: ExcelJS.Worksheet,
+  startRow: number,
+  rows: TaquillaRow[],
+  prefix: "S" | "C",
+  data: ExportTaquillaData
+) {
+  let currentRow = startRow;
+  const totalColumns = data.layout.columns * 2;
 
-export async function exportTaquillaToExcel(data: ExportTaquillaData) {
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("TAQUILLA");
+  rows.forEach((layoutRow) => {
+    layoutRow.seats.forEach((seat, index) => {
+      writeSeat(
+        worksheet,
+        currentRow,
+        index * 2 + 1,
+        seat,
+        seat ? data.asignaciones[prefix + "-" + seat] : undefined
+      );
+    });
 
-  // Column widths (matching taquilla_example.xlsx exactly)
-  const cols = [
-    { width: 2.7 }, // A – left margin / section label
-    { width: 20.7 }, // B – left-window name
-    { width: 1.7 }, // C – fill/separator
-    { width: 2.7 }, // D – seat number box
-    { width: 24 }, // E – left-aisle name
-    { width: 1.7 }, // F – fill/separator
-    { width: 2.7 }, // G
-    { width: 1.7 }, // H
-    { width: 2.7 }, // I – seat number box (right side)
-    { width: 24 }, // J – right-seat name
-    { width: 4.7 }, // K – right margin
-  ];
-  cols.forEach((c, i) => { ws.getColumn(i + 1).width = c.width; });
-
-  // ── Row 3: company name ──────────────────────────────────────────────────
-  ws.getCell("B3").value = (data.transportCompany || "BUS CAMA").toUpperCase();
-  ws.getCell("B3").font = { name: "Calibri", size: 12, bold: true };
-
-  // ── Row 4: SUPERIOR header ───────────────────────────────────────────────
-  ws.getCell("A4").value = "SUPERIOR";
-  ws.getCell("A4").font = HEADER_FONT;
-
-  ws.getCell("E4").value = " TAQUILLA ASIENTOS PARTE SUPERIOR";
-  ws.getCell("E4").font = HEADER_FONT;
-  ws.mergeCells("E4:J4");
-
-  // ── SUPERIOR section: semicama ───────────────────────────────────────────
-  // The visible layout in the Excel uses rows that are 2 rows tall per seat pair
-  // (name row + ascenso row), with an empty gap row between groups.
-  // Starting at row 6 (matching the example).
-
-  let r = 6;
-  const isLogoGroup = (idx: number) => idx === 1; // 2nd group has logo
-
-  for (let idx = 0; idx < semicamaSeats.length; idx++) {
-    const seat = semicamaSeats[idx];
-
-    if (seat.lw === null && seat.la === null && seat.r === null) {
-      r += 1; // spacer row
-      continue;
-    }
-
-    const pLW = seat.lw ? data.asignaciones[`S-${seat.lw}`] : null;
-    const pLA = seat.la ? data.asignaciones[`S-${seat.la}`] : null;
-    const pR = seat.r ? data.asignaciones[`S-${seat.r}`] : null;
-
-    // ─── Left window (col B, D) ──────────────────────────────────────────
-    if (seat.lw !== null) {
-      writePax(ws, r, 2 /* B */, pLW);
-    }
-
-    // Seat number box col D (left pair)
-    if (seat.lw !== null) {
-      const seatNumCell = ws.getCell(r, 4);
-      seatNumCell.value = seat.lw;
-      seatNumCell.font = { name: "Calibri", size: 9, bold: true };
-      seatNumCell.alignment = { horizontal: "center", vertical: "middle" };
-      seatNumCell.border = borderBox();
-    }
-
-    // ─── Left aisle (col E) ──────────────────────────────────────────────
-    if (seat.la !== null) {
-      writePax(ws, r, 5 /* E */, pLA);
-    }
-
-    // ─── Right seat (col I/J) ────────────────────────────────────────────
-    if (isLogoGroup(idx)) {
-      // Logo placeholder – span J cols
-      const logoCell = ws.getCell(r, 10);
-      logoCell.value = "LOGO EMPRESA";
-      logoCell.font = { name: "Calibri", size: 9, bold: true };
-      logoCell.alignment = { horizontal: "center", vertical: "middle" };
-      try { ws.mergeCells(r, 10, r + 1, 11); } catch { }
-    } else if (seat.r !== null) {
-      const seatNumCellR = ws.getCell(r, 9);
-      seatNumCellR.value = seat.r;
-      seatNumCellR.font = { name: "Calibri", size: 9, bold: true };
-      seatNumCellR.alignment = { horizontal: "center", vertical: "middle" };
-      seatNumCellR.border = borderBox();
-
-      writePax(ws, r, 10 /* J */, pR);
-    }
-
-    r += 3; // 2 rows for pax + 1 blank row between groups
-  }
-
-  // ── INFERIOR header ──────────────────────────────────────────────────────
-  r += 0; // already on blank
-  ws.getCell(r, 1).value = "INFERIOR";
-  ws.getCell(r, 1).font = HEADER_FONT;
-  try { ws.mergeCells(r, 1, r, 10); } catch { }
-  r += 2;
-
-  // ── INFERIOR section: cama ───────────────────────────────────────────────
-  for (let idx = 0; idx < camaSeats.length; idx++) {
-    const seat = camaSeats[idx];
-
-    const pLW = seat.lw ? data.asignaciones[`C-${seat.lw}`] : null;
-    const pLA = seat.la ? data.asignaciones[`C-${seat.la}`] : null;
-    const pR = seat.r ? data.asignaciones[`C-${seat.r}`] : null;
-
-    if (seat.lw !== null) {
-      writePax(ws, r, 2, pLW);
-      const seatNumCell = ws.getCell(r, 4);
-      seatNumCell.value = seat.lw;
-      seatNumCell.font = { name: "Calibri", size: 9, bold: true };
-      seatNumCell.alignment = { horizontal: "center", vertical: "middle" };
-      seatNumCell.border = borderBox();
-    }
-
-    if (seat.la !== null) {
-      writePax(ws, r, 5, pLA);
-    }
-
-    if (seat.r !== null) {
-      const seatNumCellR = ws.getCell(r, 9);
-      seatNumCellR.value = seat.r;
-      seatNumCellR.font = { name: "Calibri", size: 9, bold: true };
-      seatNumCellR.alignment = { horizontal: "center", vertical: "middle" };
-      seatNumCellR.border = borderBox();
-
-      // Check if this is the last row – last right seat is "COORDINADOR"
-      const isLastRow = idx === camaSeats.length - 1;
-      if (isLastRow && !pR) {
-        const coordNameCell = ws.getCell(r, 10);
-        coordNameCell.value = "COORDINADOR";
-        coordNameCell.font = COORD_FONT;
-        coordNameCell.border = borderBox();
-        ws.getCell(r + 1, 10).border = borderBox();
-        try { ws.mergeCells(r, 10, r + 1, 10); } catch { }
-      } else {
-        writePax(ws, r, 10, pR, isLastRow);
+    if (layoutRow.logoStartColumn !== undefined) {
+      const logoStart = layoutRow.logoStartColumn * 2 + 1;
+      if (logoStart <= totalColumns) {
+        const logoEndRow = currentRow + ((layoutRow.logoRowSpan || 1) * 3) - 1;
+        worksheet.mergeCells(currentRow, logoStart, logoEndRow, totalColumns);
+        const logoCell = worksheet.getCell(currentRow, logoStart);
+        logoCell.value = "LOGO EMPRESA";
+        logoCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+        logoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF6005F7" } };
+        logoCell.alignment = { horizontal: "center", vertical: "middle" };
+        logoCell.border = borderBox();
       }
     }
 
-    r += 3;
+    worksheet.getRow(currentRow).height = 18;
+    worksheet.getRow(currentRow + 1).height = 16;
+    currentRow += 3;
+  });
+
+  return currentRow;
+}
+
+export async function exportTaquillaToExcel(data: ExportTaquillaData) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("TAQUILLA");
+  const totalColumns = data.layout.columns * 2;
+
+  for (let column = 1; column <= totalColumns; column += 2) {
+    worksheet.getColumn(column).width = 5;
+    worksheet.getColumn(column + 1).width = 24;
   }
 
-  // ── Download ─────────────────────────────────────────────────────────────
-  const buffer = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
+  worksheet.mergeCells(1, 1, 1, totalColumns);
+  const title = worksheet.getCell(1, 1);
+  title.value = "TAQUILLA DE ASIENTOS - " + (data.transportCompany || "BUS").toUpperCase();
+  title.font = { name: "Calibri", size: 13, bold: true, color: { argb: "FF003399" } };
+
+  if (data.destinoName) {
+    worksheet.mergeCells(2, 1, 2, totalColumns);
+    worksheet.getCell(2, 1).value = "DESTINO: " + data.destinoName.toUpperCase();
+    worksheet.getCell(2, 1).font = { name: "Calibri", size: 10, bold: true };
+  }
+
+  worksheet.mergeCells(4, 1, 4, totalColumns);
+  worksheet.getCell(4, 1).value = "SUPERIOR (SEMICAMA)";
+  worksheet.getCell(4, 1).font = { name: "Calibri", size: 11, bold: true };
+  const currentRow = writeExcelRows(worksheet, 6, data.layout.semicamaRows, "S", data);
+
+  worksheet.mergeCells(currentRow, 1, currentRow, totalColumns);
+  worksheet.getCell(currentRow, 1).value = "INFERIOR (CAMA)";
+  worksheet.getCell(currentRow, 1).font = { name: "Calibri", size: 11, bold: true };
+  writeExcelRows(worksheet, currentRow + 2, data.layout.camaRows, "C", data);
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `Taquilla_${(data.transportCompany || "Salida").replace(/\s+/g, "_")}.xlsx`;
-  a.click();
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "Taquilla_" + (data.transportCompany || "Salida").replace(/\s+/g, "_") + ".xlsx";
+  anchor.click();
   URL.revokeObjectURL(url);
 }
 
-// ─── PDF EXPORT ─────────────────────────────────────────────────────────────
+async function getLogoDataUrl(logoUrl?: string | null) {
+  if (!logoUrl) return null;
 
-export function exportTaquillaToPdf(data: ExportTaquillaData) {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  try {
+    const response = await fetch(logoUrl);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
 
-  const makeRows = (
-    seats: { lw: number | null; la: number | null; r: number | null }[],
-    prefix: "S" | "C"
-  ) => {
-    return seats
-      .filter(s => !(s.lw === null && s.la === null && s.r === null))
-      .map(seat => {
-        const pLW = seat.lw ? data.asignaciones[`${prefix}-${seat.lw}`] : null;
-        const pLA = seat.la ? data.asignaciones[`${prefix}-${seat.la}`] : null;
-        const pR = seat.r ? data.asignaciones[`${prefix}-${seat.r}`] : null;
+function drawSeatCard(
+  document: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  seat: number | null,
+  passenger: PasajeroTaquilla | undefined
+) {
+  if (seat === null) return;
 
-        const fmt = (p: PasajeroTaquilla | null, num: number | null) =>
-          p ? `${p.nombre.toUpperCase()}\n${p.localidad.toUpperCase()}` : (num ? "" : "—");
+  document.setDrawColor(210, 210, 220);
+  document.setFillColor(passenger ? 239 : 255, passenger ? 245 : 255, passenger ? 255 : 255);
+  document.roundedRect(x + 1, y + 0.7, width - 2, height - 1.4, 1.5, 1.5, "FD");
+  document.setFillColor(96, 5, 247);
+  document.circle(x + 4.5, y + height / 2, 2.2, "F");
+  document.setTextColor(255, 255, 255);
+  document.setFont("helvetica", "bold");
+  document.setFontSize(Math.max(4.5, Math.min(7, width / 9)));
+  document.text(String(seat), x + 4.5, y + height / 2 + 1.2, { align: "center" });
 
-        return [
-          seat.lw ?? "—",
-          fmt(pLW, seat.lw),
-          seat.la ?? "—",
-          fmt(pLA, seat.la),
-          seat.r ?? "—",
-          fmt(pR, seat.r),
-        ];
-      });
-  };
+  if (!passenger) return;
 
-  const title = (data.transportCompany || "BUS CAMA").toUpperCase();
+  const textX = x + 8;
+  const textWidth = Math.max(10, width - 10);
+  document.setTextColor(15, 15, 15);
+  document.setFont("helvetica", "bold");
+  document.setFontSize(Math.max(4, Math.min(6.5, width / 10)));
+  const name = document.splitTextToSize(passenger.nombre.toUpperCase(), textWidth)[0] || "";
+  document.text(name, textX, y + height / 2 - 0.4);
+  document.setTextColor(96, 5, 247);
+  document.setFont("helvetica", "normal");
+  document.setFontSize(Math.max(3.5, Math.min(5.5, width / 12)));
+  const locality = document.splitTextToSize(passenger.localidad.toUpperCase(), textWidth)[0] || "";
+  document.text(locality, textX, y + height / 2 + 2.8);
+}
 
-  // Header
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(0, 51, 153);
-  doc.text(`TAQUILLA DE ASIENTOS — ${title}`, 14, 14);
-  if (data.destinoName) {
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    doc.text(`Destino: ${data.destinoName.toUpperCase()}`, 14, 20);
+function drawLogoBlock(
+  document: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  logoDataUrl: string | null
+) {
+  document.setFillColor(96, 5, 247);
+  document.roundedRect(x + 1, y + 0.7, width - 2, height - 1.4, 2, 2, "F");
+
+  if (logoDataUrl) {
+    try {
+      document.addImage(logoDataUrl, "PNG", x + 3, y + 2, Math.max(5, width - 6), Math.max(5, height - 4));
+      return;
+    } catch {
+      // Keep the visual fallback when the stored image format is unsupported.
+    }
   }
 
-  const colStyles: any = {
-    0: { halign: "center", fontStyle: "bold", cellWidth: 12 },
-    1: { cellWidth: 50 },
-    2: { halign: "center", fontStyle: "bold", cellWidth: 12 },
-    3: { cellWidth: 50 },
-    4: { halign: "center", fontStyle: "bold", cellWidth: 12 },
-    5: { cellWidth: 50 },
-  };
+  document.setTextColor(255, 255, 255);
+  document.setFont("helvetica", "bold");
+  document.setFontSize(Math.max(5, Math.min(10, width / 8)));
+  document.text("LOGO EMPRESA", x + width / 2, y + height / 2 + 1.5, { align: "center" });
+}
 
-  const headStyle = {
-    fillColor: [5, 70, 247] as [number, number, number],
-    textColor: 255 as number,
-    fontStyle: "bold" as const,
-    halign: "center" as const,
-    fontSize: 7,
-  };
+function drawPdfRows(
+  document: jsPDF,
+  rows: TaquillaRow[],
+  prefix: "S" | "C",
+  startY: number,
+  data: ExportTaquillaData,
+  logoDataUrl: string | null
+) {
+  const pageWidth = 297;
+  const margin = 14;
+  const availableWidth = pageWidth - margin * 2;
+  const columnWidth = availableWidth / data.layout.columns;
+  const rowHeight = 10.5;
+  let currentY = startY;
 
-  // SUPERIOR
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.text("SUPERIOR (SEMICAMA)", 14, 26);
+  rows.forEach((layoutRow) => {
+    layoutRow.seats.forEach((seat, columnIndex) => {
+      if (layoutRow.logoStartColumn !== undefined && columnIndex >= layoutRow.logoStartColumn) return;
+      const passenger = seat ? data.asignaciones[prefix + "-" + seat] : undefined;
+      drawSeatCard(document, margin + columnIndex * columnWidth, currentY, columnWidth, rowHeight, seat, passenger);
+    });
 
-  autoTable(doc, {
-    startY: 28,
-    head: [["#", "Asiento Izq. Ventana", "#", "Asiento Izq. Pasillo", "#", "Asiento Derecho"]],
-    body: makeRows(semicamaSeats, "S"),
-    styles: { fontSize: 7.5, cellPadding: 2, valign: "middle", lineColor: [200, 200, 200], lineWidth: 0.2 },
-    headStyles: headStyle,
-    columnStyles: colStyles,
-    didParseCell(hookData) {
-      // Color red for ascenso (second line) in content cells
-      if (hookData.section === "body" && [1, 3, 5].includes(hookData.column.index)) {
-        const val = hookData.cell.raw as string;
-        if (val && val.includes("\n")) {
-          hookData.cell.styles.fontSize = 7.5;
-        }
-      }
-    },
+    if (layoutRow.logoStartColumn !== undefined) {
+      const logoColumnCount = data.layout.columns - layoutRow.logoStartColumn;
+      drawLogoBlock(
+        document,
+        margin + layoutRow.logoStartColumn * columnWidth,
+        currentY,
+        logoColumnCount * columnWidth,
+        rowHeight * (layoutRow.logoRowSpan || 1),
+        logoDataUrl
+      );
+    }
+
+    currentY += rowHeight;
   });
 
-  const afterSuperior = (doc as any).lastAutoTable?.finalY ?? 130;
+  return currentY;
+}
 
-  // INFERIOR
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.text("INFERIOR (CAMA)", 14, afterSuperior + 8);
+export async function exportTaquillaToPdf(data: ExportTaquillaData) {
+  const document = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const title = (data.transportCompany || "BUS").toUpperCase();
+  const logoDataUrl = await getLogoDataUrl(data.logoUrl);
 
-  autoTable(doc, {
-    startY: afterSuperior + 11,
-    head: [["#", "Asiento Izq. Ventana", "#", "Asiento Izq. Pasillo", "#", "Asiento Derecho"]],
-    body: makeRows(camaSeats, "C"),
-    styles: { fontSize: 7.5, cellPadding: 2, valign: "middle", lineColor: [200, 200, 200], lineWidth: 0.2 },
-    headStyles: headStyle,
-    columnStyles: colStyles,
-  });
+  document.setFont("helvetica", "bold");
+  document.setFontSize(13);
+  document.setTextColor(0, 51, 153);
+  document.text("TAQUILLA DE ASIENTOS - " + title, 14, 14);
+  if (data.destinoName) {
+    document.setFontSize(9);
+    document.setTextColor(80, 80, 80);
+    document.text("Destino: " + data.destinoName.toUpperCase(), 14, 20);
+  }
 
-  doc.save(`Taquilla_${(data.destinoName || "Salida").replace(/\s+/g, "_")}_${data.salidaDate || "Salida"}.pdf`);
+  document.setFont("helvetica", "bold");
+  document.setFontSize(10);
+  document.setTextColor(0, 0, 0);
+  document.text("SUPERIOR (SEMICAMA)", 14, 28);
+  const afterSemicama = drawPdfRows(
+    document,
+    data.layout.semicamaRows,
+    "S",
+    31,
+    data,
+    logoDataUrl
+  );
+
+  document.setFont("helvetica", "bold");
+  document.setFontSize(10);
+  document.setTextColor(0, 0, 0);
+  document.text("INFERIOR (CAMA)", 14, afterSemicama + 7);
+  drawPdfRows(document, data.layout.camaRows, "C", afterSemicama + 10, data, logoDataUrl);
+
+  document.save(
+    "Taquilla_" + (data.destinoName || "Salida").replace(/\s+/g, "_") + "_" + (data.salidaDate || "Salida") + ".pdf"
+  );
 }

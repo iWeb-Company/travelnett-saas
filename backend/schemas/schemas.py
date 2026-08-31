@@ -1204,6 +1204,11 @@ class CreateBusTypesRequest(BaseModel):
     cama_quantity: Optional[int] = None
     panoramicos_quantity: Optional[int] = None
     description: Optional[str] = None
+    # Compatibility with the current parameter form payload.
+    cant_semi: Optional[Union[int, str]] = None
+    cant_cama: Optional[Union[int, str]] = None
+    cant_pano: Optional[Union[int, str]] = None
+    observaciones: Optional[str] = None
 
 # Update
 
@@ -1288,6 +1293,11 @@ class UpdateBusTypesRequest(BaseModel):
     cama_quantity: Optional[int] = None
     panoramicos_quantity: Optional[int] = None
     description: Optional[str] = None
+    # Compatibility with the current parameter form payload.
+    cant_semi: Optional[Union[int, str]] = None
+    cant_cama: Optional[Union[int, str]] = None
+    cant_pano: Optional[Union[int, str]] = None
+    observaciones: Optional[str] = None
 
 # Schemas for permissions management
 
