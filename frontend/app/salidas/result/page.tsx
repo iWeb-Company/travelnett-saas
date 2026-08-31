@@ -29,6 +29,7 @@ function ResultContent() {
   const periodFilter = searchParams.get("periodo") || "";
   const rangoFilter = searchParams.get("rango") || "";
   const activeFilter = searchParams.get("active") || "";
+  const alcanceFilter = searchParams.get("alcance") || "";
 
   useEffect(() => {
     const loadAll = async () => {
@@ -55,6 +56,9 @@ function ResultContent() {
 
   const filtered = salidas.filter((s) => {
     if (tipoFilter && tipoFilter !== "null" && s.type !== tipoFilter) {
+      return false;
+    }
+    if (alcanceFilter && alcanceFilter !== "null" && (s.alcance || "argentina") !== alcanceFilter) {
       return false;
     }
     if (destinoFilter && s.destino !== destinoFilter) {

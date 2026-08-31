@@ -386,6 +386,7 @@ async def create_clients(
         hashed_password=body.hashed_password,
         created_at=body.created_at,
         active=body.active if body.active is not None else True,
+        allow_reservas=body.allow_reservas if hasattr(body, 'allow_reservas') and body.allow_reservas is not None else True,
     )
     db.add(new_client)
     db.commit()

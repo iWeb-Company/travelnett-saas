@@ -145,6 +145,8 @@ async def get_salidas(
                 coordinador_telefono=s.coordinador_telefono,
                 hotel_id=s.hotel_id,
                 regimen_id=s.regimen_id,
+                alcance=s.alcance or "argentina",
+                vouchers_online=bool(s.vouchers_online),
                 passengers=total_passengers,
                 semicama=s.semicama or 0,
                 cama=s.cama or 0,
@@ -249,6 +251,8 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
         coordinador_telefono=s.coordinador_telefono,
         hotel_id=s.hotel_id,
         regimen_id=s.regimen_id,
+        alcance=s.alcance or "argentina",
+        vouchers_online=bool(s.vouchers_online),
         passengers=total_passengers,
         semicama=s.semicama,
         cama=s.cama,
@@ -283,7 +287,9 @@ async def create_salida(
         coordinador_nombre=body.coordinador_nombre,
         coordinador_telefono=body.coordinador_telefono,
         hotel_id=body.hotel_id,
-        regimen_id=body.regimen_id
+        regimen_id=body.regimen_id,
+        alcance=body.alcance or "argentina",
+        vouchers_online=body.vouchers_online if body.vouchers_online is not None else False
     )
     db.add(new_salida)
     
@@ -335,6 +341,8 @@ async def create_salida(
         coordinador_telefono=new_salida.coordinador_telefono,
         hotel_id=new_salida.hotel_id,
         regimen_id=new_salida.regimen_id,
+        alcance=new_salida.alcance or "argentina",
+        vouchers_online=bool(new_salida.vouchers_online),
         passengers=new_salida.passengers,
         semicama=new_salida.semicama,
         cama=new_salida.cama,
@@ -386,6 +394,10 @@ async def update_salida(
         s.hotel_id = body.hotel_id
     if body.regimen_id is not None:
         s.regimen_id = body.regimen_id
+    if body.alcance is not None:
+        s.alcance = body.alcance
+    if body.vouchers_online is not None:
+        s.vouchers_online = body.vouchers_online
         
     # Actualizar o crear la relación de lugares de carga
     rel = db.query(SalidasLugaresCarga).filter(
@@ -454,6 +466,8 @@ async def update_salida(
         coordinador_telefono=s.coordinador_telefono,
         hotel_id=s.hotel_id,
         regimen_id=s.regimen_id,
+        alcance=s.alcance or "argentina",
+        vouchers_online=bool(s.vouchers_online),
         passengers=s.passengers,
         semicama=s.semicama,
         cama=s.cama,

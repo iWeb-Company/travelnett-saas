@@ -191,7 +191,7 @@ export default function VoucherPage() {
                 VOUCHER DE SERVICIOS CONTRATADOS
               </p>
               <p className="text-xl sm:text-2xl font-semibold">
-                RESERVA {voucherData.id.substring(0, 5).toUpperCase()}
+                RESERVA {voucherData.codigo_reserva || voucherData.id.substring(0, 5).toUpperCase()}
               </p>
             </div>
           </div>
@@ -218,11 +218,13 @@ export default function VoucherPage() {
 
           {/* PASAJEROS */}
           <div
-            className={`text-black py-4 px-4 sm:px-6 md:px-10 flex flex-col items-start justify-between border-b border-b-black gap-2`}>
-            <p className="font-medium">Pasajeros:</p>
-            <div className="flex flex-wrap items-start gap-1">
+            className={`text-black py-4 px-4 sm:px-6 md:px-10 flex flex-col items-start border-b border-b-black gap-1`}>
+            <p className="font-semibold text-xl sm:text-2xl">Pasajeros</p>
+            <div className="flex flex-wrap items-start">
               {passengers?.map((p, i) => (
-                <span key={i} className="text-lg sm:text-xl pr-1 font-semibold">
+                <span
+                  key={i}
+                  className="text-lg sm:text-xl pr-2 font-semibold">
                   {p} {i + 1 !== passengers?.length ? "/" : ""}
                 </span>
               ))}
@@ -311,7 +313,7 @@ export default function VoucherPage() {
                     Fecha de regreso
                   </p>
                   <p className="font-semibold text-xl sm:text-2xl">
-                    {voucherData.fecha_salida}
+                    {voucherData.fecha_regreso || voucherData.fecha_salida}
                   </p>
                 </div>
               </div>
@@ -353,11 +355,11 @@ export default function VoucherPage() {
                   </p>
                   <div className="flex items-center gap-2 text-sm sm:text-base">
                     <p>Dirección:</p>
-                    <p className="font-semibold">{voucherData.hotel_name}</p>
+                    <p className="font-semibold">{voucherData.hotel_address || "-"}</p>
                   </div>
                   <div className="flex items-center gap-2 text-sm sm:text-base">
                     <p>Telefono:</p>
-                    <p className="font-semibold">{voucherData.hotel_name}</p>
+                    <p className="font-semibold">{voucherData.hotel_phone || "-"}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-2">
@@ -389,7 +391,7 @@ export default function VoucherPage() {
                 <div className="flex flex-col items-start py-2 w-full">
                   <p className="text-lg sm:text-xl font-medium">Check-out</p>
                   <p className="font-semibold text-xl sm:text-2xl">
-                    {voucherData.fecha_salida}
+                    {voucherData.fecha_regreso || "-"}
                   </p>
                   <p className="text-lg sm:text-xl font-medium">
                     {voucherData.noches} noches
@@ -403,7 +405,7 @@ export default function VoucherPage() {
                     Fecha de regreso
                   </p>
                   <p className="font-semibold text-xl sm:text-2xl">
-                    {voucherData.fecha_salida}
+                    {voucherData.fecha_regreso || voucherData.fecha_salida}
                   </p>
                 </div>
               </div>
@@ -451,7 +453,7 @@ export default function VoucherPage() {
                 <div className="flex flex-col items-start w-full pb-2 md:pb-9 pt-2">
                   <p className="text-lg sm:text-xl font-medium">Destino</p>
                   <p className="font-semibold text-xl sm:text-2xl">
-                    {voucherData.destino_name?.slice(0, 6)}
+                    {voucherData.destino_name || "-"}
                   </p>
                 </div>
                 <div className="flex flex-col items-center gap-2">
@@ -459,7 +461,9 @@ export default function VoucherPage() {
                 </div>
                 <div className="flex flex-col items-start w-full py-2">
                   <p className="text-lg sm:text-xl font-medium">Descripción</p>
-                  <p className="font-semibold text-xl sm:text-2xl">-</p>
+                  <p className="font-semibold text-base sm:text-lg">
+                    {voucherData.excursion_description || "-"}
+                  </p>
                 </div>
               </div>
 
@@ -471,7 +475,9 @@ export default function VoucherPage() {
                 </div>
                 <div className="flex flex-col items-start pt-2 w-full">
                   <p className="text-lg sm:text-xl font-medium">Excursión</p>
-                  <p className="font-semibold text-xl sm:text-2xl">Playa</p>
+                  <p className="font-semibold text-xl sm:text-2xl">
+                    {voucherData.excursion_name || "-"}
+                  </p>
                 </div>
               </div>
             </div>

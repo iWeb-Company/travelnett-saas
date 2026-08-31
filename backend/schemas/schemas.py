@@ -66,6 +66,8 @@ class ClientsCreatePayload(BaseModel):
     commission: Optional[int] = None
     hashed_password: Optional[str] = None
     created_at: Optional[datetime] = None
+    active: Optional[bool] = True
+    allow_reservas: Optional[bool] = True
 
 class UserCreateRequest(BaseModel):
     user: UserCreatePayload
@@ -155,6 +157,7 @@ class CreateClientsRequest(BaseModel):
     hashed_password: Optional[str] = None
     created_at: Optional[datetime] = None
     active: Optional[bool] = True
+    allow_reservas: Optional[bool] = True
     
 class CreateRegimenesRequest(BaseModel):
     id: Optional[str] = None
@@ -245,6 +248,7 @@ class UpdateClientsRequest(BaseModel):
     commission: Optional[int] = None
     hashed_password: Optional[str] = None
     active: Optional[bool] = None
+    allow_reservas: Optional[bool] = None
     
 class UpdateRegimenesRequest(BaseModel):
     id: Optional[str] = None
@@ -409,6 +413,8 @@ class SalidaResponse(BaseModel):
     coordinador_telefono: Optional[str] = None
     hotel_id: Optional[str] = None
     regimen_id: Optional[str] = None
+    alcance: Optional[str] = "argentina"
+    vouchers_online: Optional[bool] = False
     passengers: Optional[int] = None
     semicama: Optional[int] = None
     cama: Optional[int] = None
@@ -430,6 +436,8 @@ class SalidaCreateRequest(BaseModel):
     transport_company: Optional[str] = None
     type_bus: Optional[str] = None
     destino: Optional[str] = None
+    alcance: Optional[str] = "argentina"
+    vouchers_online: Optional[bool] = False
     passengers: Optional[int] = None
     semicama: Optional[int] = None
     cama: Optional[int] = None
@@ -449,6 +457,8 @@ class SalidaUpdateRequest(BaseModel):
     transport_company: Optional[str] = None
     type_bus: Optional[str] = None
     destino: Optional[str] = None
+    alcance: Optional[str] = None
+    vouchers_online: Optional[bool] = None
     passengers: Optional[int] = None
     semicama: Optional[int] = None
     cama: Optional[int] = None
@@ -1169,6 +1179,8 @@ class CreateClientsRequest(BaseModel):
     commission: Optional[int] = None
     hashed_password: Optional[str] = None
     created_at: Optional[datetime] = None
+    active: Optional[bool] = True
+    allow_reservas: Optional[bool] = True
     
 class CreateRegimenesRequest(BaseModel):
     id: Optional[str] = None
@@ -1251,6 +1263,8 @@ class UpdateClientsRequest(BaseModel):
     payment_method: Optional[str] = None
     commission: Optional[int] = None
     hashed_password: Optional[str] = None
+    active: Optional[bool] = None
+    allow_reservas: Optional[bool] = None
     
 class UpdateRegimenesRequest(BaseModel):
     id: Optional[str] = None

@@ -298,14 +298,26 @@ export default function PagosPage() {
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMonto || parseFloat(inputMonto) <= 0) {
-      toast.error("Por favor ingrese un monto válido");
+      toast.error("Por favor ingrese un monto válido mayor a 0");
       return;
     }
     if (!inputFecha) {
       toast.error("Por favor ingrese una fecha válida");
       return;
     }
-    if (paymentMethod === "tarjeta") {
+    if (paymentMethod === "devolucion") {
+      if (!inputMetodoDevolucion) {
+        toast.error("Por favor seleccione un método de devolución");
+        return;
+      }
+      if (
+        inputMetodoDevolucion === "transferencia" &&
+        !inputCuentaBancoDevolucion
+      ) {
+        toast.error("Por favor seleccione una cuenta bancaria para la devolución");
+        return;
+      }
+    } else if (paymentMethod === "tarjeta") {
       if (!inputTarjetaTipo || !inputTarjetaNum || !inputTitular) {
         toast.error(
           "Por favor complete todos los datos obligatorios de la tarjeta",
@@ -325,6 +337,12 @@ export default function PagosPage() {
   // Confirm and save payment
   const handleConfirmPago = async () => {
     if (!selectedReserva || !user?.iweb_client_id) return;
+
+    if (paymentMethod === "devolucion") {
+      await handleExecuteDevolucion();
+      setShowConfirmModal(false);
+      return;
+    }
 
     const amountNum = parseFloat(inputMonto);
 
@@ -393,10 +411,10 @@ export default function PagosPage() {
     }
   };
 
-  const handleExecuteDevolucion = async (e?: React.FormEvent) => {
-    if (e && e.preventDefault) e.preventDefault();
+  const handleExecuteDevolucion = async () => {
     if (!selectedReserva || !user?.iweb_client_id) return;
-    if (!inputMonto || parseFloat(inputMonto) <= 0) {
+    const amountNum = parseFloat(inputMonto);
+    if (isNaN(amountNum) || amountNum <= 0) {
       toast.error("Por favor, ingrese un monto válido mayor a 0.");
       return;
     }
@@ -416,29 +434,41 @@ export default function PagosPage() {
       return;
     }
 
+    let tipoStr = `Devolución de Dinero (${inputMetodoDevolucion})`;
+    if (inputMetodoDevolucion === "transferencia") {
+      const selectedAcc = realAccounts.find(
+        (a) => a.id === inputCuentaBancoDevolucion,
+      );
+      const accTitle = selectedAcc?.account_title || inputCuentaBancoDevolucion;
+      tipoStr = `Devolución de Dinero (Transf. ${accTitle})`;
+    } else if (inputMetodoDevolucion === "efectivo") {
+      tipoStr = `Devolución de Dinero (Efectivo ${inputMoneda})`;
+    }
+
     try {
       const formData = new FormData();
       formData.append("reserva_id", selectedReserva.id);
-      formData.append("payment_method", inputMetodoDevolucion);
+      formData.append("payment_method", tipoStr);
       formData.append("date_pay", inputFecha);
       formData.append(
         "amount",
-        String(Math.round(parseFloat(inputMonto)) * -1),
+        String(-Math.abs(Math.round(amountNum))),
       );
       formData.append("currency", inputMoneda);
-      formData.append("observations", "Devolucion de dinero");
+      formData.append("observations", inputObservaciones || "Devolución de Dinero");
       if (
         inputMetodoDevolucion === "transferencia" &&
         inputCuentaBancoDevolucion
       )
         formData.append("account_id", inputCuentaBancoDevolucion);
-      formData.append("titular", selectedReserva.nombre_completo || "Cliente");
+      formData.append("titular", inputTitular || selectedReserva.nombre_completo || "Cliente");
       await apiClient.createPago(user.iweb_client_id, formData);
-      toast.success("Devolucion registrada correctamente");
+      toast.success("Devolución registrada correctamente");
       setInputMonto("");
       setInputFecha("");
       setInputMetodoDevolucion("");
       setInputCuentaBancoDevolucion("");
+      setInputObservaciones("");
       const pagosList = await apiClient.getPagosReserva(
         user.iweb_client_id,
         selectedReserva.id,
@@ -446,7 +476,7 @@ export default function PagosPage() {
       setPagos(pagosList);
     } catch (error) {
       console.error(error);
-      toast.error("Error al registrar la devolucion");
+      toast.error("Error al registrar la devolución");
     }
   };
 
@@ -1428,68 +1458,77 @@ export default function PagosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagos.map((pago) => (
-                    <tr
-                      key={pago.id}
-                      className="font-medium border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-2">
-                        {formatDateDisplay(pago.date_pay)}
-                      </td>
-                      <td className="py-2">{pago.payment_method}</td>
-                      <td className="py-2 text-black">
-                        {formatMonto(pago.amount, getMoneda(pago))}
-                      </td>
-                      <td className="py-2 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {pago.receipt_number &&
-                            (pago.receipt_number.startsWith("http") ||
-                              pago.receipt_number.startsWith("/")) && (
-                              <a
-                                href={pago.receipt_number}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="Ver archivo adjunto"
-                                className="text-blue-600 hover:text-blue-800 text-xs font-bold">
-                                📎
-                              </a>
-                            )}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRecibo(pago)}
-                            title="Ver recibo electrónico"
-                            className="text-primary hover:text-blue-800 text-xs font-bold hover:underline">
-                            <svg
-                              width="15"
-                              height="15"
-                              viewBox="0 0 19 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg">
-                              <path
-                                d="M3.42117 23.66H15.1405C17.4251 23.66 18.5617 22.5012 18.5617 20.2059V10.1858C18.5617 8.76197 18.4072 8.14422 17.5244 7.23925L11.4326 1.04857C10.5945 0.187397 9.90989 0 8.66309 0H3.42117C1.14792 0 0 1.16958 0 3.46542V20.2059C0 22.5121 1.14792 23.66 3.42117 23.66ZM3.50921 21.8835C2.37259 21.8835 1.7765 21.2761 1.7765 20.1729V3.49838C1.7765 2.40602 2.37259 1.7765 3.52051 1.7765H8.42014V8.18848C8.42014 9.57889 9.1264 10.263 10.4947 10.263H16.7852V20.1729C16.7852 21.2761 16.1999 21.8835 15.0525 21.8835H3.50921ZM10.6934 8.59623C10.263 8.59623 10.086 8.42013 10.086 7.97848V2.11881L16.4424 8.5967L10.6934 8.59623Z"
-                                fill="#0546F7"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePago(pago.id)}
-                            title="Eliminar pago"
-                            className="text-red-500 hover:text-red-700 text-xs font-bold hover:underline">
-                            <svg
-                              width="12"
-                              height="15"
-                              viewBox="0 0 21 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg">
-                              <path
-                                d="M1.5 23.655V2.655H0V1.155H6V0H15V1.155H21V2.655H19.5V23.655H1.5ZM3 22.155H18V2.655H3V22.155ZM7.212 19.155H8.712V5.655H7.212V19.155ZM12.288 19.155H13.788V5.655H12.288V19.155Z"
-                                fill="#0546F7"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {pagos.map((pago) => {
+                    const isDevolucion = (pago.amount || 0) < 0 || (pago.payment_method || "").toLowerCase().includes("devoluc");
+                    return (
+                      <tr
+                        key={pago.id}
+                        className="font-medium border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-2">
+                          {formatDateDisplay(pago.date_pay)}
+                        </td>
+                        <td className="py-2">
+                          <span className={isDevolucion ? "text-red-600 font-semibold" : ""}>
+                            {pago.payment_method}
+                          </span>
+                        </td>
+                        <td className={`py-2 font-medium ${isDevolucion ? "text-red-600 font-bold" : "text-black"}`}>
+                          {pago.amount < 0
+                            ? `-${formatMonto(Math.abs(pago.amount), getMoneda(pago))}`
+                            : formatMonto(pago.amount, getMoneda(pago))}
+                        </td>
+                        <td className="py-2 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {pago.receipt_number &&
+                              (pago.receipt_number.startsWith("http") ||
+                                pago.receipt_number.startsWith("/")) && (
+                                <a
+                                  href={pago.receipt_number}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Ver archivo adjunto"
+                                  className="text-blue-600 hover:text-blue-800 text-xs font-bold">
+                                  📎
+                                </a>
+                              )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRecibo(pago)}
+                              title="Ver recibo electrónico"
+                              className="text-primary hover:text-blue-800 text-xs font-bold hover:underline">
+                              <svg
+                                width="15"
+                                height="15"
+                                viewBox="0 0 19 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                  d="M3.42117 23.66H15.1405C17.4251 23.66 18.5617 22.5012 18.5617 20.2059V10.1858C18.5617 8.76197 18.4072 8.14422 17.5244 7.23925L11.4326 1.04857C10.5945 0.187397 9.90989 0 8.66309 0H3.42117C1.14792 0 0 1.16958 0 3.46542V20.2059C0 22.5121 1.14792 23.66 3.42117 23.66ZM3.50921 21.8835C2.37259 21.8835 1.7765 21.2761 1.7765 20.1729V3.49838C1.7765 2.40602 2.37259 1.7765 3.52051 1.7765H8.42014V8.18848C8.42014 9.57889 9.1264 10.263 10.4947 10.263H16.7852V20.1729C16.7852 21.2761 16.1999 21.8835 15.0525 21.8835H3.50921ZM10.6934 8.59623C10.263 8.59623 10.086 8.42013 10.086 7.97848V2.11881L16.4424 8.5967L10.6934 8.59623Z"
+                                  fill="#0546F7"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeletePago(pago.id)}
+                              title="Eliminar pago"
+                              className="text-red-500 hover:text-red-700 text-xs font-bold hover:underline">
+                              <svg
+                                width="12"
+                                height="15"
+                                viewBox="0 0 21 24"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                  d="M1.5 23.655V2.655H0V1.155H6V0H15V1.155H21V2.655H19.5V23.655H1.5ZM3 22.155H18V2.655H3V22.155ZM7.212 19.155H8.712V5.655H7.212V19.155ZM12.288 19.155H13.788V5.655H12.288V19.155Z"
+                                  fill="#0546F7"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1516,18 +1555,34 @@ export default function PagosPage() {
               </svg>
             </div>
             <h4 className="text-lg font-bold text-gray-900 mb-1">
-              ¿Confirmar Operación?
+              {paymentMethod === "devolucion" ? "¿Confirmar Devolución?" : "¿Confirmar Operación?"}
             </h4>
             <p className="text-gray-600 text-sm mb-4">
-              Se registrará un cobro de{" "}
-              <span className="font-bold text-primary">
-                {formatMonto(parseFloat(inputMonto || "0"), inputMoneda)}
-              </span>{" "}
-              asignado a la reserva{" "}
-              <span className="font-bold text-gray-800">
-                {selectedReserva?.codigo_reserva || "Sin código"}
-              </span>
-              .
+              {paymentMethod === "devolucion" ? (
+                <>
+                  Se registrará una devolución de dinero de{" "}
+                  <span className="font-bold text-red-600">
+                    {formatMonto(parseFloat(inputMonto || "0"), inputMoneda)}
+                  </span>{" "}
+                  a la reserva{" "}
+                  <span className="font-bold text-gray-800">
+                    {selectedReserva?.codigo_reserva || "Sin código"}
+                  </span>
+                  .
+                </>
+              ) : (
+                <>
+                  Se registrará un cobro de{" "}
+                  <span className="font-bold text-primary">
+                    {formatMonto(parseFloat(inputMonto || "0"), inputMoneda)}
+                  </span>{" "}
+                  asignado a la reserva{" "}
+                  <span className="font-bold text-gray-800">
+                    {selectedReserva?.codigo_reserva || "Sin código"}
+                  </span>
+                  .
+                </>
+              )}
             </p>
             <div className="flex gap-3 w-full">
               <button

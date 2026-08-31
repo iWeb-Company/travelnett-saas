@@ -18,6 +18,7 @@ export interface Voucher {
   id: string;
   iweb_client_id: string;
   reserva_id: string;
+  codigo_reserva?: string | null;
   salida_id: string | null;
   package_id: string | null;
   destino_name: string | null;
@@ -25,6 +26,7 @@ export interface Voucher {
   titular_dni: string | null;
   total_passengers: number | null;
   fecha_salida: string | null;
+  fecha_regreso?: string | null;
   tipo_transporte: string | null;
   tipo_butaca: string | null;
   lugar_carga: string | null;
@@ -32,7 +34,13 @@ export interface Voucher {
   empresa_transporte: string | null;
   coordinador_nombre: string | null;
   coordinador_telefono: string | null;
+  hotel_id?: string | null;
   hotel_name: string | null;
+  hotel_address?: string | null;
+  hotel_phone?: string | null;
+  excursion_id?: string | null;
+  excursion_name?: string | null;
+  excursion_description?: string | null;
   room_type: string | null;
   passengers_names: string | null;
   regimen_name: string | null;
@@ -166,6 +174,7 @@ export interface Client {
   hashed_password?: string;
   created_at?: string;
   active?: boolean;
+  allow_reservas?: boolean;
 }
 
 export interface TipoCliente {
@@ -438,6 +447,8 @@ export interface Salida {
   coordinador_telefono?: string | null;
   hotel_id?: string | null;
   regimen_id?: string | null;
+  alcance?: "argentina" | "internacional" | string | null;
+  vouchers_online?: boolean;
   passengers?: number;
   semicama?: number | null;
   cama?: number | null;

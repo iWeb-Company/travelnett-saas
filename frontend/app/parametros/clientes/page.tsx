@@ -96,6 +96,26 @@ export default function ClientesPage() {
     }
   };
 
+  const handleToggleAllowReservas = async (cliente: Client) => {
+    const clientId = user?.iweb_client_id;
+    if (!clientId || !cliente.id) return;
+    const newAllow = cliente.allow_reservas === false ? true : false;
+    try {
+      await apiClient.updateParameter(
+        "update_clients",
+        cliente.id,
+        { allow_reservas: newAllow },
+        clientId
+      );
+      setClientes((prev) =>
+        prev.map((c) => (c.id === cliente.id ? { ...c, allow_reservas: newAllow } : c))
+      );
+      toast.success(newAllow ? "Reservas web habilitadas" : "Reservas web deshabilitadas");
+    } catch (err) {
+      toast.error("Error al actualizar permisos de reserva");
+    }
+  };
+
   const clientesFiltered = clientes.filter((e) => {
     const name = e.name_system || "";
     const matchesName = name.toLowerCase().includes(search.toLowerCase());
@@ -390,20 +410,38 @@ export default function ClientesPage() {
                   {(cliente.name_system || "").toUpperCase()}
                 </span>
                 <div className="flex items-center gap-3">
+                  {/* SWITCH RESERVAS */}
+                  <div className="flex items-center gap-1.5" title={cliente.allow_reservas !== false ? "Reservas web habilitadas" : "Reservas web deshabilitadas"}>
+                    <span className="text-xs text-gray-500 font-medium hidden sm:inline">Reservas</span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAllowReservas(cliente)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                        cliente.allow_reservas !== false ? "bg-emerald-600" : "bg-gray-300"
+                      }`}>
+                      <span
+                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                          cliente.allow_reservas !== false ? "translate-x-4" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
                   {/* SWITCH ACTIVO / INACTIVO */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleActive(cliente)}
-                    title={cliente.active !== false ? "Activo" : "Inactivo"}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      cliente.active !== false ? "bg-blue-600" : "bg-gray-300"
-                    }`}>
-                    <span
-                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                        cliente.active !== false ? "translate-x-4" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
+                  <div className="flex items-center gap-1.5" title={cliente.active !== false ? "Activo" : "Inactivo"}>
+                    <span className="text-xs text-gray-500 font-medium hidden sm:inline">Activo</span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(cliente)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                        cliente.active !== false ? "bg-blue-600" : "bg-gray-300"
+                      }`}>
+                      <span
+                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                          cliente.active !== false ? "translate-x-4" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
                   {/* BOTON EDITAR */}
                   <button
                     onClick={() => handleClickPut(cliente)}

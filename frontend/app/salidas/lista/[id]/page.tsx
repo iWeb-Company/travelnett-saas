@@ -443,6 +443,26 @@ export default function SalidasIDPage() {
       toast.error("Error al generar el archivo Excel", { id: "export-lista" });
     }
   };
+
+  const handleToggleVouchersOnline = async () => {
+    if (!salida || !user?.iweb_client_id || !id) return;
+    const newStatus = !salida.vouchers_online;
+    try {
+      await apiClient.updateSalida(user.iweb_client_id, id, {
+        vouchers_online: newStatus,
+      });
+      setSalida((prev: any) => ({ ...prev, vouchers_online: newStatus }));
+      toast.success(
+        newStatus
+          ? "Vouchers online habilitados para esta salida"
+          : "Vouchers online deshabilitados para esta salida",
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al actualizar estado de vouchers online");
+    }
+  };
+
   const ascensosList = Object.values(ascensosGrouped);
 
   return (
@@ -487,11 +507,16 @@ export default function SalidasIDPage() {
         </Link>
         {/* Vouchers */}
         <button
-          className="p-1.5 flex items-center gap-2 font-semibold"
-          title="Vouchers Online"
+          onClick={handleToggleVouchersOnline}
+          className={`p-1.5 flex items-center gap-2 font-semibold transition-colors cursor-pointer ${
+            salida?.vouchers_online ? "text-emerald-600 font-bold" : "text-black hover:text-secondary"
+          }`}
+          title={salida?.vouchers_online ? "Vouchers Online Habilitados (click para deshabilitar)" : "Habilitar Vouchers Online"}
         >
           <Subir />
-          <p className="text-xs text-black md:block hidden">Vouchers Online</p>
+          <p className="text-xs md:block hidden">
+            {salida?.vouchers_online ? "Vouchers Online: Activo" : "Vouchers Online"}
+          </p>
         </button>
         {/* Excel */}
         <button
