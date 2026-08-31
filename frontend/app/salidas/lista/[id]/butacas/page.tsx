@@ -5,56 +5,85 @@ import Excel from "@/app/components/icons/salidas/Excel";
 import PDF from "@/app/components/icons/salidas/PDF";
 import ButacaDrop from "@/app/components/icons/salidas/ButacaDrop";
 import { useRouter, useParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
-import { Loader } from "@/app/components/Loader";
-import { Salida } from "@/app/types";
-import { exportTaquillaToExcel, exportTaquillaToPdf } from "@/app/utils/exportTaquilla";
+import { BusType, Salida } from "@/app/types";
+import {
+  exportTaquillaToExcel,
+  exportTaquillaToPdf,
+} from "@/app/utils/exportTaquilla";
 import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
+import {
+  buildTaquillaLayout,
+  getTaquillaSeatKeys,
+  TaquillaRow,
+} from "@/app/utils/taquillaLayout";
 import Link from "next/link";
 
 // Datos de asientos semicama (null = vacío/pasillo, "logo" = logo empresa, number = asiento)
-const semicamaLayout: (number | null | "logo")[][] = [
-  [1, 2, null, 3, 4],
-  [5, 6, null, "logo", null],
-  [7, 8, null, null, null],
-  [null, null, null, null, null],
-  [9, 10, null, 11, 12],
-  [13, 14, null, 15, 16],
-  [17, 18, null, 19, 20],
-  [null, null, null, null, null],
-  [21, 22, null, 23, 24],
-  [25, 26, null, 27, 28],
-  [29, 30, null, 31, 32],
-  [33, 34, null, 35, 36],
-  [37, 38, null, 39, 40],
-  [41, 42, null, 43, 44],
-];
-
 // Datos de asientos cama (1 al 12)
-const camaLayout: (number | null | "logo")[][] = [
-  [1, 2, null, null, 3],
-  [4, 5, null, null, 6],
-  [7, 8, null, null, null],
-  [9, 10, null, null, 11],
-  [null, null, null, null, 12],
-];
-
 interface Pasajero {
   id: string; // reservation_id
   nombre: string;
   localidad: string;
   pasajero_id?: string;
   pasajero_type?: string;
+  butaca_type?: string;
   uniqueId?: string;
   observations?: string;
 }
 
-function ObservationBadge({ text, isSeat = false }: { text: string; isSeat?: boolean }) {
-  const [coords, setCoords] = useState<{ x: number; y: number; placeAbove: boolean } | null>(null);
+function layoutForBusType(busType?: BusType) {
+  return buildTaquillaLayout({
+    semicamaQuantity: busType?.semicama_quantity,
+    camaQuantity: busType?.cama_quantity,
+    panoramicosQuantity: busType?.panoramicos_quantity,
+  });
+}
+
+function reconcileAssignments(
+  assignments: Record<string, Pasajero>,
+  disponibles: Pasajero[],
+  layout: ReturnType<typeof buildTaquillaLayout>,
+) {
+  const validSeats = new Set([
+    ...getTaquillaSeatKeys(layout, "S"),
+    ...getTaquillaSeatKeys(layout, "C"),
+  ]);
+  const nextAssignments = { ...assignments };
+  const invalidPassengers: Pasajero[] = [];
+
+  Object.entries(nextAssignments).forEach(([seatKey, passenger]) => {
+    if (!validSeats.has(seatKey)) {
+      delete nextAssignments[seatKey];
+      invalidPassengers.push(passenger);
+    }
+  });
+
+  return {
+    assignments: nextAssignments,
+    disponibles: [...disponibles, ...invalidPassengers].filter(
+      (passenger, index, all) =>
+        all.findIndex((item) => item.uniqueId === passenger.uniqueId) === index,
+    ),
+  };
+}
+
+function ObservationBadge({
+  text,
+  isSeat = false,
+}: {
+  text: string;
+  isSeat?: boolean;
+}) {
+  const [coords, setCoords] = useState<{
+    x: number;
+    y: number;
+    placeAbove: boolean;
+  } | null>(null);
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
@@ -81,26 +110,28 @@ function ObservationBadge({ text, isSeat = false }: { text: string; isSeat?: boo
           isSeat
             ? "bg-primary rounded-full h-3 w-3 md:h-3.5 md:w-3.5 flex items-center justify-center text-white text-[7px] md:text-[8px] font-bold cursor-help select-none shadow-sm hover:opacity-90 transition-opacity"
             : "bg-primary rounded-full h-4 w-4 md:h-5 md:w-5 flex items-center justify-center text-white text-[10px] md:text-xs font-semibold cursor-pointer select-none shadow-sm hover:opacity-90 transition-opacity"
-        }
-      >
+        }>
         ?
       </span>
-      {coords && typeof document !== "undefined" && createPortal(
-        <div
-          style={{
-            position: "fixed",
-            left: `${coords.x}px`,
-            top: `${coords.y}px`,
-            transform: coords.placeAbove ? "translate(-50%, -100%)" : "translate(-50%, 0)",
-            zIndex: 999999,
-            pointerEvents: "none",
-          }}
-          className="w-52 space-y-1 bg-primary text-white rounded-xl px-3 py-2.5 font-medium flex flex-col items-center text-center whitespace-normal drop-shadow-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150"
-        >
-          <p className="text-xs leading-relaxed">{text}</p>
-        </div>,
-        document.body
-      )}
+      {coords &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              left: `${coords.x}px`,
+              top: `${coords.y}px`,
+              transform: coords.placeAbove
+                ? "translate(-50%, -100%)"
+                : "translate(-50%, 0)",
+              zIndex: 999999,
+              pointerEvents: "none",
+            }}
+            className="w-52 space-y-1 bg-primary text-white rounded-xl px-3 py-2.5 font-medium flex flex-col items-center text-center whitespace-normal drop-shadow-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <p className="text-xs leading-relaxed">{text}</p>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
@@ -114,7 +145,11 @@ function SeatSlot({
   asiento: number;
   asignado?: Pasajero;
   layoutType: "S" | "C";
-  onDrop: (layoutType: "S" | "C", asiento: number, reservationId: string) => void;
+  onDrop: (
+    layoutType: "S" | "C",
+    asiento: number,
+    reservationId: string,
+  ) => void;
 }) {
   const handleDragStart = (e: React.DragEvent) => {
     if (!asignado) return;
@@ -139,8 +174,11 @@ function SeatSlot({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className={`relative flex items-center gap-0.5 w-[80px] md:w-[120px] p-0.5 rounded transition-colors ${asignado ? "cursor-grab active:cursor-grabbing hover:bg-blue-100/60" : ""
-        }`}>
+      className={`relative flex items-center gap-0.5 w-[80px] md:w-[120px] p-0.5 rounded transition-colors ${
+        asignado
+          ? "cursor-grab active:cursor-grabbing hover:bg-blue-100/60"
+          : ""
+      }`}>
       <div className="shrink-0 flex items-center justify-center scale-75 -mx-1 md:scale-100 md:mx-0">
         <ButacaDrop />
       </div>
@@ -150,16 +188,22 @@ function SeatSlot({
             <ObservationBadge text={asignado.observations} isSeat />
           </div>
         )}
-        <div className={`bg-white border rounded-sm h-3 md:h-4 px-0.5 flex items-center ${asignado ? "border-blue-400 bg-blue-50/70" : "border-gray-200"}`}>
+        <div
+          className={`bg-white border rounded-sm h-3 md:h-4 px-0.5 flex items-center ${asignado ? "border-blue-400 bg-blue-50/70" : "border-gray-200"}`}>
           {asignado && (
-            <span className="text-[6px] md:text-[9px] text-black font-semibold truncate" title={asignado.nombre}>
+            <span
+              className="text-[6px] md:text-[9px] text-black font-semibold truncate"
+              title={asignado.nombre}>
               {asignado.nombre}
             </span>
           )}
         </div>
-        <div className={`bg-white border rounded-sm h-3 md:h-4 px-0.5 flex items-center ${asignado ? "border-blue-400 bg-blue-50/70" : "border-gray-200"}`}>
+        <div
+          className={`bg-white border rounded-sm h-3 md:h-4 px-0.5 flex items-center ${asignado ? "border-blue-400 bg-blue-50/70" : "border-gray-200"}`}>
           {asignado && (
-            <span className="text-[6px] md:text-[9px] text-black truncate" title={asignado.localidad}>
+            <span
+              className="text-[6px] md:text-[9px] text-black truncate"
+              title={asignado.localidad}>
               {asignado.localidad}
             </span>
           )}
@@ -170,76 +214,69 @@ function SeatSlot({
 }
 
 function SeatGrid({
-  layout,
+  rows,
+  columns,
   layoutType,
   asignaciones,
   onDrop,
 }: {
-  layout: (number | null | "logo")[][];
+  rows: TaquillaRow[];
+  columns: number;
   layoutType: "S" | "C";
   asignaciones: Record<string, Pasajero>;
-  onDrop: (layoutType: "S" | "C", asiento: number, reservationId: string) => void;
+  onDrop: (
+    layoutType: "S" | "C",
+    asiento: number,
+    reservationId: string,
+  ) => void;
 }) {
   const { iwebClient } = useAuth();
   return (
     <div className="flex flex-col gap-1.5">
-      {layout.map((row, rowIdx) => {
-        const isEmptyRow = row.every((cell) => cell === null);
-        if (isEmptyRow) {
-          return <div key={rowIdx} className="h-3" />;
-        }
-
-        const leftPair = [row[0], row[1]];
-        const rightPair = [row[3], row[4]];
-        const hasLogo = row[3] === "logo";
-
+      {rows.map((row, rowIdx) => {
         return (
-          <div key={rowIdx} className="relative hover:z-50 focus-within:z-50 flex items-center justify-center gap-2">
-            {/* Par izquierdo */}
-            <div className="flex items-center gap-1">
-              {leftPair.map((cell, colIdx) => {
-                if (cell === null)
-                  return <div key={colIdx} className="w-[80px] h-8" />;
-                const seatKey = `${layoutType}-${cell}`;
-                return (
-                  <SeatSlot
-                    key={colIdx}
-                    asiento={cell as number}
-                    layoutType={layoutType}
-                    asignado={asignaciones[seatKey]}
-                    onDrop={onDrop}
-                  />
-                );
-              })}
-            </div>
-
-            {/* Par derecho */}
-            <div className="flex items-center gap-1">
-              {hasLogo ? (
-                <div className="flex items-center justify-center bg-secondary rounded-lg px-3 py-2 w-[164px]">
-                  <img
-                    src={iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png"}
-                    alt="Logo"
-                    className="h-12 object-contain"
-                  />
-                </div>
-              ) : (
-                rightPair.map((cell, colIdx) => {
-                  if (cell === null)
-                    return <div key={colIdx} className="w-[80px] h-8" />;
-                  const seatKey = `${layoutType}-${cell}`;
-                  return (
-                    <SeatSlot
-                      key={colIdx}
-                      asiento={cell as number}
-                      layoutType={layoutType}
-                      asignado={asignaciones[seatKey]}
-                      onDrop={onDrop}
-                    />
-                  );
-                })
-              )}
-            </div>
+          <div
+            key={rowIdx}
+            className="relative hover:z-50 focus-within:z-50 grid items-center gap-1"
+            style={{
+              gridTemplateColumns: `repeat(${columns}, minmax(80px, 120px))`,
+            }}>
+            {row.seats.map((seat, columnIdx) => {
+              if (
+                row.logoStartColumn !== undefined &&
+                columnIdx >= row.logoStartColumn
+              )
+                return null;
+              if (seat === null) return <div key={columnIdx} className="h-8" />;
+              const seatKey = `${layoutType}-${seat}`;
+              return (
+                <SeatSlot
+                  key={columnIdx}
+                  asiento={seat}
+                  layoutType={layoutType}
+                  asignado={asignaciones[seatKey]}
+                  onDrop={onDrop}
+                />
+              );
+            })}
+            {row.logoStartColumn !== undefined && (
+              <div
+                className="flex items-center justify-center bg-secondary rounded-lg px-3 py-2 min-h-[64px]"
+                style={{
+                  gridColumn: `${row.logoStartColumn + 1} / span ${columns - row.logoStartColumn}`,
+                  gridRow: `span ${row.logoRowSpan || 1} / span ${row.logoRowSpan || 1}`,
+                }}>
+                <img
+                  src={
+                    iwebClient?.logo_s ||
+                    iwebClient?.logo_xl ||
+                    "/logo-empresa.png"
+                  }
+                  alt="Logo Empresa"
+                  className="h-12 object-contain"
+                />
+              </div>
+            )}
           </div>
         );
       })}
@@ -262,8 +299,16 @@ function PasajeroCard({ pasajero }: { pasajero: Pasajero }) {
           <ObservationBadge text={pasajero.observations} />
         </div>
       )}
-      <p className="text-xs font-semibold py-1 text-black truncate px-1 pr-6" title={pasajero.nombre}>{pasajero.nombre}</p>
-      <p className="text-xs py-1 bg-primary text-white truncate px-1" title={pasajero.localidad}>{pasajero.localidad}</p>
+      <p
+        className="text-xs font-semibold py-1 text-black truncate px-1 pr-6"
+        title={pasajero.nombre}>
+        {pasajero.nombre}
+      </p>
+      <p
+        className="text-xs py-1 bg-primary rounded-b-md text-white truncate px-1"
+        title={pasajero.localidad}>
+        {pasajero.localidad}
+      </p>
     </div>
   );
 }
@@ -276,13 +321,48 @@ export default function ButacasPage() {
 
   const [salida, setSalida] = useState<Salida | null>(null);
   const [destinoName, setDestinoName] = useState<string>("");
+  const [companyName, setCompanyName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [asignaciones, setAsignaciones] = useState<Record<string, Pasajero>>({});
-  const [pasajerosDisponibles, setPasajerosDisponibles] = useState<Pasajero[]>([]);
+  const [asignaciones, setAsignaciones] = useState<Record<string, Pasajero>>(
+    {},
+  );
+  const [pasajerosDisponibles, setPasajerosDisponibles] = useState<Pasajero[]>(
+    [],
+  );
+  const [busTypes, setBusTypes] = useState<BusType[]>([]);
+  const [selectedBusTypeId, setSelectedBusTypeId] = useState("");
 
   // Guardamos el estado original para saber a quiénes desasignar al confirmar
   const [initialReservations, setInitialReservations] = useState<any[]>([]);
+
+  const selectedBusType = useMemo(
+    () =>
+      busTypes.find(
+        (busType) =>
+          busType.id === selectedBusTypeId ||
+          busType.name === selectedBusTypeId,
+      ),
+    [busTypes, selectedBusTypeId],
+  );
+  const taquillaLayout = useMemo(
+    () => layoutForBusType(selectedBusType),
+    [selectedBusType],
+  );
+  const semicamaTotal = Number(selectedBusType?.semicama_quantity) || 0;
+  const camaTotal = Number(selectedBusType?.cama_quantity) || 0;
+  const semicamaAssigned = Object.keys(asignaciones).filter((key) =>
+    key.startsWith("S-"),
+  ).length;
+  const camaAssigned = Object.keys(asignaciones).filter((key) =>
+    key.startsWith("C-"),
+  ).length;
+  const pasajerosSemicama = pasajerosDisponibles.filter(
+    (passenger) => passenger.butaca_type?.toLowerCase() !== "cama",
+  );
+  const pasajerosCama = pasajerosDisponibles.filter(
+    (passenger) => passenger.butaca_type?.toLowerCase() === "cama",
+  );
 
   const handleBack = () => {
     router.back();
@@ -292,32 +372,66 @@ export default function ButacasPage() {
     const fetchData = async () => {
       if (!user?.iweb_client_id || !id) return;
       try {
-        // Cargar detalles de la salida
-        const s = await apiClient.getSalida(user.iweb_client_id, id);
+        const [s, reservas, destinos, loadedBusTypes, transportCompanies] =
+          await Promise.all([
+            apiClient.getSalida(user.iweb_client_id, id),
+            apiClient.getReservas(user.iweb_client_id, id),
+            apiClient
+              .getParameters("get_destinos", user.iweb_client_id)
+              .catch(() => []),
+            apiClient
+              .getParameters("get_bus_types", user.iweb_client_id)
+              .catch(() => []),
+            apiClient
+              .getParameters("get_transport_companies", user.iweb_client_id)
+              .catch(() => []),
+          ]);
         setSalida(s);
-
-        // Cargar todas las reservas de esta salida
-        const reservas = await apiClient.getReservas(user.iweb_client_id, id);
         setInitialReservations(reservas);
-        const getDestinos = await apiClient.getParameters('get_destinos', user.iweb_client_id);
-        const getDestinoName = getDestinos.find((d: any) => d.id === s.destino);
+        const getDestinoName = destinos.find((d: any) => d.id === s.destino);
+        const getComapanyName = transportCompanies.find(
+          (c: any) => c.id === s.transport_company,
+        );
         setDestinoName(getDestinoName?.name);
+        setCompanyName(getComapanyName?.name);
+        const types = (loadedBusTypes || []) as BusType[];
+        setBusTypes(types);
+        const matchedBusType = types.find(
+          (busType) => busType.id === s.type_bus || busType.name === s.type_bus,
+        );
+        setSelectedBusTypeId(matchedBusType?.id || s.type_bus || "");
         const newAsignaciones: Record<string, Pasajero> = {};
         const newDisponibles: Pasajero[] = [];
 
         reservas.forEach((r: any) => {
-          const paxs = r.reservation_passengers && r.reservation_passengers.length > 0
-            ? r.reservation_passengers
-            : [{
-              pasajero_id: r.passenger_id || r.id,
-              pasajero_type: r.edad_categoria || "ADL",
-              nombre_completo: r.nombre_completo || "Desconocido",
-              butaca_number: r.butaca ? Number(r.butaca.split("-")[1]) : null,
-              butaca_type: r.tipo_butaca || (r.butaca ? (r.butaca.startsWith("S-") ? "semicama" : "cama") : null)
-            }];
+          const paxs =
+            r.reservation_passengers && r.reservation_passengers.length > 0
+              ? r.reservation_passengers
+              : [
+                  {
+                    pasajero_id: r.passenger_id || r.id,
+                    pasajero_type: r.edad_categoria || "ADL",
+                    nombre_completo: r.nombre_completo || "Desconocido",
+                    butaca_number: r.butaca
+                      ? Number(r.butaca.split("-")[1])
+                      : null,
+                    butaca_type:
+                      r.tipo_butaca ||
+                      (r.butaca
+                        ? r.butaca.startsWith("S-")
+                          ? "semicama"
+                          : "cama"
+                        : null),
+                  },
+                ];
 
           paxs.forEach((pax: any) => {
-            const passengerId = pax.pasajero_id || pax.passenger_id || r.passenger_id || pax.id || r.id;
+            const passengerId =
+              pax.pasajero_id ||
+              pax.passenger_id ||
+              r.passenger_id ||
+              pax.id ||
+              r.id;
             const uId = `${r.id}_${passengerId}`;
             let rawNom = pax.nombre_completo || "";
             if (pax.name || pax.last_name) {
@@ -333,16 +447,29 @@ export default function ButacasPage() {
               nombre: rawNom,
               localidad: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
               pasajero_id: passengerId,
-              pasajero_type: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
+              pasajero_type:
+                pax.pasajero_type ||
+                pax.edad_categoria ||
+                r.edad_categoria ||
+                "ADL",
+              butaca_type: pax.butaca_type || r.tipo_butaca || "",
               uniqueId: uId,
               observations: r.observations || pax.observations || "",
             };
 
-            const butacaKey = pax.butaca_number !== null && pax.butaca_number !== undefined && pax.butaca_type
-              ? `${pax.butaca_type === "semicama" ? "S" : "C"}-${pax.butaca_number}`
-              : (r.butaca && paxs.length === 1 ? r.butaca : null);
+            const butacaKey =
+              pax.butaca_number !== null &&
+              pax.butaca_number !== undefined &&
+              pax.butaca_type
+                ? `${pax.butaca_type === "semicama" ? "S" : "C"}-${pax.butaca_number}`
+                : r.butaca && paxs.length === 1
+                  ? r.butaca
+                  : null;
 
-            if (butacaKey && (butacaKey.startsWith("S-") || butacaKey.startsWith("C-"))) {
+            if (
+              butacaKey &&
+              (butacaKey.startsWith("S-") || butacaKey.startsWith("C-"))
+            ) {
               newAsignaciones[butacaKey] = pData;
             } else {
               newDisponibles.push(pData);
@@ -350,8 +477,15 @@ export default function ButacasPage() {
           });
         });
 
-        setAsignaciones(newAsignaciones);
-        setPasajerosDisponibles(newDisponibles);
+        const reconciled = matchedBusType
+          ? reconcileAssignments(
+              newAsignaciones,
+              newDisponibles,
+              layoutForBusType(matchedBusType),
+            )
+          : { assignments: newAsignaciones, disponibles: newDisponibles };
+        setAsignaciones(reconciled.assignments);
+        setPasajerosDisponibles(reconciled.disponibles);
       } catch (err) {
         console.error("Error loading manifest data:", err);
         toast.error("Error al cargar los datos del viaje");
@@ -362,7 +496,11 @@ export default function ButacasPage() {
     fetchData();
   }, [user?.iweb_client_id, id]);
 
-  const handleDrop = (layoutType: "S" | "C", asiento: number, uniqueId: string) => {
+  const handleDrop = (
+    layoutType: "S" | "C",
+    asiento: number,
+    uniqueId: string,
+  ) => {
     const newKey = `${layoutType}-${asiento}`;
 
     // 1. Find passenger being dragged (A) in unassigned list or in current seat assignments
@@ -403,7 +541,8 @@ export default function ButacasPage() {
         } else {
           // Put passenger B back into unassigned passengers list
           setPasajerosDisponibles((prevDisp) => {
-            if (prevDisp.some((p) => p.uniqueId === pasajeroB.uniqueId)) return prevDisp;
+            if (prevDisp.some((p) => p.uniqueId === pasajeroB.uniqueId))
+              return prevDisp;
             return [...prevDisp, pasajeroB];
           });
         }
@@ -416,7 +555,9 @@ export default function ButacasPage() {
 
     if (!oldKeyA) {
       // Remove passenger A from unassigned list since they came from there
-      setPasajerosDisponibles((prev) => prev.filter((p) => p.uniqueId !== uniqueId));
+      setPasajerosDisponibles((prev) =>
+        prev.filter((p) => p.uniqueId !== uniqueId),
+      );
     }
   };
 
@@ -445,6 +586,25 @@ export default function ButacasPage() {
     }
   };
 
+  const handleBusTypeChange = (nextBusTypeId: string) => {
+    const nextBusType = busTypes.find(
+      (busType) => busType.id === nextBusTypeId,
+    );
+    if (!nextBusType) {
+      setSelectedBusTypeId("");
+      return;
+    }
+
+    const reconciled = reconcileAssignments(
+      asignaciones,
+      pasajerosDisponibles,
+      layoutForBusType(nextBusType),
+    );
+    setAsignaciones(reconciled.assignments);
+    setPasajerosDisponibles(reconciled.disponibles);
+    setSelectedBusTypeId(nextBusTypeId);
+  };
+
   const handleConfirm = async () => {
     if (!user?.iweb_client_id || isSaving) return;
     setIsSaving(true);
@@ -452,15 +612,23 @@ export default function ButacasPage() {
 
     try {
       const promises = initialReservations.map((r) => {
-        const paxs = r.reservation_passengers && r.reservation_passengers.length > 0
-          ? r.reservation_passengers
-          : [{
-            pasajero_id: r.passenger_id || r.id,
-            pasajero_type: r.edad_categoria || "ADL",
-          }];
+        const paxs =
+          r.reservation_passengers && r.reservation_passengers.length > 0
+            ? r.reservation_passengers
+            : [
+                {
+                  pasajero_id: r.passenger_id || r.id,
+                  pasajero_type: r.edad_categoria || "ADL",
+                },
+              ];
 
         const passengersPayload = paxs.map((pax: any) => {
-          const passengerId = pax.pasajero_id || pax.passenger_id || r.passenger_id || pax.id || r.id;
+          const passengerId =
+            pax.pasajero_id ||
+            pax.passenger_id ||
+            r.passenger_id ||
+            pax.id ||
+            r.id;
           const uId = `${r.id}_${passengerId}`;
 
           let assignedKey: string | null = null;
@@ -480,23 +648,34 @@ export default function ButacasPage() {
 
           return {
             pasajero_id: passengerId,
-            pasajero_type: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
+            pasajero_type:
+              pax.pasajero_type ||
+              pax.edad_categoria ||
+              r.edad_categoria ||
+              "ADL",
             butaca_number: bNum,
-            butaca_type: bType
+            butaca_type: bType,
           };
         });
 
         return apiClient.updateReserva(user.iweb_client_id!, r.id, {
-          passengers: passengersPayload
+          passengers: passengersPayload,
         });
       });
 
+      await apiClient.updateSalida(user.iweb_client_id, id, {
+        type_bus: selectedBusType?.id || null,
+      });
       await Promise.all(promises);
-      toast.success("Distribución de butacas guardada con éxito", { id: toastId });
+      toast.success("Distribución de butacas guardada con éxito", {
+        id: toastId,
+      });
       router.back();
     } catch (err) {
       console.error("Error saving seat layout:", err);
-      toast.error("Error al guardar la distribución de butacas", { id: toastId });
+      toast.error("Error al guardar la distribución de butacas", {
+        id: toastId,
+      });
     } finally {
       setIsSaving(false);
     }
@@ -504,36 +683,67 @@ export default function ButacasPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader />
-      </div>
+      <Container>
+        <section className="mx-3 my-10 space-y-5 animate-pulse">
+          <div className="h-6 w-40 rounded bg-gray-200" />
+          <div className="h-24 w-full max-w-md rounded-lg bg-gray-200" />
+          <div className="h-10 w-full max-w-md rounded-xl bg-gray-300" />
+          <div className="flex gap-8 pt-6">
+            <div className="space-y-3">
+              {Array.from({ length: 7 }).map((_, index) => (
+                <div key={index} className="h-9 w-80 rounded bg-gray-200" />
+              ))}
+            </div>
+            <div className="hidden md:block h-80 w-80 rounded-lg bg-gray-200" />
+          </div>
+        </section>
+      </Container>
+    );
+  }
+
+  if (!salida) {
+    return (
+      <Container>
+        <p className="mx-3 my-10 text-sm text-gray-500">
+          No se pudo cargar la salida.
+        </p>
+      </Container>
     );
   }
 
   const handleExportExcel = async () => {
     try {
-      toast.loading("Generando Excel de taquilla...", { id: "export-taquilla" });
+      toast.loading("Generando Excel de taquilla...", {
+        id: "export-taquilla",
+      });
       await exportTaquillaToExcel({
         transportCompany: salida?.transport_company,
         destinoName: destinoName,
         salidaDate: salida?.date_of_out,
         asignaciones,
+        layout: taquillaLayout,
       });
-      toast.success("Excel descargado correctamente", { id: "export-taquilla" });
+      toast.success("Excel descargado correctamente", {
+        id: "export-taquilla",
+      });
     } catch (error) {
       console.error("Error al exportar Excel:", error);
-      toast.error("Error al generar el archivo Excel", { id: "export-taquilla" });
+      toast.error("Error al generar el archivo Excel", {
+        id: "export-taquilla",
+      });
     }
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     try {
       toast.loading("Generando PDF de taquilla...", { id: "export-taquilla" });
-      exportTaquillaToPdf({
+      await exportTaquillaToPdf({
         transportCompany: salida?.transport_company,
         destinoName: destinoName,
         salidaDate: salida?.date_of_out,
+        logoUrl: iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png",
         asignaciones,
+        layout: taquillaLayout,
       });
       toast.success("PDF descargado correctamente", { id: "export-taquilla" });
     } catch (error) {
@@ -541,7 +751,6 @@ export default function ButacasPage() {
       toast.error("Error al generar el archivo PDF", { id: "export-taquilla" });
     }
   };
-
 
   return (
     <Container>
@@ -567,16 +776,33 @@ export default function ButacasPage() {
       </section>
       <section className="mx-3 flex flex-col gap-3 md:max-w-md md:mx-auto">
         <h2 className="my-5 text-black font-semibold md:hidden">Taquilla</h2>
-        <div className="text-gray-700 font-medium bg-[#f9f9fc] w-full border border-gray-300 py-3 px-4 rounded-lg shadow-sm">
-          <p className="text-xs text-gray-400 font-bold uppercase">Empresa / Micro</p>
-          <p className="text-sm font-semibold">{salida?.transport_company || "Cargando..."}</p>
-          <p className="text-xs text-gray-500 mt-1">Destino: {destinoName ?? 'Cargando...'}</p>
+        <div className="text-gray-700 font-medium  w-full  py-3 px-4 rounded-lg">
+          <p className="text-xs text-gray-400 font-bold">Empresa</p>
+          <p className="text-sm font-semibold">
+            {companyName || "Cargando..."}
+          </p>
+          <p className="text-xs text-gray-400 mt-3 font-bold">Tipo de Bus</p>
+
+          <select
+            value={selectedBusType?.id || ""}
+            onChange={(event) => handleBusTypeChange(event.target.value)}
+            className="mt-2 bg-transparent outline-none  shadow-md text-gray-700 font-semibold w-full rounded-sm p-2  cursor-pointer">
+            <option value="">Seleccionar micro</option>
+            {busTypes.map((busType) => (
+              <option key={busType.id || busType.name} value={busType.id || ""}>
+                {busType.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-3 font-bold">Destino</p>
+          <p className="text-sm font-semibold">
+            {destinoName || "Cargando..."}
+          </p>
         </div>
         <button
           onClick={handleConfirm}
           disabled={isSaving}
-          className="w-full my-5 bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl disabled:opacity-50"
-        >
+          className="w-full mb-5 bg-primary cursor-pointer text-white font-medium text-center py-2 rounded-xl disabled:opacity-50">
           {isSaving ? "Guardando..." : "Confirmar"}
         </button>
       </section>
@@ -584,15 +810,13 @@ export default function ButacasPage() {
         <ul className="flex items-start justify-center flex-col gap-3 font-medium md:flex-row">
           <li
             onClick={handleExportExcel}
-            className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors px-4 py-2 rounded-lg"
-          >
+            className="flex items-center gap-2 cursor-pointer hover:text-primary transition-colors px-4 py-2 rounded-lg">
             <Excel />
             <span>Exportar Excel</span>
           </li>
           <li
             onClick={handleExportPdf}
-            className="flex items-center gap-2 cursor-pointer hover:text-secondary transition-colors px-4 py-2 rounded-lg"
-          >
+            className="flex items-center gap-2 cursor-pointer hover:text-secondary transition-colors px-4 py-2 rounded-lg">
             <PDF />
             <span>Descargar PDF</span>
           </li>
@@ -605,10 +829,14 @@ export default function ButacasPage() {
         <div className="flex flex-col">
           {/* Butacas semicama */}
           <section className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3">
-            <h2 className="my-5 font-semibold">Butacas semicama ({salida?.semicama_disponibles} libres / {salida?.semicama} totales)</h2>
+            <h2 className="my-5 font-semibold">
+              Butacas semicama ({Math.max(semicamaTotal - semicamaAssigned, 0)}{" "}
+              libres / {semicamaTotal} totales)
+            </h2>
             <div className="flex justify-center md:justify-start">
               <SeatGrid
-                layout={semicamaLayout}
+                rows={taquillaLayout.semicamaRows}
+                columns={taquillaLayout.columns}
                 layoutType="S"
                 asignaciones={asignaciones}
                 onDrop={handleDrop}
@@ -618,10 +846,14 @@ export default function ButacasPage() {
 
           {/* Butacas cama */}
           <section className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3">
-            <h2 className="my-5 font-semibold">Butacas cama ({salida?.cama_disponibles} libres / {salida?.cama} totales)</h2>
+            <h2 className="my-5 font-semibold">
+              Butacas cama ({Math.max(camaTotal - camaAssigned, 0)} libres /{" "}
+              {camaTotal} totales)
+            </h2>
             <div className="flex justify-center md:justify-start">
               <SeatGrid
-                layout={camaLayout}
+                rows={taquillaLayout.camaRows}
+                columns={taquillaLayout.columns}
                 layoutType="C"
                 asignaciones={asignaciones}
                 onDrop={handleDrop}
@@ -641,16 +873,35 @@ export default function ButacasPage() {
             const uniqueId = e.dataTransfer.getData("reservationId");
             if (uniqueId) handleDropToUnassigned(uniqueId);
           }}
-          className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3 mb-6 md:w-80 border-2 border-dashed border-transparent hover:border-blue-300/60 rounded-xl transition-colors"
-        >
-          <h2 className="my-5 font-semibold">Pasajeros Sin Asignar ({pasajerosDisponibles.length})</h2>
+          className="mx-3 md:mx-0 md:px-8 text-black flex flex-col gap-3 mb-6 md:w-80 border-2 border-dashed border-transparent hover:border-blue-300/60 rounded-xl transition-colors">
+          <h2 className="my-5 font-semibold">
+            Pasajeros Semi Cama ({pasajerosSemicama.length})
+          </h2>
           <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto p-1">
-            {pasajerosDisponibles.map((p) => (
+            {pasajerosSemicama.map((p) => (
               <PasajeroCard key={p.uniqueId || p.id} pasajero={p} />
             ))}
-            {pasajerosDisponibles.length === 0 && (
-              <p className="col-span-2 text-center text-xs text-gray-400 py-4">Todos los pasajeros tienen asiento asignado (Arrastra aquí para desasignar)</p>
+            {pasajerosSemicama.length === 0 && (
+              <p className="col-span-2 text-center text-xs text-gray-400 py-4">
+                Todos los pasajeros tienen asiento asignado (Arrastra aquí para
+                desasignar)
+              </p>
             )}
+          </div>
+          <div>
+            <h2 className="my-2 font-semibold">
+              Pasajeros Cama ({pasajerosCama.length})
+            </h2>
+            <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto p-1">
+              {pasajerosCama.map((p) => (
+                <PasajeroCard key={p.uniqueId || p.id} pasajero={p} />
+              ))}
+              {pasajerosCama.length === 0 && (
+                <p className="col-span-2 text-center text-xs text-gray-400 py-4">
+                  Sin pasajeros cama sin asignar
+                </p>
+              )}
+            </div>
           </div>
         </section>
       </div>
