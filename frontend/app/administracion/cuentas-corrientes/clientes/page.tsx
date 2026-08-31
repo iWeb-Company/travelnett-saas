@@ -6,12 +6,13 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Excel from "@/app/components/icons/salidas/Excel";
 import Pagination from "@/app/components/Pagination";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { Loader } from "@/app/components/Loader";
 import DateInput from "@/app/components/DateComponent";
+import { filterAndSortClients } from "@/app/utils/clientSearch";
 
 interface Cliente {
   id: string;
@@ -43,6 +44,7 @@ export default function CuentasCorrientesClientesPage() {
   const [searching, setSearching] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selectedCliente, setSelectedCliente] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
   const [searched, setSearched] = useState(false);
   const [movimientos, setMovimientos] = useState<MovimientoCliente[]>([]);
 
@@ -51,6 +53,10 @@ export default function CuentasCorrientesClientesPage() {
 
   const totalPages = Math.ceil(movimientos.length / pageSize);
   const paginatedMovimientos = movimientos.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const filteredClients = useMemo(
+    () => filterAndSortClients(clientes, clientSearch),
+    [clientes, clientSearch],
+  );
 
   // Date filters
   const [fechaCreaDesde, setFechaCreaDesde] = useState("");
@@ -112,6 +118,7 @@ export default function CuentasCorrientesClientesPage() {
 
   const handleClear = () => {
     setSelectedCliente("");
+    setClientSearch("");
     setFechaCreaDesde("");
     setFechaCreaHasta("");
     setFechaInDesde("");
@@ -254,13 +261,20 @@ export default function CuentasCorrientesClientesPage() {
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-gray-700">Cliente</label>
+            <input
+              type="text"
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              placeholder="Filtrar clientes"
+              className="w-full border border-gray-300 py-2.5 px-4 bg-white text-gray-800 font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            />
             <select
               value={selectedCliente}
               onChange={(e) => setSelectedCliente(e.target.value)}
               className="w-full border border-gray-300 py-2.5 px-4 bg-white text-gray-800 font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">Todos los Clientes</option>
-              {clientes.map((c) => (
+              {filteredClients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.complete_name || c.name_system || c.name || c.nombre || c.username}
                 </option>

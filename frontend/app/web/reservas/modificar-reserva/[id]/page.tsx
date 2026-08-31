@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -13,6 +13,10 @@ import DateInput from "@/app/components/DateComponent";
 import toast from "react-hot-toast";
 import { parseRoomItem, getRoomCapacity } from "@/lib/formatRooms";
 import ModalLayout from "@/app/components/ModalLayout";
+import {
+  filterAndSortClients,
+  getClientDisplayName,
+} from "@/app/utils/clientSearch";
 
 interface GastoNoComm {
   id?: string;
@@ -60,6 +64,7 @@ export default function ReservaIdPage() {
   const [newRoomTipo, setNewRoomTipo] = useState<string>("estandar");
 
   const [clientesList, setClientesList] = useState<any[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
   const [modalCamaValue, setModalCamaValue] = useState<string>("doble");
   const [modalDistribucionValue, setModalDistribucionValue] =
     useState<string>("matrimonial");
@@ -88,7 +93,7 @@ export default function ReservaIdPage() {
           try {
             parsedRooms =
               typeof data.room_type === "string" &&
-                data.room_type.startsWith("[")
+              data.room_type.startsWith("[")
                 ? JSON.parse(data.room_type)
                 : data.room_type.includes(",")
                   ? data.room_type.split(",").map((s: string) => s.trim())
@@ -239,6 +244,11 @@ export default function ReservaIdPage() {
   );
   // const totalComisionable = Math.max(0, totalReserva - totalNoComisionable);
   const saldoTotalNeto = totalReserva - commission;
+  const saldoPendiente = saldoTotalNeto - pagosRealizados;
+  const filteredClients = useMemo(
+    () => filterAndSortClients(clientesList, clientSearch),
+    [clientesList, clientSearch],
+  );
 
   useEffect(() => {
     if (clientCommissionPct !== null && clientCommissionPct !== undefined) {
@@ -448,9 +458,16 @@ export default function ReservaIdPage() {
 
       // 1. Update/Create Passengers in backend
       for (const pax of paxSource) {
-        const phoneVal = (pax.telefono !== undefined && pax.telefono !== null && String(pax.telefono).trim() !== "")
-          ? String(pax.telefono).trim()
-          : ((pax.phone !== undefined && pax.phone !== null && String(pax.phone).trim() !== "") ? String(pax.phone).trim() : null);
+        const phoneVal =
+          pax.telefono !== undefined &&
+          pax.telefono !== null &&
+          String(pax.telefono).trim() !== ""
+            ? String(pax.telefono).trim()
+            : pax.phone !== undefined &&
+                pax.phone !== null &&
+                String(pax.phone).trim() !== ""
+              ? String(pax.phone).trim()
+              : null;
 
         if (!pax.pasajero_id) {
           const createdPax = await apiClient.createParameter(
@@ -528,7 +545,7 @@ export default function ReservaIdPage() {
             setTotalReserva(Number(updatedLiq.total_amout));
           const tc =
             updatedLiq.total_commission !== undefined &&
-              updatedLiq.total_commission !== null
+            updatedLiq.total_commission !== null
               ? updatedLiq.total_commission
               : (updatedLiq.total_comisionable ??
                 updatedLiq.total_commissionable);
@@ -857,38 +874,38 @@ export default function ReservaIdPage() {
           </div>
           <div className="flex items-center w-full">
             <p className="font-medium w-1/3 text-lg">Cliente</p>
-            <select
-              value={reserva?.client_id || ""}
-              onChange={(e) => {
-                const newClientId = e.target.value;
-                const matched = clientesList.find(
-                  (c: any) => c.id === newClientId,
-                );
-                const newComm =
-                  matched &&
+            <div className="flex-1 flex flex-col gap-2">
+              <select
+                value={reserva?.client_id || ""}
+                onChange={(e) => {
+                  const newClientId = e.target.value;
+                  const matched = clientesList.find(
+                    (c: any) => c.id === newClientId,
+                  );
+                  const newComm =
+                    matched &&
                     matched.commission !== null &&
                     matched.commission !== undefined
-                    ? Number(matched.commission)
-                    : clientCommissionPct;
-                setReserva({
-                  ...reserva!,
-                  client_id: newClientId,
-                  client_nombre: matched
-                    ? matched.complete_name || matched.name_system
-                    : "",
-                });
-                if (newComm !== null && newComm !== undefined) {
-                  setClientCommissionPct(newComm);
-                }
-              }}
-              className="border border-gray-200 px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-white cursor-pointer">
-              <option value="">Seleccionar Cliente</option>
-              {clientesList.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.complete_name || c.name_system}
-                </option>
-              ))}
-            </select>
+                      ? Number(matched.commission)
+                      : clientCommissionPct;
+                  setReserva({
+                    ...reserva!,
+                    client_id: newClientId,
+                    client_nombre: getClientDisplayName(matched),
+                  });
+                  if (newComm !== null && newComm !== undefined) {
+                    setClientCommissionPct(newComm);
+                  }
+                }}
+                className="border border-gray-200 px-5 font-semibold shadow-md shadow-gray-400 rounded-xl p-2 bg-white cursor-pointer">
+                <option value="">Seleccionar Cliente</option>
+                {filteredClients.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {getClientDisplayName(c)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="flex items-center w-full">
             <p className="font-medium w-1/2 text-lg">Vencimiento</p>
@@ -1217,7 +1234,7 @@ export default function ReservaIdPage() {
                 onClick={() => setModalCommissionOpen(true)}
                 className="hover:underline cursor-pointer">
                 {clientCommissionPct !== null &&
-                  clientCommissionPct !== undefined
+                clientCommissionPct !== undefined
                   ? `(${clientCommissionPct}%)`
                   : ""}
               </button>
@@ -1235,9 +1252,15 @@ export default function ReservaIdPage() {
           <hr className="bg-gray-400 border-gray-400 h-0.5 w-full mx-auto" />
 
           <div className="flex items-center text-xl justify-between w-full">
-            <p className="font-bold">Saldo total neto</p>
-            <p className="font-bold text-primary text-2xl">
+            <p className="font-bold">Total neto</p>
+            <p className="font-bold text-primary">
               {formatMonto(saldoTotalNeto)}
+            </p>
+          </div>
+          <div className="flex items-center text-xl justify-between w-full">
+            <p className="font-bold">Saldo pendiente</p>
+            <p className="font-bold text-red-500 text-2xl">
+              {formatMonto(saldoPendiente)}
             </p>
           </div>
         </section>

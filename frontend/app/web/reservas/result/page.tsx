@@ -40,7 +40,8 @@ function ResultContent() {
 
   const filterNumero = searchParams.get("numero") || "";
   const filterCliente = searchParams.get("cliente") || "";
-  const filterRango = searchParams.get("rango") || "";
+  const filterFechaDesde = searchParams.get("fecha_desde") || "";
+  const filterFechaHasta = searchParams.get("fecha_hasta") || "";
   const filterPeriodo = searchParams.get("periodo") || "";
   const filterPaquete = searchParams.get("paquete") || "";
   const filterActivoParam = searchParams.get("activo");
@@ -101,6 +102,7 @@ function ResultContent() {
           client_nombre: r.client_nombre || "",
           client_id: r.client_id || "",
           fechaRaw: r.fecha || "",
+          createdAtRaw: String(r.created_at || "").split("T")[0].split(" ")[0],
           fecha: formatDateDDMMYY(r.fecha),
           nombre_completo: formatFullName(r.nombre_completo),
           reservation_passengers: r.reservation_passengers || [],
@@ -174,33 +176,16 @@ function ResultContent() {
       if (selectedSalidaFilter && r.salida_id !== selectedSalidaFilter) {
         return false;
       }
-      if (filterRango && r.fechaRaw) {
-        const d = new Date(r.fechaRaw + "T00:00:00");
-        if (!isNaN(d.getTime())) {
-          const now = new Date();
-          if (
-            filterRango === "hoy" &&
-            d.toDateString() !== now.toDateString()
-          ) {
-            return false;
-          }
-          if (filterRango === "ultimos_7") {
-            const limit = new Date();
-            limit.setDate(now.getDate() - 7);
-            if (d < limit) return false;
-          }
-          if (filterRango === "ultimos_30") {
-            const limit = new Date();
-            limit.setDate(now.getDate() - 30);
-            if (d < limit) return false;
-          }
-          if (
-            filterRango === "este_mes" &&
-            (d.getMonth() !== now.getMonth() ||
-              d.getFullYear() !== now.getFullYear())
-          ) {
-            return false;
-          }
+      if (onlyActive && !r.active) {
+        return false;
+      }
+      if (filterFechaDesde && filterFechaHasta) {
+        if (
+          !r.createdAtRaw ||
+          r.createdAtRaw < filterFechaDesde ||
+          r.createdAtRaw > filterFechaHasta
+        ) {
+          return false;
         }
       }
       return true;
@@ -211,7 +196,8 @@ function ResultContent() {
     filterCliente,
     filterPaquete,
     selectedSalidaFilter,
-    filterRango,
+    filterFechaDesde,
+    filterFechaHasta,
     onlyActive,
   ]);
 

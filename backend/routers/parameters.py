@@ -701,6 +701,27 @@ async def get_clients(
     return mapped_results
 
 
+@router.get("/get_client_password/{client_id}", response_model=Any, tags=["Get Endpoints Parameters"])
+async def get_client_password(
+    client_id: str,
+    iweb_client_id: str,
+    db: Session = Depends(get_db),
+):
+    client = db.query(Clients).filter(
+        Clients.id == client_id,
+        Clients.iweb_client_id == iweb_client_id,
+    ).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    stored_password = client.hashed_password or ""
+    legacy_hashed = stored_password.startswith(("$2a$", "$2b$", "$2y$"))
+    return {
+        "password": None if legacy_hashed else stored_password,
+        "legacy_hashed": legacy_hashed,
+    }
+
+
 @router.get("/get_regimenes", response_model=Any, tags=["Get Endpoints Parameters"])
 async def get_regimenes(
     iweb_client_id: str,

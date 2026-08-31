@@ -71,7 +71,17 @@ function AgregarSalidaContent() {
       setDestinos(destData);
       setTransportes(transportFilterByType);
       setPeriodos(periodData);
-      setLugaresCarga(cargaData);
+      setLugaresCarga(
+        [...cargaData].sort((left: any, right: any) => {
+          const essentialOrder = Number(Boolean(right.is_essential)) - Number(Boolean(left.is_essential));
+          if (essentialOrder !== 0) return essentialOrder;
+          return String(left.name || left.nombre || "").localeCompare(
+            String(right.name || right.nombre || ""),
+            "es",
+            { sensitivity: "base" },
+          );
+        }),
+      );
 
       // If we are editing, fetch the existing data
       if (id) {
@@ -368,6 +378,7 @@ function AgregarSalidaContent() {
             options={lugaresCarga.map((lugar) => ({
               id: lugar.id,
               label: lugar.name,
+              essential: Boolean(lugar.is_essential),
             }))}
             placeholder="Lugares de carga"
           />

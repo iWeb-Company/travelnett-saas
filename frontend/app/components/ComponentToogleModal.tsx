@@ -7,6 +7,7 @@ import ModalOptions from "./ModalOptions";
 type Option = {
     id: string;
     label: string;
+    essential?: boolean;
 };
 
 type ComponentToggleModalProps = {
@@ -57,7 +58,11 @@ export default function PlaceInput({
             .split(",")
             .map((id) => id.trim())
             .filter(Boolean)
-            .map((id) => options.find((opt) => opt.id === id)?.label || id)
+            .map((id) => {
+                const option = options.find((opt) => opt.id === id);
+                if (!option) return id;
+                return `${option.essential ? "★ " : ""}${option.label}`;
+            })
             .join(", ")
         : placeholder;
 
@@ -86,9 +91,20 @@ export default function PlaceInput({
                 >
                     <div className="space-y-2">
                         {options.map((option) => (
-                            <div key={option.id} className="flex items-center justify-between gap-3">
-                                <label htmlFor={option.id} className="text-lg text-white font-medium cursor-pointer">
-                                    {option.label}
+                            <div
+                                key={option.id}
+                                className={`flex items-center justify-between gap-3 rounded px-2 py-1 ${
+                                    option.essential
+                                        ? "border border-amber-300 bg-amber-400/15"
+                                        : ""
+                                }`}>
+                                <label htmlFor={option.id} className="flex items-center gap-2 text-lg text-white font-medium cursor-pointer">
+                                    <span>{option.label}</span>
+                                    {option.essential && (
+                                        <span className="rounded bg-amber-300 px-2 py-0.5 text-xs font-bold text-black">
+                                            Esencial
+                                        </span>
+                                    )}
                                 </label>
                                 <input
                                     className="w-5 h-5 cursor-pointer"

@@ -49,6 +49,10 @@ def _verify_password_or_false(plain_password: str, hashed_password: Any) -> bool
         return plain_password == hashed_password
 
 
+def _is_legacy_client_password_hash(password: Any) -> bool:
+    return isinstance(password, str) and password.startswith(("$2a$", "$2b$", "$2y$"))
+
+
 @router.post("/login-system")
 def login(
     body: LoginSystemRequest,
@@ -153,6 +157,10 @@ def login_web(
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if _is_legacy_client_password_hash(client.hashed_password):
+        client.hashed_password = body.password
+        db.commit()
 
     token_iweb_client_id = client.iweb_client_id
     if body.email == "iweb_admin" and body.iweb_client_id:
@@ -359,7 +367,7 @@ def create_client_by_iweb_client_id(
         phone=body.client.phone,
         payment_method=body.client.payment_method,
         commission=body.client.commission,
-        hashed_password=get_password_hash(body.client.hashed_password) if body.client.hashed_password else None,
+        hashed_password=body.client.hashed_password or None,
         created_at=body.client.created_at or datetime.now(),
     )
 
@@ -404,7 +412,7 @@ def update_client_by_id(
     client.payment_method = body.client.payment_method
     client.commission = body.client.commission
     if body.client.hashed_password:
-        client.hashed_password = get_password_hash(body.client.hashed_password)
+        client.hashed_password = body.client.hashed_password
     client.created_at = body.client.created_at
     db.commit()
     db.refresh(client)

@@ -8,6 +8,9 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
+import DateRangePicker, {
+  formatDateRangeParam,
+} from "@/app/components/DateRangePicker";
 
 export default function ReservasPage() {
   const router = useRouter();
@@ -15,11 +18,12 @@ export default function ReservasPage() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [periodos, setPeriodos] = useState<any[]>([]);
   const [paquetes, setPaquetes] = useState<any[]>([]);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
 
   const [data, setData] = useState({
     numero: "",
     cliente: "",
-    rango: "",
     periodo: "",
     paquete: "",
     activo: true,
@@ -49,8 +53,10 @@ export default function ReservasPage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const fechaDesde = startDate && endDate ? formatDateRangeParam(startDate) : "";
+    const fechaHasta = startDate && endDate ? formatDateRangeParam(endDate) : "";
     router.push(
-      `/web/reservas/result?numero=${data.numero}&cliente=${data.cliente}&rango=${data.rango}&periodo=${data.periodo}&paquete=${data.paquete}&activo=${data.activo}`,
+      `/web/reservas/result?numero=${data.numero}&cliente=${data.cliente}&fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}&periodo=${data.periodo}&paquete=${data.paquete}&activo=${data.activo}`,
     );
   };
 
@@ -101,28 +107,15 @@ export default function ReservasPage() {
               </option>
             ))}
           </select>
-          <select
-            className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
-            name="rango"
-            id="rango"
-            value={data.rango}
-            onChange={handleChange}>
-            <option className="text-gray-200 bg-[#f1f1f1]" value="">
-              Rango de fechas (Fecha de alta)
-            </option>
-            <option className="bg-[#f1f1f1]" value="hoy">
-              Hoy
-            </option>
-            <option className="bg-[#f1f1f1]" value="ultimos_7">
-              Últimos 7 días
-            </option>
-            <option className="bg-[#f1f1f1]" value="ultimos_30">
-              Últimos 30 días
-            </option>
-            <option className="bg-[#f1f1f1]" value="este_mes">
-              Este mes
-            </option>
-          </select>
+          <DateRangePicker
+            startDate={startDate}
+            endDate={endDate}
+            onChange={([start, end]) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+            placeholder="Rango de fechas (Fecha de alta)"
+          />
           <select
             className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500"
             name="periodo"
