@@ -25,6 +25,7 @@ import {
 } from "@/app/types";
 import { formatDateDDMMYY } from "@/lib/formatDate";
 import DateInput from "@/app/components/DateComponent";
+import { destinationComponentsOverlap, isSameDestination } from "@/lib/destinationMatching";
 
 // ─── Hotel entry type for the multi-hotel form ────────────────────────────────
 interface HotelEntry {
@@ -253,53 +254,26 @@ function AgregarPaqueteContent() {
     }
   };
 
-  const targetDestinoKeys = useMemo(() => {
-    if (!destino) return [];
-    const selectedDestinoObj = destinos.find(
-      (d: Destino) => d.id === destino || d.name === destino,
-    );
-    if (!selectedDestinoObj) return [destino];
-
-    const subNames = (selectedDestinoObj.name || "")
-      .split(/\s*[/,+]\s*/)
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-
-    const matchingDestinoIds = destinos
-      .filter((d) => subNames.includes((d.name || "").trim().toLowerCase()))
-      .map((d) => d.id)
-      .filter(Boolean) as string[];
-
-    const allKeys = [
-      destino,
-      selectedDestinoObj.id,
-      selectedDestinoObj.name,
-      ...matchingDestinoIds,
-      ...subNames,
-    ].filter(Boolean) as string[];
-    return Array.from(new Set(allKeys));
-  }, [destino, destinos]);
-
   const salidasFiltered = useMemo(() => {
     if (!destino) return salidas;
     return salidas.filter(
-      (s: Salida) => s.destino && targetDestinoKeys.includes(s.destino),
+      (s: Salida) => s.destino && destinationComponentsOverlap(destino, s.destino, destinos),
     );
-  }, [salidas, destino, targetDestinoKeys]);
+  }, [salidas, destino, destinos]);
 
   const hotelesFiltered = useMemo(() => {
     if (!destino) return [];
     return hoteles.filter(
-      (h: Hotel) => h.destino && targetDestinoKeys.includes(h.destino),
+      (h: Hotel) => h.destino && isSameDestination(destino, h.destino, destinos),
     );
-  }, [hoteles, destino, targetDestinoKeys]);
+  }, [hoteles, destino, destinos]);
 
   const excursionesFiltered = useMemo(() => {
     if (!destino) return [];
     return excursiones.filter(
-      (e: Excursion) => e.destino && targetDestinoKeys.includes(e.destino),
+      (e: Excursion) => e.destino && isSameDestination(destino, e.destino, destinos),
     );
-  }, [excursiones, destino, targetDestinoKeys]);
+  }, [excursiones, destino, destinos]);
 
   useEffect(() => {
     if (user?.iweb_client_id) {
@@ -441,7 +415,7 @@ function AgregarPaqueteContent() {
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col w-full max-w-3xl mx-auto my-5 gap-5 p-6 text-black">
+        className="flex flex-col w-full max-w-3xl mx-auto my-5 gap-5 p-4 sm:p-6 text-black">
         <h2 className="text-black text-center md:text-xl font-semibold mb-3">
           {id ? "Modificar" : "Agregar"} paquete
         </h2>

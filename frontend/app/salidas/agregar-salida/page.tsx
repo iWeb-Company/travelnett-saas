@@ -210,7 +210,7 @@ function AgregarSalidaContent() {
 
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col w-full max-w-3xl mx-auto my-5 gap-5 p-6 rounded-xl text-lg  text-black">
+        className="flex flex-col w-full max-w-3xl mx-auto my-5 gap-5 p-4 sm:p-6 rounded-xl text-base md:text-lg text-black">
         <h2 className="text-black text-center md:text-xl font-semibold mb-3">
           {id ? "Modificar" : "Agregar"} salida
         </h2>

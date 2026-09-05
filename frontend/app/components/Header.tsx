@@ -10,12 +10,12 @@ export default function Header() {
   return (
     <>
       {path !== "/login" && (
-        <header className="relative flex px-3 justify-between items-center">
-          <div className="flex gap-5">
+        <header className="relative flex min-w-0 gap-2 px-2 sm:px-3 justify-between items-center">
+          <div className="flex min-w-0 gap-2 sm:gap-5">
             <img
               src="/logo.png"
               alt="TravelNett Logo"
-              className="w-20 md:w-40 aspect-square"
+              className="w-16 sm:w-20 md:w-40 aspect-square shrink-0"
             />
             {path === "/dashboard" ? (
               <div className="text-black flex-col hidden md:flex items-start justify-center gap-1.5 py-2 min-h-[64px]">
@@ -52,7 +52,7 @@ export default function Header() {
           </div>
           <button
             onClick={() => logout()}
-            className="font-medium md:text-2xl pr-3"
+            className="shrink-0 whitespace-nowrap font-medium text-xs sm:text-base md:text-2xl pr-1 sm:pr-3"
           >
             <i>Cerrar sesión</i>
           </button>

@@ -33,7 +33,7 @@ export default function SalidaCard({
   }, [categorias]);
 
   return (
-    <div className="flex items-start gap-5">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3 sm:gap-5">
       <div className="flex-1 flex flex-col">
         <div
           onClick={() => setIsOpen(!isOpen)}
@@ -73,10 +73,10 @@ export default function SalidaCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-x-1 md:gap-x-3 justify-center py-3">
+      <div className="grid grid-cols-2 sm:flex items-center gap-2 sm:gap-x-1 md:gap-x-3 justify-center py-1 sm:py-3">
         <Link
           href={`/salidas/lista/${id}`}
-          className="flex items-center text-black gap-2 text-lg">
+          className="flex items-center justify-center text-black gap-1 md:gap-2 text-sm md:text-lg">
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Copy id={id} />
           </span>
@@ -84,7 +84,7 @@ export default function SalidaCard({
         </Link>
         <Link
           href={`/salidas/rooming/${id}`}
-          className="flex items-center text-black gap-2 text-lg">
+          className="flex items-center justify-center text-black gap-1 md:gap-2 text-sm md:text-lg">
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Rooming id={id} />
           </span>
@@ -92,7 +92,7 @@ export default function SalidaCard({
         </Link>
         <Link
           href={`/salidas/agregar-salida?id=${id}`}
-          className="flex items-center text-black gap-2 text-lg">
+          className="flex items-center justify-center text-black gap-1 md:gap-2 text-sm md:text-lg">
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Update id={id} />
           </span>
@@ -100,7 +100,7 @@ export default function SalidaCard({
         </Link>
         <button
           onClick={() => onDelete && onDelete(id)}
-          className="flex items-center text-black gap-2 text-lg hover:text-red-600"
+          className="flex items-center justify-center text-black gap-1 md:gap-2 text-sm md:text-lg hover:text-red-600"
         >
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Delete id={id} />

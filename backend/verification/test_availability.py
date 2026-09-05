@@ -19,7 +19,8 @@ from db.database import Base, engine as configured_engine
 from migrations.hotel_capacity import migrate
 from models.models import (
     iWebClient, Packages, PackageHotels, PackagesDatesOfExit, PackageHotelCapacity,
-    Hotels, Salidas, Reservas, ReservationPassengers, Passengers,
+    Hotels, Salidas, Reservas, ReservationPassengers, Passengers, Destinos,
+    LugaresCarga, SalidasLugaresCarga, Clients,
 )
 from schemas.schemas import PackageCreateRequest, PackageUpdateRequest, PackageHotelPayload
 from services.availability import (
@@ -28,10 +29,12 @@ from services.availability import (
 )
 from routers.packages import create_package, update_package, get_package
 from routers.reservas import (
-    create_reserva, update_reserva, duplicate_reserva, delete_reserva,
+    create_reserva, update_reserva, duplicate_reserva, delete_reserva, get_reservas,
     update_reservation_passenger, ReservaCreatePayload, ReservaUpdatePayload,
     ReservationPassengerUpdateInput,
 )
+from routers.vouchers import generate_voucher_snapshot
+from routers.liquidaciones import calculate_booking_liquidacion_totals
 
 
 class AvailabilityTests(unittest.TestCase):
@@ -119,6 +122,39 @@ class AvailabilityTests(unittest.TestCase):
         self.db.rollback()
         self.assertEqual(hotel_availability(self.db, self.tenant, self.pkg)[0]["ocupacion"], 2)
         self.assertEqual(self.db.query(Reservas).filter_by(package_id=self.pkg).count(), 1)
+
+    def test_reservation_commission_overrides_client_default_in_liquidation(self):
+        client_id = uuid.uuid4().hex
+        self.db.add(Clients(
+            id=client_id,
+            iweb_client_id=self.tenant,
+            complete_name="Agencia",
+            commission=10,
+        ))
+        package = self.db.get(Packages, self.pkg)
+        package.price = 1000
+        self.db.commit()
+
+        reservation = self.booking(
+            client_id=client_id,
+            commission=25,
+            room_type="single_individual_estandar",
+        )
+        totals = calculate_booking_liquidacion_totals(self.db, reservation.id)
+        self.assertEqual(totals["client_comm_pct"], 25)
+        self.assertEqual(totals["comm_amount"], 250)
+
+        reservation.commission = 0
+        self.db.commit()
+        totals = calculate_booking_liquidacion_totals(self.db, reservation.id)
+        self.assertEqual(totals["client_comm_pct"], 0)
+        self.assertEqual(totals["comm_amount"], 0)
+
+        reservation.commission = None
+        self.db.commit()
+        totals = calculate_booking_liquidacion_totals(self.db, reservation.id)
+        self.assertEqual(totals["client_comm_pct"], 10)
+        self.assertEqual(totals["comm_amount"], 100)
 
     def test_seat_shortage_rolls_back_hotel_occupancy(self):
         self.booking(kind="cama")
@@ -266,6 +302,116 @@ class AvailabilityTests(unittest.TestCase):
         ]), self.tenant, self.db))
         available = {a["salida_id"]: a["disponible"] for a in hotel_availability(self.db, self.tenant, self.pkg)}
         self.assertEqual(available, {self.salida: 0, other_salida: 7})
+
+    def test_shared_departure_uses_global_seats_and_independent_commercial_data(self):
+        operative_destination = uuid.uuid4().hex
+        first_destination = uuid.uuid4().hex
+        second_destination = uuid.uuid4().hex
+        second_package = uuid.uuid4().hex
+        self.db.add_all([
+            Destinos(id=operative_destination, iweb_client_id=self.tenant, name="Mar de Ajo / San Bernardo", sigla="COMB"),
+            Destinos(id=first_destination, iweb_client_id=self.tenant, name="Mar de Ajo", sigla="MA"),
+            Destinos(id=second_destination, iweb_client_id=self.tenant, name="San Bernardo", sigla="SB"),
+            Packages(id=second_package, iweb_client_id=self.tenant, name="Paquete San Bernardo", destino=second_destination),
+            PackageHotels(id=uuid.uuid4().hex, iweb_client_id=self.tenant, package_id=second_package, hotel_id=self.hotel),
+            PackagesDatesOfExit(id=uuid.uuid4().hex, iweb_client_id=self.tenant, package_id=second_package, salida_id=self.salida, active=True),
+            PackageHotelCapacity(id=uuid.uuid4().hex, iweb_client_id=self.tenant, package_id=second_package, hotel_id=self.hotel, salida_id=self.salida, capacidad=3),
+        ])
+        self.db.get(Packages, self.pkg).destino = first_destination
+        self.db.get(Salidas, self.salida).destino = operative_destination
+        self.db.get(Salidas, self.salida).semicama = 2
+        self.db.get(PackageHotelCapacity, self.db.query(PackageHotelCapacity).filter_by(package_id=self.pkg).one().id).capacidad = 3
+        passengers = [Passengers(id=uuid.uuid4().hex, iweb_client_id=self.tenant) for _ in range(3)]
+        self.db.add_all(passengers)
+        self.db.commit()
+
+        with self.assertRaisesRegex(HTTPException, "ambig"):
+            resolve_selection(self.db, self.tenant, None, self.salida, self.hotel)
+
+        first = asyncio.run(create_reserva(ReservaCreatePayload(
+            package_id=self.pkg, salida_id=self.salida, hotel_id=self.hotel,
+            passengers=[dict(pasajero_id=passengers[0].id, pasajero_type="ADL", butaca_type="semicama")],
+        ), self.tenant, self.db))
+        second = asyncio.run(create_reserva(ReservaCreatePayload(
+            package_id=second_package, salida_id=self.salida, hotel_id=self.hotel,
+            passengers=[dict(pasajero_id=passengers[1].id, pasajero_type="ADL", butaca_type="semicama")],
+        ), self.tenant, self.db))
+
+        self.assertTrue(first.codigo_reserva.startswith("MA#"))
+        self.assertTrue(second.codigo_reserva.startswith("SB#"))
+        self.assertEqual(first.destino, "Mar de Ajo")
+        self.assertEqual(second.destino, "San Bernardo")
+        voucher = asyncio.run(generate_voucher_snapshot(second.id, self.tenant, self.db))
+        self.assertEqual(voucher.package_id, second_package)
+        self.assertEqual(voucher.destino_name, "San Bernardo")
+        self.assertEqual(hotel_availability(self.db, self.tenant, self.pkg)[0]["ocupacion"], 1)
+        self.assertEqual(hotel_availability(self.db, self.tenant, second_package)[0]["ocupacion"], 1)
+        listed = asyncio.run(get_reservas(self.tenant, self.salida, None, 5, self.db))
+        self.assertEqual({reservation.destino for reservation in listed}, {"Mar de Ajo", "San Bernardo"})
+
+        with self.assertRaisesRegex(HTTPException, "Butacas SEMICAMA"):
+            asyncio.run(create_reserva(ReservaCreatePayload(
+                package_id=second_package, salida_id=self.salida, hotel_id=self.hotel,
+                passengers=[dict(pasajero_id=passengers[2].id, pasajero_type="ADL", butaca_type="semicama")],
+            ), self.tenant, self.db))
+        self.db.rollback()
+
+    def test_operational_hotel_edit_keeps_legacy_package_less_reservation(self):
+        legacy = Reservas(
+            id=uuid.uuid4().hex,
+            iweb_client_id=self.tenant,
+            salida_id=self.salida,
+            hotel_id="legacy-hotel",
+            active=True,
+        )
+        self.db.add(legacy)
+        self.db.commit()
+        result = asyncio.run(update_reserva(
+            legacy.id,
+            ReservaUpdatePayload(hotel_id="operational-hotel"),
+            self.tenant,
+            self.db,
+        ))
+        self.assertEqual(result.hotel_id, "operational-hotel")
+        self.assertIsNone(result.package_id)
+
+    def test_voucher_uses_departure_date_and_matching_boarding_time(self):
+        load_ids = [uuid.uuid4().hex for _ in range(3)]
+        self.db.add_all([
+            LugaresCarga(id=load_ids[0], iweb_client_id=self.tenant, name="Liniers"),
+            LugaresCarga(id=load_ids[1], iweb_client_id=self.tenant, name="Moron"),
+            LugaresCarga(id=load_ids[2], iweb_client_id=self.tenant, name="San Justo"),
+            SalidasLugaresCarga(
+                id=uuid.uuid4().hex,
+                iweb_client_id=self.tenant,
+                salida_id=self.salida,
+                cargas=", ".join(load_ids),
+                horarios="06:30, , 08:45",
+            ),
+        ])
+        self.db.get(Salidas, self.salida).date_of_out = "2026-10-15T00:00:00"
+        self.db.query(PackageHotels).filter_by(package_id=self.pkg).one().hotel_fecha_in = "2026-10-20"
+        passenger = Passengers(id=uuid.uuid4().hex, iweb_client_id=self.tenant, name="Ana")
+        self.db.add(passenger)
+        self.db.commit()
+
+        reservation = asyncio.run(create_reserva(ReservaCreatePayload(
+            package_id=self.pkg,
+            salida_id=self.salida,
+            hotel_id=self.hotel,
+            lugar_carga_id=load_ids[2],
+            passengers=[dict(
+                pasajero_id=passenger.id,
+                pasajero_type="ADL",
+                butaca_type="semicama",
+                lugar_carga_id=load_ids[2],
+            )],
+        ), self.tenant, self.db))
+        voucher = asyncio.run(generate_voucher_snapshot(reservation.id, self.tenant, self.db))
+
+        self.assertEqual(voucher.fecha_salida, "15/10/2026")
+        self.assertEqual(voucher.horario_carga, "08:45")
+        self.assertIn("San Justo", voucher.lugar_carga)
 
     def test_create_endpoint_and_delete_release_capacity(self):
         p = Passengers(id=uuid.uuid4().hex, iweb_client_id=self.tenant)

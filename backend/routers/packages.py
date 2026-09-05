@@ -211,11 +211,12 @@ async def create_package(
     )
     db.add(new_pkg)
 
-    save_package_capacity(db, iweb_client_id, pkg_id, body.dates, body.hotels)
+    dates = list(dict.fromkeys(body.dates))
+    save_package_capacity(db, iweb_client_id, pkg_id, dates, body.hotels)
 
     # Guardar fechas de salida
-    if body.dates:
-        for s_id in body.dates:
+    if dates:
+        for s_id in dates:
             db.add(PackagesDatesOfExit(
                 id=str(uuid.uuid4()),
                 iweb_client_id=iweb_client_id,
@@ -331,7 +332,7 @@ async def update_package(
     if body.excursiones is not None:
         p.excursiones = body.excursiones
 
-    final_dates = body.dates if body.dates is not None else [r.salida_id for r in db.query(PackagesDatesOfExit).filter_by(iweb_client_id=iweb_client_id, package_id=p.id, active=True).all()]
+    final_dates = list(dict.fromkeys(body.dates)) if body.dates is not None else [r.salida_id for r in db.query(PackagesDatesOfExit).filter_by(iweb_client_id=iweb_client_id, package_id=p.id, active=True).all()]
     final_hotels = body.hotels if body.hotels is not None else db.query(PackageHotels).filter_by(iweb_client_id=iweb_client_id, package_id=p.id).all()
     save_package_capacity(db, iweb_client_id, p.id, final_dates, final_hotels)
 
@@ -341,7 +342,7 @@ async def update_package(
             PackagesDatesOfExit.iweb_client_id == iweb_client_id,
             PackagesDatesOfExit.package_id == p.id
         ).delete(synchronize_session=False)
-        for s_id in body.dates:
+        for s_id in final_dates:
             db.add(PackagesDatesOfExit(
                 id=str(uuid.uuid4()),
                 iweb_client_id=iweb_client_id,

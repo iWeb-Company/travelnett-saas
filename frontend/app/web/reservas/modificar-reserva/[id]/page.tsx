@@ -58,6 +58,7 @@ export default function ReservaIdPage() {
   // State for Add Room Modal
   const [openAddRoomModal, setOpenAddRoomModal] = useState(false);
   const [modalCommissionOpen, setModalCommissionOpen] = useState(false);
+  const [commissionDraft, setCommissionDraft] = useState<number>(0);
   const [newRoomCama, setNewRoomCama] = useState<string>("doble");
   const [newRoomDistribucion, setNewRoomDistribucion] =
     useState<string>("matrimonial");
@@ -85,9 +86,11 @@ export default function ReservaIdPage() {
       .getReservaById(user.iweb_client_id, id)
       .then((data) => {
         setReserva(data);
-        if (data.commission !== null && data.commission !== undefined) {
-          setClientCommissionPct(Number(data.commission));
-        }
+        setClientCommissionPct(
+          data.commission !== null && data.commission !== undefined
+            ? Number(data.commission)
+            : null,
+        );
         let parsedRooms: string[] = [];
         if (data.room_type) {
           try {
@@ -164,25 +167,6 @@ export default function ReservaIdPage() {
           );
           setPassengersList(mapped);
         }
-
-        // Fetch client to get commission %
-        if (data.client_id) {
-          apiClient
-            .getParameters("get_clients", user.iweb_client_id)
-            .then((clients) => {
-              if (Array.isArray(clients)) {
-                const cl = clients.find((c: any) => c.id === data.client_id);
-                if (
-                  cl &&
-                  cl.commission !== null &&
-                  cl.commission !== undefined
-                ) {
-                  setClientCommissionPct(Number(cl.commission));
-                }
-              }
-            })
-            .catch(() => []);
-        }
       })
       .catch(() => toast.error("Error al cargar la reserva"));
 
@@ -237,6 +221,24 @@ export default function ReservaIdPage() {
       .catch(() => []);
   }, [id, user?.iweb_client_id]);
 
+  // Reservas antiguas sin porcentaje propio heredan la comisión del cliente.
+  // Una comisión guardada en la reserva (incluido 0) nunca debe sobrescribirse.
+  useEffect(() => {
+    if (
+      !reserva ||
+      reserva.commission !== null && reserva.commission !== undefined ||
+      !reserva.client_id ||
+      clientesList.length === 0
+    ) {
+      return;
+    }
+
+    const client = clientesList.find((item: any) => item.id === reserva.client_id);
+    if (client?.commission !== null && client?.commission !== undefined) {
+      setClientCommissionPct(Number(client.commission));
+    }
+  }, [clientesList, reserva]);
+
   // Dynamic calculations
   const totalNoComisionable = gastos.reduce(
     (acc, g) => acc + (g.amount || 0),
@@ -256,6 +258,10 @@ export default function ReservaIdPage() {
       setCommission(calc);
     }
   }, [totalComisionable, clientCommissionPct]);
+
+  const commissionDraftAmount = Math.round(
+    (totalComisionable * commissionDraft) / 100,
+  );
 
   if (!reserva) return <FormSkeleton />;
 
@@ -394,6 +400,26 @@ export default function ReservaIdPage() {
 
   const formatMonto = (num: number) =>
     `$${Math.round(num).toLocaleString("es-AR")}`;
+
+  const handleOpenCommissionModal = () => {
+    setCommissionDraft(clientCommissionPct ?? 0);
+    setModalCommissionOpen(true);
+  };
+
+  const handleSubmitCommission = () => {
+    if (
+      !Number.isFinite(commissionDraft) ||
+      commissionDraft < 0 ||
+      commissionDraft > 100
+    ) {
+      toast.error("La comisión debe ser un porcentaje entre 0 y 100");
+      return;
+    }
+
+    setClientCommissionPct(commissionDraft);
+    setReserva({ ...reserva, commission: commissionDraft });
+    setModalCommissionOpen(false);
+  };
 
   // Save handler
   const handleSave = async () => {
@@ -825,32 +851,32 @@ export default function ReservaIdPage() {
         <h2 className="font-semibold text-secondary underline">Cancelar</h2>
       </Link>
 
-      <div className="flex flex-col w-full max-w-6xl mt-10 mx-auto text-black text-lg items-center gap-3">
+      <div className="flex flex-col w-full max-w-6xl mt-6 md:mt-10 mx-auto text-black text-base md:text-lg items-center gap-3">
         <p className="font-semibold text-center">Modificar reserva</p>
-        <div className="relative flex w-full items-center justify-center">
-          <p className="font-bold text-center text-xl">Datos de la reserva</p>
+        <div className="relative flex w-full flex-col items-center justify-center gap-2 md:block">
+          <p className="font-bold text-center text-lg md:text-xl">Datos de la reserva</p>
           <Link
             href={`/web/reservas/liquidacion/${id}`}
-            className="absolute right-0 underline font-bold italic text-end">
+            className="self-end underline font-bold italic text-end md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2">
             Ver liquidación
           </Link>
         </div>
       </div>
 
-      <section className="max-w-6xl flex flex-col justify-center gap-10 mx-auto my-7 items-center w-full text-black">
+      <section className="max-w-6xl flex flex-col justify-center gap-6 md:gap-10 mx-auto my-7 items-center w-full text-black">
         {/* SECCIÓN 1: DATOS GENERALES */}
-        <section className="w-full bg-white px-10 border-gray-900 rounded-xl shadow-md py-10 shadow-gray-500 p-4 flex flex-col gap-5">
-          <div className="flex items-center w-full">
-            <p className="font-medium w-1/3 text-lg">Número de reserva</p>
+        <section className="w-full bg-white px-4 sm:px-6 md:px-10 border-gray-900 rounded-xl shadow-md py-6 md:py-10 shadow-gray-500 flex flex-col gap-5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
+            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">Número de reserva</p>
             <input
               type="text"
               value={reserva?.codigo_reserva || ""}
               disabled
-              className="border border-gray-200 px-5 font-semibold shadow-gray-400 shadow-md flex-1 rounded-xl p-2 bg-gray-50"
+              className="border border-gray-200 px-3 sm:px-5 font-semibold shadow-gray-400 shadow-md flex-1 w-full rounded-xl p-2 bg-gray-50"
             />
           </div>
-          <div className="flex items-center w-full">
-            <p className="font-medium w-1/3 text-lg">Título de reserva</p>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
+            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">Título de reserva</p>
             <input
               type="text"
               placeholder={getNombreCompletoReserva() || "Título de la reserva"}
@@ -858,24 +884,24 @@ export default function ReservaIdPage() {
               onChange={(e) =>
                 setReserva({ ...reserva, titulo: e.target.value })
               }
-              className="border border-gray-200 text-gray-800 px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+              className="border border-gray-200 text-gray-800 px-3 sm:px-5 font-semibold shadow-md shadow-gray-400 flex-1 w-full rounded-xl p-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          <div className="flex items-center w-full">
-            <p className="font-medium w-1/3 text-lg">Estado</p>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
+            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">Estado</p>
             <select
               value={reserva?.active ? 1 : 0}
               onChange={(e) =>
                 setReserva({ ...reserva, active: e.target.value === "1" })
               }
-              className="border border-gray-200 px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-white">
+              className="border border-gray-200 px-3 sm:px-5 font-semibold shadow-md shadow-gray-400 flex-1 w-full rounded-xl p-2 bg-white">
               <option value={1}>OK</option>
               <option value={0}>CXL</option>
             </select>
           </div>
-          <div className="flex items-center w-full">
-            <p className="font-medium w-1/3 text-lg">Cliente</p>
-            <div className="flex-1 flex flex-col gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
+            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">Cliente</p>
+            <div className="flex-1 w-full flex flex-col gap-2">
               <select
                 value={reserva?.client_id || ""}
                 onChange={(e) => {
@@ -898,7 +924,7 @@ export default function ReservaIdPage() {
                     setClientCommissionPct(newComm);
                   }
                 }}
-                className="border border-gray-200 px-5 font-semibold shadow-md shadow-gray-400 rounded-xl p-2 bg-white cursor-pointer">
+                className="w-full border border-gray-200 px-3 sm:px-5 font-semibold shadow-md shadow-gray-400 rounded-xl p-2 bg-white cursor-pointer">
                 <option value="">Seleccionar Cliente</option>
                 {filteredClients.map((c: any) => (
                   <option key={c.id} value={c.id}>
@@ -908,8 +934,8 @@ export default function ReservaIdPage() {
               </select>
             </div>
           </div>
-          <div className="flex items-center w-full">
-            <p className="font-medium w-1/2 text-lg">Vencimiento</p>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
+            <p className="font-medium w-full sm:w-1/2 text-base md:text-lg">Vencimiento</p>
             <DateInput
               placeholder=""
               value={reserva?.venciment || ""}
@@ -922,13 +948,13 @@ export default function ReservaIdPage() {
             />
           </div>
           <div className="flex flex-col gap-3 w-full">
-            <p className="font-medium text-lg">Observaciones</p>
+            <p className="font-medium text-base md:text-lg">Observaciones</p>
             <textarea
               value={reserva?.observations || ""}
               onChange={(e) =>
                 setReserva({ ...reserva, observations: e.target.value })
               }
-              className="border border-gray-200 px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-white"
+              className="border border-gray-200 px-3 sm:px-5 font-semibold shadow-md shadow-gray-400 flex-1 rounded-xl p-2 bg-white"
               rows={3}
             />
           </div>
@@ -937,7 +963,7 @@ export default function ReservaIdPage() {
         {/* SECCIÓN 3: HABITACIONES */}
         <hr className="bg-gray-400 border-gray-400 h-0.5 w-full max-w-2xl mx-auto" />
         <p className="font-bold flex-1 text-lg text-center">Habitaciones</p>
-        <section className="w-full bg-white px-10 border-gray-200 rounded-xl shadow-md py-10 shadow-gray-400 p-4 flex flex-col gap-5">
+        <section className="w-full bg-white px-3 sm:px-6 md:px-10 border-gray-200 rounded-xl shadow-md py-6 md:py-10 shadow-gray-400 flex flex-col gap-5">
           <div className="flex flex-col gap-4 w-full">
             {rooms.map((roomType, idx) => {
               const detail = parseRoomItem(roomType);
@@ -947,7 +973,7 @@ export default function ReservaIdPage() {
               return (
                 <div
                   key={idx}
-                  className="flex relative flex-col md:flex-row items-start md:items-center font-medium gap-4 p-4 ">
+                  className="flex relative min-w-0 flex-col md:flex-row items-start md:items-center font-medium gap-4 p-2 sm:p-4">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full">
                     <div className="flex items-center gap-2">
                       <p className="text-black font-semibold py-2.5 px-4 rounded-lg">
@@ -971,8 +997,8 @@ export default function ReservaIdPage() {
                       <option value="suite">Suite</option>
                     </select>
                     {openRoomIdx === idx && (
-                      <div className="border border-gray-200 z-20 absolute top-16 left-0 right-0 w-full divide-gray-300 rounded-xl shadow-md shadow-gray-400 p-4 bg-white">
-                        <table className="w-full">
+                      <div className="border border-gray-200 z-20 absolute top-16 left-0 right-0 w-full max-h-[70dvh] overflow-auto divide-gray-300 rounded-xl shadow-md shadow-gray-400 p-2 sm:p-4 bg-white">
+                        <table className="w-full min-w-[900px]">
                           <thead className="border-b">
                             <tr className="">
                               <th className="p-3 text-center font-medium w-30 text-black">
@@ -1207,17 +1233,17 @@ export default function ReservaIdPage() {
         {/* SECCIÓN 4: LIQUIDACIÓN */}
         <hr className="bg-gray-400 border-gray-400 h-0.5 w-full max-w-2xl mx-auto" />
         <p className="font-bold flex-1 text-lg text-center">Liquidación</p>
-        <section className="w-full bg-white px-10 border-gray-200 rounded-xl shadow-md py-10 shadow-gray-500 p-4 flex flex-col gap-5">
-          <div className="flex items-center text-xl justify-between w-full">
+        <section className="w-full bg-white px-4 sm:px-6 md:px-10 border-gray-200 rounded-xl shadow-md py-6 md:py-10 shadow-gray-500 flex flex-col gap-5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center text-base md:text-xl justify-between gap-2 w-full">
             <p className="font-medium">Total de reserva</p>
             <input
               type="number"
               value={totalReserva}
               onChange={(e) => setTotalReserva(parseFloat(e.target.value) || 0)}
-              className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-lg w-44 bg-white"
+              className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-base md:text-lg w-full sm:w-44 bg-white"
             />
           </div>
-          <div className="flex items-center text-xl justify-between w-full">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center text-base md:text-xl justify-between gap-2 w-full">
             <p className="font-medium">Total comisionable</p>
             <input
               type="number"
@@ -1225,14 +1251,14 @@ export default function ReservaIdPage() {
               onChange={(e) =>
                 setTotalComisionable(parseFloat(e.target.value) || 0)
               }
-              className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-lg w-44 bg-white"
+              className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-base md:text-lg w-full sm:w-44 bg-white"
             />
           </div>
-          <div className="flex items-center text-xl justify-between w-full">
+          <div className="flex items-center text-base md:text-xl justify-between gap-3 w-full">
             <p className="font-medium">
               Comisión{" "}
               <button
-                onClick={() => setModalCommissionOpen(true)}
+                onClick={handleOpenCommissionModal}
                 className="hover:underline cursor-pointer">
                 {clientCommissionPct !== null &&
                 clientCommissionPct !== undefined
@@ -1244,7 +1270,7 @@ export default function ReservaIdPage() {
               {formatMonto(commission)}
             </p>
           </div>
-          <div className="flex items-center text-xl justify-between w-full mt-4">
+          <div className="flex items-center text-base md:text-xl justify-between gap-3 w-full mt-4">
             <p className="font-medium">Pagos realizados</p>
             <p className="font-semibold text-green-600">
               {formatMonto(pagosRealizados)}
@@ -1252,15 +1278,15 @@ export default function ReservaIdPage() {
           </div>
           <hr className="bg-gray-400 border-gray-400 h-0.5 w-full mx-auto" />
 
-          <div className="flex items-center text-xl justify-between w-full">
+          <div className="flex items-center text-base md:text-xl justify-between gap-3 w-full">
             <p className="font-bold">Total neto</p>
             <p className="font-bold text-primary">
               {formatMonto(saldoTotalNeto)}
             </p>
           </div>
-          <div className="flex items-center text-xl justify-between w-full">
+          <div className="flex items-center text-base md:text-xl justify-between gap-3 w-full">
             <p className="font-bold">Saldo pendiente</p>
-            <p className="font-bold text-red-500 text-2xl">
+            <p className="font-bold text-red-500 text-lg md:text-2xl text-right">
               {formatMonto(saldoPendiente)}
             </p>
           </div>
@@ -1271,11 +1297,11 @@ export default function ReservaIdPage() {
         <p className="font-bold flex-1 text-lg text-center">
           Gastos no comisionables
         </p>
-        <section className="w-full bg-white px-10 border-gray-900 rounded-xl shadow-md py-10 shadow-gray-500 p-4 flex flex-col gap-5">
+        <section className="w-full bg-white px-4 sm:px-6 md:px-10 border-gray-900 rounded-xl shadow-md py-6 md:py-10 shadow-gray-500 flex flex-col gap-5">
           {gastos.map((gasto, index) => (
             <div
               key={index}
-              className="flex items-center text-xl justify-between w-full gap-4">
+              className="flex flex-col sm:flex-row items-stretch sm:items-center text-base md:text-xl justify-between w-full gap-3 sm:gap-4">
               <input
                 type="text"
                 value={gasto.name}
@@ -1285,14 +1311,14 @@ export default function ReservaIdPage() {
                 className="font-medium border border-gray-300 rounded-lg p-2 text-base flex-1 bg-white"
                 placeholder="Nombre del gasto"
               />
-              <div className="flex gap-4 items-center">
+              <div className="flex w-full sm:w-auto gap-2 sm:gap-4 items-center">
                 <input
                   type="number"
                   value={gasto.amount}
                   onChange={(e) =>
                     handleGastoChange(index, "amount", e.target.value)
                   }
-                  className="font-semibold border border-gray-300 rounded-lg p-2 text-base w-36 text-right bg-white"
+                  className="font-semibold border border-gray-300 rounded-lg p-2 text-base flex-1 sm:flex-none sm:w-36 text-right bg-white"
                   placeholder="Monto"
                 />
                 <button
@@ -1312,7 +1338,7 @@ export default function ReservaIdPage() {
             + Agregar gasto no comisionable
           </button>
           <hr className="bg-gray-400 border-gray-400 h-0.5 w-full max-w-2xl mx-auto" />
-          <div className="flex items-center text-xl justify-between w-full">
+          <div className="flex items-center text-base md:text-xl justify-between gap-3 w-full">
             <p className="font-medium">Total no comisionable</p>
             <p className="font-semibold">{formatMonto(totalNoComisionable)}</p>
           </div>
@@ -1446,7 +1472,7 @@ export default function ReservaIdPage() {
       {modalCommissionOpen && (
         <ModalLayout
           setModalOpen={setModalCommissionOpen}
-          onSubmit={() => setModalCommissionOpen(false)}>
+          onSubmit={handleSubmitCommission}>
           <section className="flex flex-col gap-5">
             <div className="flex justify-center">
               <img src="/logo.png" alt="Tranett" className="w-20" />
@@ -1472,15 +1498,20 @@ export default function ReservaIdPage() {
                     <input
                       className="bg-gray-700 border border-gray-400 rounded-lg p-1.5 w-full text-center cursor-pointer text-white font-bold"
                       type="number"
-                      value={clientCommissionPct ?? 0}
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={commissionDraft}
                       onChange={(e) =>
-                        setClientCommissionPct(parseFloat(e.target.value) || 0)
+                        setCommissionDraft(parseFloat(e.target.value) || 0)
                       }
                     />
                   </th>
-                  <th className="font-semibold">{formatMonto(commission)}</th>
+                  <th className="font-semibold">
+                    {formatMonto(commissionDraftAmount)}
+                  </th>
                   <th className="font-semibold text-green-400">
-                    {formatMonto(totalReserva - commission)}
+                    {formatMonto(totalReserva - commissionDraftAmount)}
                   </th>
                 </tr>
               </tbody>
@@ -1493,7 +1524,7 @@ export default function ReservaIdPage() {
         <button
           disabled={saving}
           onClick={handleSave}
-          className="bg-primary text-white text-xl mx-auto rounded-lg py-3 w-full px-10 hover:bg-blue-700 transition-colors disabled:opacity-50 font-bold shadow-lg">
+          className="bg-primary text-white text-base md:text-xl mx-auto rounded-lg py-3 w-full px-4 sm:px-10 hover:bg-blue-700 transition-colors disabled:opacity-50 font-bold shadow-lg">
           {saving ? "Guardando cambios..." : "Continuar / Guardar Reserva"}
         </button>
       </div>

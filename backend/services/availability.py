@@ -113,36 +113,43 @@ def validate_reservation(db, reserva, previous=None):
     changed_selection = previous is None or current["selection"] != previous["selection"]
     increasing = any(n > before_hotels[k] for k, n in current["hotels"].items())
     reactivating = previous is not None and not previous["active"]
-    if changed_selection or increasing or reactivating:
+    if previous and previous["selection"][0] and not reserva.package_id:
+        raise HTTPException(400, "No se puede quitar el paquete de una reserva vigente")
+    if (changed_selection or increasing or reactivating) and (previous is None or reserva.package_id):
         reserva.package_id, reserva.salida_id, reserva.hotel_id = resolve_selection(
             db, tenant, reserva.package_id, reserva.salida_id, reserva.hotel_id
         )
         db.flush()
         current = snapshot(db, reserva)
+    elif not reserva.package_id:
+        salida = db.query(Salidas).filter_by(id=reserva.salida_id, iweb_client_id=tenant).first()
+        if not salida:
+            raise HTTPException(400, "Salida no encontrada")
 
-    hotel_keys = set(current["hotels"])
-    if changed_selection or reactivating:
-        hotel_keys.add((reserva.package_id, reserva.salida_id, reserva.hotel_id))
-    occupied = occupied_hotels(db, tenant, reserva.package_id)
-    valid_hotels = {h.hotel_id for h in db.query(PackageHotels).filter_by(
-        package_id=reserva.package_id, iweb_client_id=tenant
-    ).all()}
-    for key in hotel_keys:
-        requested = current["hotels"][key]
-        if previous and not changed_selection and not reactivating and requested <= before_hotels[key]:
-            continue  # Legacy bookings can be corrected or reduced without inventing capacity.
-        package_id, salida_id, hotel_id = key
-        if hotel_id not in valid_hotels:
-            raise HTTPException(400, "El hotel de un pasajero no pertenece al paquete")
-        cap = db.query(PackageHotelCapacity).filter_by(
-            iweb_client_id=tenant, package_id=package_id, salida_id=salida_id, hotel_id=hotel_id
-        ).first()
-        if cap is None:
-            raise HTTPException(400, "Cupo hotelero sin configurar para el hotel y la salida seleccionados")
-        used = occupied.get(key, 0)
-        if used > cap.capacidad or (cap.capacidad == 0 and requested == 0):
-            available = max(0, cap.capacidad - (used - requested))
-            raise HTTPException(400, f"Cupo hotelero insuficiente. Requeridos: {requested}, Disponibles: {available}")
+    if reserva.package_id:
+        hotel_keys = set(current["hotels"])
+        if changed_selection or reactivating:
+            hotel_keys.add((reserva.package_id, reserva.salida_id, reserva.hotel_id))
+        occupied = occupied_hotels(db, tenant, reserva.package_id)
+        valid_hotels = {h.hotel_id for h in db.query(PackageHotels).filter_by(
+            package_id=reserva.package_id, iweb_client_id=tenant
+        ).all()}
+        for key in hotel_keys:
+            requested = current["hotels"][key]
+            if previous and not changed_selection and not reactivating and requested <= before_hotels[key]:
+                continue  # Legacy bookings can be corrected or reduced without inventing capacity.
+            package_id, salida_id, hotel_id = key
+            if hotel_id not in valid_hotels:
+                raise HTTPException(400, "El hotel de un pasajero no pertenece al paquete")
+            cap = db.query(PackageHotelCapacity).filter_by(
+                iweb_client_id=tenant, package_id=package_id, salida_id=salida_id, hotel_id=hotel_id
+            ).first()
+            if cap is None:
+                raise HTTPException(400, "Cupo hotelero sin configurar para el hotel y la salida seleccionados")
+            used = occupied.get(key, 0)
+            if used > cap.capacidad or (cap.capacidad == 0 and requested == 0):
+                available = max(0, cap.capacidad - (used - requested))
+                raise HTTPException(400, f"Cupo hotelero insuficiente. Requeridos: {requested}, Disponibles: {available}")
 
     if current["seats"]:
         salida = db.query(Salidas).filter_by(id=reserva.salida_id, iweb_client_id=tenant).first()

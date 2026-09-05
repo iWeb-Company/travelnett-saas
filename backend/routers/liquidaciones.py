@@ -161,12 +161,18 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
     if is_comisionable:
         monto_comisionable += total_adicional_cama
 
-    # 3. Comisión del Cliente
-    client_comm_pct = 0.0
-    if res_obj.client_id:
+    # 3. Comisión de la reserva. El porcentaje personalizado de la reserva
+    # prevalece sobre el valor por defecto del cliente, incluso cuando es 0.
+    client_comm_pct = None
+    if res_obj.commission is not None:
+        client_comm_pct = float(res_obj.commission)
+    elif res_obj.client_id:
         client = db.query(Clients).filter(Clients.id == res_obj.client_id).first()
-        if client and client.commission:
+        if client and client.commission is not None:
             client_comm_pct = float(client.commission)
+
+    if client_comm_pct is None:
+        client_comm_pct = 0.0
 
     comm_amount = (monto_comisionable * client_comm_pct) / 100.0
 

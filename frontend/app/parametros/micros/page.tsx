@@ -281,7 +281,7 @@ export default function MicrosPage() {
               onChange={(e) => setMicrosData({ ...microsData, name: e.target.value })}
               className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
             />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <input
                 type="text"
                 placeholder="Semi"
@@ -333,7 +333,7 @@ export default function MicrosPage() {
               onChange={(e) => setMicrosData({ ...microsData, name: e.target.value })}
               className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
             />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <input
                 type="text"
                 placeholder="Semi"

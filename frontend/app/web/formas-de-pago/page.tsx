@@ -394,11 +394,11 @@ export default function FormasDePagoPage() {
         </h2>
       </button>
 
-      <section className="max-w-3/4 flex flex-col justify-around mx-auto">
-        <div className="flex gap-10 justify-around items-center w-full my-5">
+      <section className="w-full max-w-6xl flex flex-col justify-around mx-auto">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-10 justify-around items-stretch sm:items-center w-full my-5">
           <button
             onClick={handleAddCardGroup}
-            className="border-2 flex items-center gap-2 border-primary rounded-lg font-semibold px-10 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
+            className="border-2 flex items-center justify-center gap-2 border-primary rounded-lg font-semibold px-4 sm:px-10 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
           >
             <svg
               width="29"
@@ -421,7 +421,7 @@ export default function FormasDePagoPage() {
               resetForm();
               setModalOpenAdd(true);
             }}
-            className="border-2 flex items-center gap-2 border-primary rounded-lg font-semibold px-10 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
+            className="border-2 flex items-center justify-center gap-2 border-primary rounded-lg font-semibold px-4 sm:px-10 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
           >
             <svg
               width="29"
@@ -445,13 +445,13 @@ export default function FormasDePagoPage() {
           <h3 className="text-black font-bold text-xl text-center my-5">
             Financiaciones con Tarjeta
           </h3>
-          <div className="flex w-full gap-10 justify-between items-center">
+          <div className="flex w-full gap-4 md:gap-10 justify-between items-center">
             <img
               src="/master.png"
               className="w-30 mx-14 hidden md:block"
               alt="MasterCard Image"
             />
-            <div className="flex-1 border border-gray-300 rounded-md gap-5 p-5 bg-white">
+              <div className="min-w-0 flex-1 border border-gray-300 rounded-md gap-5 p-3 sm:p-5 bg-white">
               {cardGroups.length === 0 ? (
                 <p className="text-center text-sm text-gray-500 py-4">
                   No hay tarjetas registradas
@@ -460,9 +460,9 @@ export default function FormasDePagoPage() {
                 cardGroups.map((group, gIdx) => (
                   <div
                     key={group.groupTempId || gIdx}
-                    className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50/50"
+                    className="mb-6 p-3 sm:p-4 border border-gray-200 rounded-lg bg-gray-50/50"
                   >
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-3">
                       <div className="flex items-center gap-3 w-full max-w-xs">
                         <label className="text-xs font-bold text-gray-600 uppercase">
                           Tarjeta:
@@ -654,7 +654,7 @@ export default function FormasDePagoPage() {
             Cuentas para transferencias y depósitos
           </h3>
 
-          <div className="border border-gray-300 rounded-md p-6 max-w-4xl mx-auto bg-white shadow-sm divide-y divide-gray-200">
+          <div className="border border-gray-300 rounded-md p-4 sm:p-6 max-w-4xl mx-auto bg-white shadow-sm divide-y divide-gray-200">
             {cuentas.length === 0 ? (
               <p className="text-center py-6 text-gray-500">
                 No hay cuentas bancarias web registradas
@@ -665,7 +665,7 @@ export default function FormasDePagoPage() {
                   key={cuenta.id}
                   className="py-6 first:pt-0 last:pb-0"
                 >
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-600">
                         Tipo / Banco

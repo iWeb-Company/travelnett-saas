@@ -91,6 +91,9 @@ function Paso2Content() {
         const packages = await apiClient.getPackages(user.iweb_client_id);
         const matches = packages.filter((p: any) => p.dates?.includes(actualSalidaId));
         if (matches.length === 1) resolvedPackageId = matches[0].id;
+        if (matches.length > 1) {
+          throw new Error("Esta salida tiene varios paquetes. Volvé al paso anterior y elegí uno.");
+        }
       }
       if (resolvedPackageId) {
         const [pack, capacities] = await Promise.all([
@@ -102,7 +105,7 @@ function Paso2Content() {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Error al cargar datos del paso 2");
+      toast.error(error instanceof Error ? error.message : "Error al cargar datos del paso 2");
     } finally {
       setLoading(false);
     }

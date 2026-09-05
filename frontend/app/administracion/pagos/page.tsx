@@ -963,7 +963,7 @@ export default function PagosPage() {
                 />
               </svg>
             </div>
-            <section className="mx-10 md:mx-40 flex justify-between gap-6">
+            <section className="mx-1 sm:mx-10 md:mx-40 flex flex-col sm:flex-row justify-between gap-4 sm:gap-6">
               <div className="flex flex-col gap-2 flex-1">
                 <p className="font-semibold text-lg text-black">
                   Disponible para pasar
@@ -1065,7 +1065,7 @@ export default function PagosPage() {
           ) : (
             <div>
               {/* Resumen de la reserva */}
-              <section className="flex justify-between gap-2">
+              <section className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-2">
                 <div className="text-black flex-1 text-sm md:text-base">
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-bold text-gray-700">
@@ -1480,7 +1480,8 @@ export default function PagosPage() {
                 </button>
               </div>
 
-              <table className="w-full text-xs md:text-sm text-black">
+              <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[520px] text-xs md:text-sm text-black">
                 <thead>
                   <tr className="font-bold border-b border-gray-200">
                     <th className="py-2 text-left">Fecha</th>
@@ -1571,6 +1572,7 @@ export default function PagosPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </ModalLayout>

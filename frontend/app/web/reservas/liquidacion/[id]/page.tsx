@@ -288,9 +288,9 @@ export default function VoucherPage() {
                 </div>
 
                 <div ref={printRef} className="max-w-4xl mx-auto bg-white shadow-lg border border-black overflow-hidden print-voucher w-full text-black">
-                    <section className="bg-border/50 text-black p-5 flex items-center justify-around">
-                        <div className="flex items-center justify-around w-full">
-                            <img src={iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png"} alt="Logo" className="max-h-20 object-contain" />
+                    <section className="bg-border/50 text-black p-4 sm:p-5 flex items-center justify-around">
+                        <div className="flex flex-col sm:flex-row items-center justify-around gap-4 w-full">
+                            <img src={iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png"} alt="Logo" className="max-h-16 sm:max-h-20 object-contain" />
                             <div className="flex flex-col gap-5">
                                 <div className="flex flex-col">
                                     <p className="text-[10px] uppercase font-bold text-center tracking-wider text-blue-900">
@@ -301,7 +301,7 @@ export default function VoucherPage() {
                                         {reservaData.nombre_completo?.toUpperCase()}
                                     </h2>
                                 </div>
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
                                     <p className="text-xs font-semibold mt-1">
                                         <span className="font-bold">{reservaData.destino}</span>
                                     </p>
@@ -315,9 +315,9 @@ export default function VoucherPage() {
                             </div>
                         </div>
                     </section>
-                    <section className="py-5 px-10 border-t gap-4 border-black flex flex-col">
-                        <h2 className="text-start text-primary font-semibold text-2xl">Datos de la reserva</h2>
-                        <div className="grid grid-cols-2 gap-2 text-xl place-items-center place-content-center py-5 border border-gray-500 rounded-md">
+                    <section className="py-5 px-3 sm:px-6 md:px-10 border-t gap-4 border-black flex flex-col">
+                        <h2 className="text-start text-primary font-semibold text-lg sm:text-xl md:text-2xl">Datos de la reserva</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-base md:text-xl place-items-start py-4 sm:py-5 px-3 border border-gray-500 rounded-md">
                             <div className="flex flex-col">
                                 <p className="font-bold">Cliente</p>
                                 <p>{reservaData.client_nombre || 'Reserva Particular'}</p>
@@ -335,9 +335,9 @@ export default function VoucherPage() {
                                 <p>{formatDateDDMMYY((reservaData as any).created_at || (reservaData as any).fecha)}</p>
                             </div>
                         </div>
-                        <div className="flex flex-col border rounded-lg border-gray-500 text-lg">
-                            <h3 className="text-start text-primary bg-bg rounded-t-lg font-semibold py-2 px-5 text-2xl">Pasajeros</h3>
-                            <table>
+                        <div className="flex flex-col overflow-x-auto border rounded-lg border-gray-500 text-base md:text-lg">
+                            <h3 className="text-start text-primary bg-bg rounded-t-lg font-semibold py-2 px-4 sm:px-5 text-lg sm:text-xl md:text-2xl">Pasajeros</h3>
+                            <table className="min-w-[600px]">
                                 <thead className="border-t py-2 divide-x divide-gray-500 border-b border-gray-500">
                                     <th className="">Tipo</th>
                                     <th className="">Nombre completo</th>
@@ -364,71 +364,71 @@ export default function VoucherPage() {
                                 </tbody>
                             </table>
                         </div>
-                        <div className="flex flex-col border rounded-lg border-gray-500 text-lg">
-                            <h3 className="text-start text-primary bg-bg rounded-t-lg font-semibold py-2 px-5 text-2xl">Servicios</h3>
-                            <div className="flex items-center border-t px-5 py-3 border-gray-500">
+                        <div className="flex flex-col border rounded-lg border-gray-500 text-base md:text-lg">
+                            <h3 className="text-start text-primary bg-bg rounded-t-lg font-semibold py-2 px-4 sm:px-5 text-lg sm:text-xl md:text-2xl">Servicios</h3>
+                            <div className="flex items-center border-t px-4 sm:px-5 py-3 border-gray-500">
                                 <Salidas width={30} height={30} color="#0546F7" />
-                                <h3 className="text-start font-semibold text-primary py-2 px-5 text-2xl">Bus</h3>
+                                <h3 className="text-start font-semibold text-primary py-2 px-3 sm:px-5 text-lg sm:text-xl md:text-2xl">Bus</h3>
                             </div>
                             <div className="flex flex-col">
-                                <div className="flex w-full justify-around p-5">
-                                    <div className="flex flex-col text-xl gap-2">
+                                <div className="flex flex-col sm:flex-row w-full justify-between gap-4 p-4 sm:p-5">
+                                    <div className="flex flex-col text-base md:text-xl gap-2">
                                         <p className="font-semibold">Empresa de transporte</p>
                                         <p className="">{resolvedTransportCompany}</p>
                                     </div>
-                                    <div className="flex flex-col text-xl gap-2">
+                                    <div className="flex flex-col text-base md:text-xl gap-2">
                                         <p className="font-semibold">Servicio</p>
                                         <p className="">{reservaData.tipo_butaca === 'semicama' ? 'Semicama' : 'Cama'}</p>
                                     </div>
                                 </div>
-                                <div className="flex w-full border-t border-gray-500 justify-around p-5">
-                                    <div className="flex flex-col text-xl gap-2">
+                                <div className="flex flex-col sm:flex-row w-full border-t border-gray-500 justify-between gap-4 p-4 sm:p-5">
+                                    <div className="flex flex-col text-base md:text-xl gap-2">
                                         <p className="font-semibold">Fecha de salida</p>
                                         <p className="">{salidaData?.date_of_out ? formatDateDDMMYY(salidaData.date_of_out) : 'A confirmar'}</p>
                                     </div>
-                                    <div className="flex flex-col text-xl gap-2">
+                                    <div className="flex flex-col text-base md:text-xl gap-2">
                                         <p className="font-semibold">Fecha de regreso</p>
                                         <p className="">{packageHotelMatch?.hotel_fecha_out ? formatDateDDMMYY(packageHotelMatch.hotel_fecha_out) : 'A confirmar'}</p>
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center border-t px-5 py-3 border-gray-500">
+                            <div className="flex items-center border-t px-4 sm:px-5 py-3 border-gray-500">
                                 <Hotel />
-                                <h3 className="text-start font-semibold text-primary py-2 px-5 text-2xl">Hotel</h3>
+                                <h3 className="text-start font-semibold text-primary py-2 px-3 sm:px-5 text-lg sm:text-xl md:text-2xl">Hotel</h3>
                             </div>
-                            <div className="flex w-full justify-around p-5">
-                                <div className="flex flex-col text-xl gap-2">
+                            <div className="flex flex-col sm:flex-row w-full justify-between gap-4 p-4 sm:p-5">
+                                <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Nombre del Hotel</p>
                                     <p className="">{resolvedHotelName}</p>
                                 </div>
-                                <div className="flex flex-col text-xl gap-2">
+                                <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Regimen</p>
                                     <p className="">{resolvedRegimenName}</p>
                                 </div>
-                            </div><div className="flex w-full border-t border-gray-500 justify-around p-5">
-                                <div className="flex flex-col text-xl gap-2">
+                            </div><div className="flex flex-col sm:flex-row w-full border-t border-gray-500 justify-between gap-4 p-4 sm:p-5">
+                                <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Fecha de ingreso</p>
                                     <p className="">{packageHotelMatch?.hotel_fecha_in ?? 'A confirmar'}</p>
                                 </div>
-                                <div className="flex flex-col text-xl gap-2">
+                                <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Fecha de salida</p>
                                     <p className="">{packageHotelMatch?.hotel_fecha_out ?? 'A confirmar'}</p>
                                 </div>
-                            </div><div className="flex w-full border-t border-gray-500 justify-around p-5">
-                                <div className="flex flex-col text-xl gap-2 max-w-md">
+                            </div><div className="flex flex-col sm:flex-row w-full border-t border-gray-500 justify-between gap-4 p-4 sm:p-5">
+                                <div className="flex flex-col text-base md:text-xl gap-2 max-w-md">
                                     <p className="font-semibold">Tipo de habitación</p>
                                     <p className="font-medium text-black">{roomDetails.labelCompleto || "-"}</p>
 
                                 </div>
-                                <div className="flex flex-col text-xl gap-2">
+                                <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Cantidad de noches</p>
                                     <p className="">{packageHotelMatch?.hotel_noches ?? 'A confirmar'}</p>
                                 </div>
                             </div>
                         </div>
                     </section>
-                    <section className="flex flex-col my-8 w-full max-w-2/3 mx-auto border rounded-lg border-gray-500">
-                        <h4 className="text-center w-full text-primary font-semibold bg-bg rounded-t-lg py-2 px-5 text-2xl">Liquidacion monetaria</h4>
+                    <section className="flex flex-col my-6 sm:my-8 w-auto sm:w-full sm:max-w-2/3 mx-3 sm:mx-auto border rounded-lg border-gray-500">
+                        <h4 className="text-center w-full text-primary font-semibold bg-bg rounded-t-lg py-2 px-3 sm:px-5 text-lg sm:text-xl md:text-2xl">Liquidacion monetaria</h4>
                         <table className="w-full">
                             <thead className="divide-x divide-gray-500">
                                 <tr className="divide-gray-500 divide-x">

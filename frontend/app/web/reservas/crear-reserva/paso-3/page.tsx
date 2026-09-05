@@ -115,11 +115,13 @@ function Paso3Content() {
         const pkgs = await apiClient
           .getPackages(user.iweb_client_id)
           .catch(() => []);
-        const found = pkgs.find(
+        const matches = pkgs.filter(
           (p: any) => p.dates && p.dates.includes(actualSalidaId),
         );
-        if (found) {
-          actualPaqueteId = found.id;
+        if (matches.length === 1) {
+          actualPaqueteId = matches[0].id;
+        } else if (matches.length > 1) {
+          throw new Error("Esta salida tiene varios paquetes. Volvé al paso 1 y elegí uno.");
         }
       }
 
@@ -131,7 +133,7 @@ function Paso3Content() {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Error al cargar información necesaria");
+      toast.error(error instanceof Error ? error.message : "Error al cargar información necesaria");
     } finally {
       setLoading(false);
     }

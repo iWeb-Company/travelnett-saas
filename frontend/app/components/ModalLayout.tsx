@@ -24,11 +24,11 @@ export default function ModalLayout({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className={`flex flex-col gap-6 w-full ${maxWidth} max-h-[90vh]`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      <div className={`flex min-w-0 flex-col gap-3 sm:gap-6 w-full ${maxWidth} max-h-[90dvh]`}>
         {/* Recuadro azul con título e inputs */}
-        <div className={`${bg} rounded-2xl py-8 px-6 shadow-lg overflow-y-auto`}>
-          <div className="font-semibold flex items-center justify-center gap-3 text-white text-center text-xl mb-6">
+        <div className={`${bg} min-w-0 rounded-2xl py-5 px-3 sm:py-8 sm:px-6 shadow-lg overflow-y-auto`}>
+          <div className="font-semibold flex items-center justify-center gap-2 sm:gap-3 text-white text-center text-base sm:text-xl mb-4 sm:mb-6">
             <h4 className={titleColor}>{title}</h4>
             <p>{svg}</p>
           </div>
@@ -36,15 +36,15 @@ export default function ModalLayout({
         </div>
 
         {/* Botones flotantes debajo */}
-        <div className="flex gap-5 justify-between px-2 shrink-0">
+        <div className="flex gap-3 sm:gap-5 justify-between px-1 sm:px-2 shrink-0">
           <button
             onClick={onClose}
-            className="bg-white text-black rounded-full px-8 py-3 font-semibold hover:bg-gray-100">
+            className="flex-1 sm:flex-none bg-white text-black rounded-full px-4 sm:px-8 py-3 font-semibold hover:bg-gray-100">
             Cancelar
           </button>
           <button
             onClick={onSubmit}
-            className="bg-primary text-white rounded-full px-8 py-3 font-semibold hover:bg-blue-700">
+            className="flex-1 sm:flex-none bg-primary text-white rounded-full px-4 sm:px-8 py-3 font-semibold hover:bg-blue-700">
             Confirmar
           </button>
         </div>
