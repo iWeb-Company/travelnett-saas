@@ -35,12 +35,48 @@ export default function DashboardPage() {
   }, [user?.iweb_client_id]);
 
   const sections = [
-    { key: "salidas", label: "SALIDAS", href: "/salidas", icon: <Salidas />, allowed: permissions?.salidas ?? false },
-    { key: "paquetes", label: "PAQUETES", href: "/paquetes", icon: <Paquetes />, allowed: permissions?.paquetes ?? false },
-    { key: "administracion", label: "ADMINISTRACIÓN", href: "/administracion", icon: <Administracion />, allowed: permissions?.administracion ?? false },
-    { key: "parametros", label: "PARÁMETROS", href: "/parametros", icon: <Parametros />, allowed: permissions?.parametros ?? false },
-    { key: "permisos_users", label: "USUARIOS Y PERMISOS", href: "/usuarios", icon: <Usuarios />, allowed: permissions?.permisos_users ?? false },
-    { key: "web", label: "WEB", href: "/web", icon: <Web />, allowed: permissions?.web ?? false },
+    {
+      key: "salidas",
+      label: "SALIDAS",
+      href: "/salidas",
+      icon: <Salidas />,
+      allowed: permissions?.salidas ?? false,
+    },
+    {
+      key: "paquetes",
+      label: "PAQUETES",
+      href: "/paquetes",
+      icon: <Paquetes />,
+      allowed: permissions?.paquetes ?? false,
+    },
+    {
+      key: "administracion",
+      label: "ADMINISTRACIÓN",
+      href: "/administracion",
+      icon: <Administracion />,
+      allowed: permissions?.administracion ?? false,
+    },
+    {
+      key: "parametros",
+      label: "PARÁMETROS",
+      href: "/parametros",
+      icon: <Parametros />,
+      allowed: permissions?.parametros ?? false,
+    },
+    {
+      key: "permisos_users",
+      label: "USUARIOS Y PERMISOS",
+      href: "/usuarios",
+      icon: <Usuarios />,
+      allowed: permissions?.permisos_users ?? false,
+    },
+    {
+      key: "web",
+      label: "WEB",
+      href: "/web",
+      icon: <Web />,
+      allowed: permissions?.web ?? false,
+    },
   ];
 
   if (loading || authLoading) {
@@ -123,8 +159,7 @@ export default function DashboardPage() {
               {[0, 1, 2, 3, 4, 5].map((idx) => (
                 <div
                   key={idx}
-                  className="bg-primary/30 animate-pulse flex items-center gap-5 py-4 px-7 rounded-lg h-[68px] w-full"
-                >
+                  className="bg-primary/30 animate-pulse flex items-center gap-5 py-4 px-7 rounded-lg h-[68px] w-full">
                   <div className="w-8 h-8 rounded-full bg-white/20"></div>
                   <div className="h-6 w-40 bg-white/30 rounded-md"></div>
                 </div>
@@ -174,13 +209,11 @@ export default function DashboardPage() {
         <div className="hidden md:flex overflow-hidden text-sm bg-primary rounded-lg shadow-md shadow-black/50 text-white">
           <div
             className="flex items-center animate-infinite-scroll"
-            style={{ width: "max-content" }}
-          >
+            style={{ width: "max-content" }}>
             {[0, 1].map((i) => (
               <div
                 key={i}
-                className="flex items-center gap-8 text-lg px-8 py-3 whitespace-nowrap"
-              >
+                className="flex items-center gap-8 text-lg px-8 py-3 whitespace-nowrap">
                 <p>
                   Proxima salida <b>{summary.proxima_salida}</b>
                 </p>
@@ -220,8 +253,7 @@ export default function DashboardPage() {
                   <Link
                     key={sec.key}
                     href={sec.href}
-                    className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium transition-all hover:scale-[1.02]"
-                  >
+                    className="bg-primary flex items-center gap-3 py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium transition-all hover:scale-[1.02]">
                     <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
                       {sec.icon}
                     </span>
@@ -233,8 +265,7 @@ export default function DashboardPage() {
                   <div
                     key={sec.key}
                     title="No tienes permiso para acceder a esta sección"
-                    className="bg-gray-300 text-gray-500 flex items-center justify-between py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium opacity-60 cursor-not-allowed select-none pointer-events-none"
-                  >
+                    className="bg-gray-300 text-gray-500 flex items-center justify-between py-2 px-3 md:text-xl md:px-7 md:py-4 md:gap-5 rounded-lg font-medium opacity-60 cursor-not-allowed select-none pointer-events-none">
                     <div className="flex items-center gap-3 md:gap-5">
                       <span className="flex items-center grayscale opacity-70 [&>svg]:md:w-8 [&>svg]:md:h-8">
                         {sec.icon}
@@ -252,13 +283,18 @@ export default function DashboardPage() {
           <ul className="flex flex-col md:grid grid-cols-2  md:gap-x-20 gap-4 mt-6 text-sm md:text-lg text-black">
             <hr className="my-2 border-gray-400 hidden md:block" />
             <hr className="my-2 border-gray-400" />
-            <Link target='_blank' href="https://wa.me/5491167877298" className="flex items-center gap-2 md:gap-4">
+            <Link
+              target="_blank"
+              href="https://wa.me/5491167877298"
+              className="flex items-center gap-2 md:gap-4">
               <span className="flex items-center [&>svg]:md:w-9 [&>svg]:md:h-9">
                 <Wpp />
               </span>
               <p>Whatsapp</p>
             </Link>
-            <Link href="mailto:iweb.contacto@gmail.com" className="flex items-center gap-2 md:gap-4">
+            <Link
+              href="mailto:iweb.contacto@gmail.com"
+              className="flex items-center gap-2 md:gap-4">
               <span className="flex items-center [&>svg]:md:w-9 [&>svg]:md:h-9">
                 <Mail />
               </span>
@@ -268,11 +304,15 @@ export default function DashboardPage() {
         </div>
         <img
           src={iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-empresa.png"}
-          className="md:absolute right-10 md:w-60 object-contain self-start mt-5"
+          className="md:absolute right-10 md:w-60 w-30 object-contain self-start mt-5"
           alt="Logo de empresa logeada"
         />
       </section>
-      <img className="w-60 lg:w-80 xl:w-96 2xl:w-117 hidden md:block absolute bottom-0 left-0 pointer-events-none" src="/fotohome.png" alt="Foto Dashboard" />
+      <img
+        className="w-60 lg:w-80 xl:w-96 2xl:w-117 hidden md:block absolute bottom-0 left-0 pointer-events-none"
+        src="/fotohome.png"
+        alt="Foto Dashboard"
+      />
     </main>
   );
 }

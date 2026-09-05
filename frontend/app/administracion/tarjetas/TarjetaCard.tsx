@@ -15,10 +15,10 @@ export default function TarjetaCard({ tarjeta, onToggleStatus, onDelete }: Tarje
 
   return (
     <div className={`flex items-start justify-center w-full mx-auto`}>
-      <div className="flex gap-2">
+      <div className="flex w-full max-w-2xl gap-2">
         {/* Header azul clickeable */}
-        <div className="bg-[#5782F7] text-white justify-between items-center px-4 md:px-5 font-medium text-sm md:text-base py-1 flex gap-2 select-none transition-all duration-300 rounded-lg">
-          <p className="tracking-wider md:w-150 w-50">{tarjeta.name || "Sin nombre"}</p>
+        <div className="min-w-0 flex-1 bg-[#5782F7] text-white justify-between items-center px-3 sm:px-4 md:px-5 font-medium text-sm md:text-base py-1 flex gap-2 select-none transition-all duration-300 rounded-lg">
+          <p className="min-w-0 flex-1 truncate tracking-wider">{tarjeta.name || "Sin nombre"}</p>
           {/* Toggle Activo */}
           <ToggleActiveFilters
             checked={isActive}

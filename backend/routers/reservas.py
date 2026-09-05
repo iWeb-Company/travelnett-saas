@@ -6,13 +6,34 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
-from models.models import Reservas, Passengers, Salidas, LugaresCarga, Hotels, Regimenes, Clients, ReservationPassengers, Destinos, Liquidaciones, GastosNoCommission, Pagos, Vouchers, cuentasCorrientsClients, User
+from services.availability import get_inventory_db, resolve_selection, validate_reservation, snapshot
+from models.models import Reservas, Passengers, Salidas, Packages, LugaresCarga, Hotels, Regimenes, Clients, ReservationPassengers, Destinos, Liquidaciones, GastosNoCommission, Pagos, Vouchers, cuentasCorrientsClients, User
 from pydantic import BaseModel
 from typing import List, Optional
 
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
 
+
+def commercial_destination(db: Session, tenant: str, package_id: Optional[str], salida: Optional[Salidas]):
+    """Package destination is commercial; departure destination is operational fallback."""
+    destination_id = None
+    if package_id:
+        package = db.query(Packages).filter(
+            Packages.id == package_id,
+            Packages.iweb_client_id == tenant,
+        ).first()
+        destination_id = package.destino if package else None
+    if not destination_id and salida:
+        destination_id = salida.destino
+    if not destination_id:
+        return None
+    return db.query(Destinos).filter(
+        Destinos.id == destination_id,
+        Destinos.iweb_client_id == tenant,
+    ).first()
+
 class ReservationPassengerDetail(BaseModel):
+    hotel_id: Optional[str] = None
     id: str
     reserva_id: str
     pasajero_id: str
@@ -39,6 +60,7 @@ class ReservationPassengerDetail(BaseModel):
 
 
 class ReservaPassengerCreateInput(BaseModel):
+    hotel_id: Optional[str] = None
     pasajero_id: str
     pasajero_type: str
     butaca_number: Optional[int] = None
@@ -77,6 +99,7 @@ class ReservaCreatePayload(BaseModel):
 
 
 class ReservaUpdatePayload(BaseModel):
+    salida_id: Optional[str] = None
     codigo_reserva: Optional[str] = None
     client_id: Optional[str] = None
     lugar_carga_id: Optional[str] = None
@@ -191,6 +214,7 @@ async def get_reservas(
 
     res_ids     = [r.id for r in res_list]
     salida_ids  = list({r.salida_id for r in res_list if r.salida_id})
+    package_ids = list({r.package_id for r in res_list if r.package_id})
     hotel_ids   = list({r.hotel_id  for r in res_list if r.hotel_id})
     regimen_ids = list({r.regimen_id for r in res_list if r.regimen_id})
     client_ids  = list({r.client_id  for r in res_list if r.client_id})
@@ -247,6 +271,7 @@ async def get_reservas(
 
     # ── 8. Salidas + Destinos (batch) ────────────────────────────────────────
     salidas_map: dict = {}
+    packages_map: dict = {}
     destinos_map: dict = {}
     if salida_ids:
         sals = db.query(Salidas).filter(
@@ -254,13 +279,22 @@ async def get_reservas(
             Salidas.iweb_client_id == norm_client
         ).all()
         salidas_map = {s.id: s for s in sals}
-        dest_ids = list({s.destino for s in sals if s.destino})
-        if dest_ids:
-            dests = db.query(Destinos).filter(
-                Destinos.id.in_(dest_ids),
-                Destinos.iweb_client_id == norm_client
-            ).all()
-            destinos_map = {d.id: d for d in dests}
+    if package_ids:
+        package_rows = db.query(Packages).filter(
+            Packages.id.in_(package_ids),
+            Packages.iweb_client_id == norm_client,
+        ).all()
+        packages_map = {package.id: package for package in package_rows}
+    destination_ids = {
+        *[salida.destino for salida in salidas_map.values() if salida.destino],
+        *[package.destino for package in packages_map.values() if package.destino],
+    }
+    if destination_ids:
+        destination_rows = db.query(Destinos).filter(
+            Destinos.id.in_(destination_ids),
+            Destinos.iweb_client_id == norm_client,
+        ).all()
+        destinos_map = {destination.id: destination for destination in destination_rows}
 
     # ── 8.5. Liquidaciones + Pagos (batch) ──────────────────────────────────
     all_liqs = db.query(Liquidaciones).filter(
@@ -335,6 +369,7 @@ async def get_reservas(
                     lugar_carga_id=pax_lc_id,
                     lugar_carga_nombre=pax_lc_nombre,
                     room_index=getattr(rp, 'room_index', 0) or 0,
+                hotel_id=rp.hotel_id,
                     nombre_completo=nombre_completo_pax,
                     name=p_name or None,
                     last_name=p_last or None,
@@ -383,7 +418,9 @@ async def get_reservas(
 
         sal         = salidas_map.get(r.salida_id)
         salida_date = str(sal.date_of_out).split(" ")[0] if (sal and sal.date_of_out) else ""
-        dest_obj    = destinos_map.get(sal.destino) if sal else None
+        package = packages_map.get(r.package_id)
+        destination_id = package.destino if package and package.destino else (sal.destino if sal else None)
+        dest_obj = destinos_map.get(destination_id)
         salida_dest_name = dest_obj.name if dest_obj else ""
 
         # Importes de liquidación y saldo
@@ -462,103 +499,18 @@ async def get_reservas(
 async def create_reserva(
     body: ReservaCreatePayload,
     iweb_client_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_inventory_db)
 ):
-    resolved_salida_id = body.salida_id
-    resolved_package_id = body.package_id
+    resolved_package_id, resolved_salida_id, resolved_hotel_id = resolve_selection(
+        db, iweb_client_id, body.package_id, body.salida_id, body.hotel_id
+    )
+    s = db.query(Salidas).filter_by(id=resolved_salida_id, iweb_client_id=iweb_client_id).first()
 
-    # Si package_id no está provisto pero sí salida_id, intentamos resolver el package_id desde packages_dates_of_exit
-    if (not resolved_package_id or str(resolved_package_id).strip() in ("", "undefined", "null", "none", "None")) and resolved_salida_id:
-        from models.models import PackagesDatesOfExit
-        rel_pkg = db.query(PackagesDatesOfExit).filter(
-            PackagesDatesOfExit.salida_id == resolved_salida_id.strip(),
-            PackagesDatesOfExit.iweb_client_id == iweb_client_id,
-            PackagesDatesOfExit.active == True
-        ).first()
-        if rel_pkg:
-            resolved_package_id = rel_pkg.package_id
-
-    # Si salida_id no está provisto pero sí package_id, resolvemos la salida desde packages_dates_of_exit
-    if (not resolved_salida_id or str(resolved_salida_id).strip() in ("", "undefined", "null", "none", "None")) and resolved_package_id:
-        from models.models import PackagesDatesOfExit
-        rel = db.query(PackagesDatesOfExit).filter(
-            PackagesDatesOfExit.package_id == resolved_package_id.strip(),
-            PackagesDatesOfExit.iweb_client_id == iweb_client_id,
-            PackagesDatesOfExit.active == True
-        ).first()
-        if rel:
-            resolved_salida_id = rel.salida_id
-
-    # Verificar si existe la salida y validar disponibilidad de butacas
-    s = None
-    if resolved_salida_id and resolved_salida_id.strip() not in ("", "undefined", "null", "none", "None"):
-        s = db.query(Salidas).filter(
-            func.lower(Salidas.id) == resolved_salida_id.strip().lower(),
-            func.lower(Salidas.iweb_client_id) == iweb_client_id.strip().lower()
-        ).first()
-
-    if s:
-        # Validar disponibilidad de butacas en la salida seleccionada
-        all_res_salida = db.query(Reservas).filter(
-            func.lower(Reservas.iweb_client_id) == iweb_client_id.strip().lower(),
-            func.lower(Reservas.salida_id) == s.id.strip().lower(),
-            (Reservas.active == True) | (Reservas.active.is_(None))
-        ).all()
-        res_ids_salida = [r.id for r in all_res_salida]
-        
-        semicama_occupied = 0
-        cama_occupied = 0
-        if res_ids_salida:
-            rps_salida = db.query(ReservationPassengers).filter(
-                ReservationPassengers.reserva_id.in_(res_ids_salida)
-            ).all()
-            for rp in rps_salida:
-                b_type = (rp.butaca_type or "").strip().lower()
-                if b_type == "cama":
-                    cama_occupied += 1
-                else:
-                    semicama_occupied += 1
-                    
-        total_s_semicama = s.semicama or 0
-        total_s_cama = s.cama or 0
-        avail_semicama = max(0, total_s_semicama - semicama_occupied)
-        avail_cama = max(0, total_s_cama - cama_occupied)
-        
-        req_cama = 0
-        req_semicama = 0
-        if body.passengers:
-            for p in body.passengers:
-                b_type = (p.butaca_type or "").strip().lower()
-                if b_type == "cama":
-                    req_cama += 1
-                else:
-                    req_semicama += 1
-        elif body.butaca_type:
-            if (body.butaca_type or "").strip().lower() == "cama":
-                req_cama += 1
-            else:
-                req_semicama += 1
-                
-        if req_cama > avail_cama:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No hay suficiente disponibilidad de butacas CAMA en la salida. Requeridos: {req_cama}, Disponibles: {avail_cama}"
-            )
-        if req_semicama > avail_semicama:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No hay suficiente disponibilidad de butacas SEMICAMA en la salida. Requeridos: {req_semicama}, Disponibles: {avail_semicama}"
-            )
-        
     # Generar de forma automática el código de reserva en el formato: {sigla_destino}#{numero_orden}
     dest_sigla = "XXX"
-    if s and s.destino:
-        dest_obj = db.query(Destinos).filter(
-            Destinos.id == s.destino,
-            Destinos.iweb_client_id == iweb_client_id
-        ).first()
-        if dest_obj and dest_obj.sigla:
-            dest_sigla = dest_obj.sigla
+    dest_obj = commercial_destination(db, iweb_client_id, resolved_package_id, s)
+    if dest_obj and dest_obj.sigla:
+        dest_sigla = dest_obj.sigla
             
     query_count = db.query(Reservas).filter(Reservas.iweb_client_id == iweb_client_id)
     if resolved_salida_id:
@@ -582,7 +534,7 @@ async def create_reserva(
         codigo_reserva=generated_code,
         client_id=body.client_id,
         lugar_carga_id=body.lugar_carga_id,
-        hotel_id=body.hotel_id,
+        hotel_id=resolved_hotel_id,
         regimen_id=body.regimen_id,
         rooming_id=body.rooming_id,
         room_type=body.room_type,
@@ -615,6 +567,7 @@ async def create_reserva(
                 id=str(uuid.uuid4()),
                 reserva_id=res_id,
                 pasajero_id=p_in.pasajero_id,
+                hotel_id=p_in.hotel_id,
                 pasajero_type=p_in.pasajero_type or "ADL",
                 butaca_number=p_in.butaca_number,
                 butaca_type=p_in.butaca_type,
@@ -652,6 +605,7 @@ async def create_reserva(
         rp_to_create.append(new_rp)
     # Si no vienen pasajeros (ej. reserva tipo bloqueo/grupo), permitimos crear la reserva sin arrojar error 400
         
+    validate_reservation(db, new_res)
     db.commit()
     db.refresh(new_res)
 
@@ -684,6 +638,7 @@ async def create_reserva(
                 butaca_type=rp.butaca_type,
                 bus_number=rp.bus_number,
                 room_index=getattr(rp, 'room_index', 0) or 0,
+                hotel_id=rp.hotel_id,
                 nombre_completo=nombre_completo_pax,
                 name=p_chk.name if p_chk else None,
                 last_name=p_chk.last_name if p_chk else None,
@@ -768,7 +723,9 @@ async def create_reserva(
         edad_categoria=comp_edad_categoria,
         butaca=comp_butaca,
         tipo_butaca=comp_tipo_butaca,
-        reservation_passengers=passengers_details
+        reservation_passengers=passengers_details,
+        destino=dest_obj.name if dest_obj else "",
+        fecha=str(s.date_of_out).split(" ")[0] if s and s.date_of_out else "",
     )
 
 
@@ -777,7 +734,7 @@ async def update_reserva(
     id: str,
     body: ReservaUpdatePayload,
     iweb_client_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_inventory_db)
 ):
     r = db.query(Reservas).filter(
         Reservas.id == id,
@@ -787,6 +744,16 @@ async def update_reserva(
     if not r:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
         
+    previous = snapshot(db, r)
+    if body.salida_id is not None:
+        r.salida_id = body.salida_id
+    if body.package_id is not None:
+        r.package_id = body.package_id
+    # Explicit default-hotel edits move passengers assigned to the old default.
+    if body.hotel_id is not None and body.hotel_id != r.hotel_id and body.passengers is None:
+        for passenger in db.query(ReservationPassengers).filter_by(reserva_id=r.id).all():
+            if passenger.hotel_id == r.hotel_id:
+                passenger.hotel_id = body.hotel_id
     if body.codigo_reserva is not None:
         r.codigo_reserva = body.codigo_reserva
     if body.client_id is not None:
@@ -818,6 +785,7 @@ async def update_reserva(
         
     # Si viene passengers, actualizamos la intermedia
     if body.passengers is not None:
+        previous_hotels = {(p.pasajero_id, p.room_index or 0): p.hotel_id for p in db.query(ReservationPassengers).filter_by(reserva_id=id).all()}
         # Borrar antiguos
         db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id == id).delete()
         # Agregar nuevos
@@ -826,6 +794,7 @@ async def update_reserva(
                 id=str(uuid.uuid4()),
                 reserva_id=id,
                 pasajero_id=p_in.pasajero_id,
+                hotel_id=(p_in.hotel_id if "hotel_id" in p_in.model_fields_set else previous_hotels.get((p_in.pasajero_id, p_in.room_index or 0))),
                 pasajero_type=p_in.pasajero_type or "ADL",
                 butaca_number=p_in.butaca_number,
                 butaca_type=p_in.butaca_type,
@@ -835,6 +804,7 @@ async def update_reserva(
             )
             db.add(new_rp)
             
+    validate_reservation(db, r, previous)
     db.commit()
     db.refresh(r)
 
@@ -881,6 +851,7 @@ async def update_reserva(
                 lugar_carga_id=pax_lc_id,
                 lugar_carga_nombre=pax_lc_nombre,
                 room_index=getattr(rp, 'room_index', 0) or 0,
+                hotel_id=rp.hotel_id,
                 nombre_completo=nombre_completo_pax,
                 name=p.name if p else None,
                 last_name=p.last_name if p else None,
@@ -950,13 +921,9 @@ async def update_reserva(
         ).first()
         if sal:
             salida_date = str(sal.date_of_out).split(" ")[0] if sal.date_of_out else ""
-            if sal.destino:
-                d_obj = db.query(Destinos).filter(
-                    Destinos.id == sal.destino,
-                    Destinos.iweb_client_id == iweb_client_id
-                ).first()
-                if d_obj:
-                    salida_dest_name = d_obj.name or ""
+            d_obj = commercial_destination(db, iweb_client_id, r.package_id, sal)
+            if d_obj:
+                salida_dest_name = d_obj.name or ""
             
     return ReservaDetailedResponse(
         id=r.id,
@@ -1063,6 +1030,7 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
                 lugar_carga_id=pax_lc_id,
                 lugar_carga_nombre=pax_lc_nombre,
                 room_index=getattr(rp, 'room_index', 0) or 0,
+                hotel_id=rp.hotel_id,
                 nombre_completo=nombre_completo_pax,
                 name=p.name if p else None,
                 last_name=p.last_name if p else None,
@@ -1130,13 +1098,9 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
         ).first()
         if sal:
             salida_date = str(sal.date_of_out).split(" ")[0] if sal.date_of_out else ""
-            if sal.destino:
-                d_obj = db.query(Destinos).filter(
-                    Destinos.id == sal.destino,
-                    Destinos.iweb_client_id == iweb_client_id
-                ).first()
-                if d_obj:
-                    salida_dest_name = d_obj.name or ""
+            d_obj = commercial_destination(db, iweb_client_id, r.package_id, sal)
+            if d_obj:
+                salida_dest_name = d_obj.name or ""
 
     vendedor_val = "General"
     if getattr(r, 'created_by_user_id', None):
@@ -1188,7 +1152,7 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
 
 
 @router.delete("/delete_reserva/{id}")
-async def delete_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+async def delete_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_inventory_db)):
     r = db.query(Reservas).filter(
         Reservas.id == id,
         func.lower(Reservas.iweb_client_id) == func.lower(iweb_client_id.strip())
@@ -1239,7 +1203,7 @@ async def delete_reserva(id: str, iweb_client_id: str, db: Session = Depends(get
 
 
 @router.post("/duplicate_reserva/{id}", response_model=ReservaDetailedResponse)
-async def duplicate_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+async def duplicate_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_inventory_db)):
     original = db.query(Reservas).filter(
         Reservas.id == id,
         Reservas.iweb_client_id == iweb_client_id
@@ -1250,12 +1214,15 @@ async def duplicate_reserva(id: str, iweb_client_id: str, db: Session = Depends(
         
     # Generate new reservation code
     dest_sigla = "RES"
+    sal = None
     if original.salida_id:
-        sal = db.query(Salidas).filter(Salidas.id == original.salida_id).first()
-        if sal and sal.destino:
-            d_obj = db.query(Destinos).filter(Destinos.id == sal.destino).first()
-            if d_obj and d_obj.sigla:
-                dest_sigla = d_obj.sigla
+        sal = db.query(Salidas).filter(
+            Salidas.id == original.salida_id,
+            Salidas.iweb_client_id == iweb_client_id,
+        ).first()
+    d_obj = commercial_destination(db, iweb_client_id, original.package_id, sal)
+    if d_obj and d_obj.sigla:
+        dest_sigla = d_obj.sigla
                 
     count = db.query(Reservas).filter(
         Reservas.salida_id == original.salida_id,
@@ -1294,10 +1261,13 @@ async def duplicate_reserva(id: str, iweb_client_id: str, db: Session = Depends(
             butaca_number=op.butaca_number,
             butaca_type=op.butaca_type,
             bus_number=op.bus_number,
+            hotel_id=op.hotel_id,
+            room_index=op.room_index,
             lugar_carga_id=op.lugar_carga_id
         )
         db.add(new_rp)
         
+    validate_reservation(db, new_reserva)
     db.commit()
     
     # Auto-crear y sincronizar Liquidacion inicial para la reserva duplicada
@@ -1323,7 +1293,7 @@ async def update_reservation_passenger(
     rp_id: str,
     body: ReservationPassengerUpdateInput,
     iweb_client_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_inventory_db)
 ):
     norm_client = iweb_client_id.strip().lower()
     rp = db.query(ReservationPassengers).filter(ReservationPassengers.id == rp_id).first()
@@ -1349,6 +1319,7 @@ async def update_reservation_passenger(
     if not res_obj:
         raise HTTPException(status_code=403, detail="No tiene permisos para modificar este pasajero")
     
+    previous = snapshot(db, res_obj)
     if body.bus_number is not None:
         rp.bus_number = body.bus_number
     if body.butaca_number is not None:
@@ -1362,6 +1333,7 @@ async def update_reservation_passenger(
     if body.room_index is not None:
         rp.room_index = body.room_index
         
+    validate_reservation(db, res_obj, previous)
     db.commit()
     db.refresh(rp)
     return {"message": "Pasajero de reserva actualizado con éxito", "bus_number": rp.bus_number, "lugar_carga_id": rp.lugar_carga_id}

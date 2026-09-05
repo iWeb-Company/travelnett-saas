@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
-import { Loader } from "@/app/components/Loader";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 import ModalOptions from "@/app/components/ModalOptions";
 import { Salida } from "@/app/types";
 import AddVioleta from "@/app/components/icons/AddVioleta";
@@ -17,6 +17,7 @@ import ModalLayout from "@/app/components/ModalLayout";
 import Salidas from "@/app/components/icons/home/Salidas";
 import Paquetes from "@/app/components/icons/home/Paquetes";
 import { formatDateDDMMYY } from "@/lib/formatDate";
+import { destinationComponentsOverlap, isSameDestination } from "@/lib/destinationMatching";
 
 export default function Paso1Page() {
   const r = useRouter();
@@ -94,8 +95,8 @@ export default function Paso1Page() {
       toast.error("Por favor, selecciona tanto una salida como un paquete para la reserva tradicional");
       return;
     }
-    if (tipoReserva === "bloqueo" && !salidaSelected) {
-      toast.error("Por favor, selecciona una salida");
+    if (tipoReserva === "bloqueo" && (!salidaSelected || !paqueteSelected)) {
+      toast.error("Selecciona una salida y su paquete comercial");
       return;
     }
 
@@ -107,65 +108,47 @@ export default function Paso1Page() {
     r.push(`/web/reservas/crear-reserva/paso-2?destino=${destino}&cliente=${cliente}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${salidaSelected || ""}&paquete=${paqueteSelected || ""}`);
   };
 
-  const targetDestinoKeys = useMemo(() => {
-    if (!destino) return [];
-    const selectedDestinoObj = destinos.find((d: any) => d.id === destino || d.name === destino || d.nombre === destino);
-    if (!selectedDestinoObj) return [String(destino).trim().toLowerCase()];
-
-    const subNames = (selectedDestinoObj.name || selectedDestinoObj.nombre || "")
-      .split(/\s*[/,+]\s*/)
-      .map((s: string) => s.trim().toLowerCase())
-      .filter(Boolean);
-
-    const matchingDestinoIds = destinos
-      .filter((d: any) => subNames.includes((d.name || d.nombre || "").trim().toLowerCase()))
-      .map((d: any) => d.id)
-      .filter(Boolean) as string[];
-
-    const matchingDestinoSiglas = destinos
-      .filter((d: any) => subNames.includes((d.name || d.nombre || "").trim().toLowerCase()))
-      .map((d: any) => d.sigla)
-      .filter(Boolean) as string[];
-
-    const allKeys = [
-      destino,
-      selectedDestinoObj.id,
-      selectedDestinoObj.name,
-      selectedDestinoObj.nombre,
-      selectedDestinoObj.sigla,
-      ...matchingDestinoIds,
-      ...matchingDestinoSiglas,
-      ...subNames,
-    ].filter(Boolean) as string[];
-
-    return Array.from(new Set(allKeys.map((k) => String(k).trim().toLowerCase())));
-  }, [destino, destinos]);
-
   const filteredSalidas = useMemo(() => {
     if (paqueteSelected) {
       const selectedPkg = paquetes.find((p: any) => p.id === paqueteSelected);
-      if (selectedPkg && selectedPkg.dates && selectedPkg.dates.length > 0) {
-        const linked = salidas.filter((s: any) => selectedPkg.dates.includes(s.id));
-        if (linked.length > 0) return linked;
-      }
+      if (selectedPkg) return salidas.filter((s: any) => selectedPkg.dates?.includes(s.id));
     }
     if (!destino) return salidas;
-    return salidas.filter((s: any) => s.destino && targetDestinoKeys.includes(String(s.destino).trim().toLowerCase()));
-  }, [salidas, destino, targetDestinoKeys, paqueteSelected, paquetes]);
+    return salidas.filter((s: any) => s.destino && destinationComponentsOverlap(destino, s.destino, destinos));
+  }, [salidas, destino, destinos, paqueteSelected, paquetes]);
 
   const filteredPaquetes = useMemo(() => {
     if (salidaSelected) {
       const pkgsForSalida = paquetes.filter((p: any) => p.dates && p.dates.includes(salidaSelected));
-      if (pkgsForSalida.length > 0) return pkgsForSalida;
+      return pkgsForSalida;
     }
     if (!destino) return paquetes;
-    return paquetes.filter((p: any) => p.destino && targetDestinoKeys.includes(String(p.destino).trim().toLowerCase()));
-  }, [paquetes, destino, targetDestinoKeys, salidaSelected]);
+    return paquetes.filter((p: any) => p.destino && isSameDestination(destino, p.destino, destinos));
+  }, [paquetes, destino, destinos, salidaSelected]);
+
+  useEffect(() => {
+    if (!salidaSelected) return;
+    const compatible = paquetes.filter((p: any) => p.dates?.includes(salidaSelected));
+    if (paqueteSelected && !compatible.some((p: any) => p.id === paqueteSelected)) {
+      setPaqueteSelected(null);
+    }
+    if (!paqueteSelected && compatible.length === 1) {
+      setPaqueteSelected(compatible[0].id);
+    }
+  }, [salidaSelected, paquetes, paqueteSelected]);
+
+  useEffect(() => {
+    if (!paqueteSelected || !salidaSelected) return;
+    const selectedPackage = paquetes.find((p: any) => p.id === paqueteSelected);
+    if (!selectedPackage?.dates?.includes(salidaSelected)) {
+      setSalidaSelected(null);
+    }
+  }, [paqueteSelected, salidaSelected, paquetes]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader />
+        <FormSkeleton />
       </div>
     );
   }
@@ -203,7 +186,7 @@ export default function Paso1Page() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleNext} className="flex flex-col w-full gap-5  p-6 rounded-xl ">
+        <form onSubmit={handleNext} className="flex flex-col w-full gap-5 p-4 sm:p-6 rounded-xl">
           {/* Destino */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-gray-700">Destino</label>
@@ -242,7 +225,7 @@ export default function Paso1Page() {
           {/* Tipo de reserva */}
           <div className="flex flex-col gap-1.5 mt-1">
             <label className="text-xs font-bold text-gray-700">Tipo de Reserva</label>
-            <div className="flex items-center gap-8 mt-1">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-8 mt-1">
               <label className="flex items-center gap-2 cursor-pointer text-black font-semibold">
                 <input
                   type="radio"
@@ -301,7 +284,7 @@ export default function Paso1Page() {
                 className="flex-1 flex items-center gap-2 py-2 text-start rounded-lg text-sm font-semibold transition-all cursor-pointer"
               >
                 <AddVioleta color="#0546F7" />
-                <p>Seleccionar paquete {tipoReserva === "bloqueo" ? "(opcional)" : ""}</p>
+                <p>Seleccionar paquete</p>
               </button>
               {paqueteSelected && (
                 <p className="text-sm font-semibold text-black flex items-center justify-between bg-purple-50 p-2 rounded-md">

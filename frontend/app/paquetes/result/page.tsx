@@ -252,7 +252,8 @@ function ResultContent() {
 
               const mappedPkg = {
                 id: pkg.id,
-                nombre: pkg.name || "",
+                nombre: pkg.name_system?.trim() || pkg.name || "",
+                image: pkg.image,
                 destinoNombre: destObj?.name || destObj?.nombre || "Desconocido",
                 fechaSalida: resolvedDate,
                 fechasSalida: resolvedDates,

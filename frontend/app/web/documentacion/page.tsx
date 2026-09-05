@@ -133,11 +133,11 @@ export default function DocumentacionPage() {
         </h2>
       </button>
 
-      <section className="flex justify-center max-w-4xl flex-col items-center gap-10 mx-auto text-black">
+      <section className="flex justify-center max-w-4xl flex-col items-center gap-6 md:gap-10 mx-auto text-black">
         <div className="flex justify-center">
           <button
             onClick={() => setShowAddModal(true)}
-            className="border-2 flex items-center gap-2 border-primary text-primary rounded-lg font-semibold px-10 py-2 hover:bg-blue-50 transition-colors cursor-pointer"
+            className="border-2 flex items-center gap-2 border-primary text-primary rounded-lg font-semibold px-4 sm:px-10 py-2 hover:bg-blue-50 transition-colors cursor-pointer"
           >
             <svg
               width="29"
@@ -165,9 +165,9 @@ export default function DocumentacionPage() {
             docs.map((doc) => (
               <div
                 key={doc.id}
-                className="border border-gray-300 rounded-lg p-6 bg-white shadow-sm flex flex-col gap-4"
+                className="border border-gray-300 rounded-lg p-4 sm:p-6 bg-white shadow-sm flex flex-col gap-4"
               >
-                <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 border-b border-gray-100 pb-3">
                   {editingId === doc.id ? (
                     <input
                       type="text"

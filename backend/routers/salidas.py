@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
+from services.availability import get_inventory_db, seat_type
 from models.models import Salidas, SalidasLugaresCarga, LugaresCarga, Reservas, ReservationPassengers
 from schemas.schemas import (
     SalidaResponse,
@@ -96,7 +97,7 @@ async def get_salidas(
         cargas_resolved = []
         if rel and rel.cargas:
             carga_ids = [cid.strip() for cid in rel.cargas.split(",") if cid.strip()]
-            horarios_list = [h.strip() for h in rel.horarios.split(",") if h.strip()] if rel.horarios else []
+            horarios_list = [h.strip() for h in rel.horarios.split(",")] if rel.horarios else []
             while len(horarios_list) < len(carga_ids):
                 horarios_list.append("")
             for idx, cid in enumerate(carga_ids):
@@ -187,7 +188,7 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
     cargas_resolved = []
     if rel and rel.cargas:
         carga_ids = [cid.strip() for cid in rel.cargas.split(",") if cid.strip()]
-        horarios_list = [h.strip() for h in rel.horarios.split(",") if h.strip()] if rel.horarios else []
+        horarios_list = [h.strip() for h in rel.horarios.split(",")] if rel.horarios else []
         while len(horarios_list) < len(carga_ids):
             horarios_list.append("")
             
@@ -355,7 +356,7 @@ async def update_salida(
     id: str,
     body: SalidaUpdateRequest,
     iweb_client_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_inventory_db)
 ):
     s = db.query(Salidas).filter(
         Salidas.id == id,
@@ -365,6 +366,14 @@ async def update_salida(
     if not s:
         raise HTTPException(status_code=404, detail="Salida no encontrada")
         
+    if body.semicama is not None or body.cama is not None:
+        occupied = db.query(ReservationPassengers.butaca_type).join(Reservas, Reservas.id == ReservationPassengers.reserva_id).filter(
+            Reservas.iweb_client_id == iweb_client_id, Reservas.salida_id == id, Reservas.active.is_not(False)
+        ).all()
+        for kind in ("cama", "semicama"):
+            capacity = getattr(body, kind)
+            if capacity is not None and capacity < sum(seat_type(t) == kind for (t,) in occupied):
+                raise HTTPException(400, f"El cupo de {kind} no puede ser menor a las butacas reservadas")
     # Actualizar los campos que se envíen
     if body.date_of_out is not None:
         s.date_of_out = body.date_of_out
@@ -431,7 +440,7 @@ async def update_salida(
     cargas_to_use = body.cargas_ids if body.cargas_ids is not None else (rel.cargas.split(",") if rel and rel.cargas else [])
     cargas_to_use = [c.strip() for c in cargas_to_use if c.strip()]
     horarios_to_use = body.horarios if body.horarios is not None else (rel.horarios.split(",") if rel and rel.horarios else [])
-    horarios_to_use = [h.strip() for h in horarios_to_use if h.strip()]
+    horarios_to_use = [h.strip() for h in horarios_to_use]
     while len(horarios_to_use) < len(cargas_to_use):
         horarios_to_use.append("")
         
@@ -476,7 +485,7 @@ async def update_salida(
 
 
 @router.delete("/delete_salida/{id}")
-async def delete_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+async def delete_salida(id: str, iweb_client_id: str, db: Session = Depends(get_inventory_db)):
     s = db.query(Salidas).filter(
         Salidas.id == id,
         Salidas.iweb_client_id == iweb_client_id
@@ -485,6 +494,11 @@ async def delete_salida(id: str, iweb_client_id: str, db: Session = Depends(get_
     if not s:
         raise HTTPException(status_code=404, detail="Salida no encontrada")
         
+    if db.query(Reservas).filter_by(iweb_client_id=iweb_client_id, salida_id=id).filter(Reservas.active.is_not(False)).first():
+        raise HTTPException(400, "No se puede eliminar una salida con reservas vigentes")
+    from models.models import PackagesDatesOfExit, PackageHotelCapacity
+    db.query(PackageHotelCapacity).filter_by(iweb_client_id=iweb_client_id, salida_id=id).delete(synchronize_session=False)
+    db.query(PackagesDatesOfExit).filter_by(iweb_client_id=iweb_client_id, salida_id=id).delete(synchronize_session=False)
     # Eliminar relaciones en salidas_lugares_carga
     db.query(SalidasLugaresCarga).filter(
         SalidasLugaresCarga.iweb_client_id == iweb_client_id,

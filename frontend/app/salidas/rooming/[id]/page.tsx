@@ -18,7 +18,7 @@ export default function RoomingPage() {
   const { user } = useAuth();
 
   const [reservas, setReservas] = useState<any[]>([]);
-  const [packageHotels, setPackageHotels] = useState<any[]>([]);
+  const [packageDetails, setPackageDetails] = useState<Record<string, any>>({});
   const [hotelNames, setHotelNames] = useState<{ [id: string]: string }>({});
   const [loading, setLoading] = useState(true);
 
@@ -26,30 +26,30 @@ export default function RoomingPage() {
     const fetchReservas = async () => {
       if (!user?.iweb_client_id || !id) return;
       try {
-        const data = await apiClient.getReservas(user.iweb_client_id, id);
+        const [data, hotelsParams] = await Promise.all([
+          apiClient.getReservas(user.iweb_client_id, id),
+          apiClient.getParameters("get_hotels", user.iweb_client_id).catch(() => []),
+        ]);
         setReservas(data);
 
-        // Si hay reservas asociadas a un paquete, traemos la información del paquete y sus hoteles
-        const firstWithPkg = data.find((r: any) => r.package_id);
-        if (firstWithPkg?.package_id) {
-          const [pkgData, hotelsParams] = await Promise.all([
-            apiClient.getPackage(user.iweb_client_id, firstWithPkg.package_id).catch(() => null),
-            apiClient.getParameters("get_hotels", user.iweb_client_id).catch(() => []),
-          ]);
-
-          if (pkgData && pkgData.hotels) {
-            setPackageHotels(pkgData.hotels);
-          }
-          if (Array.isArray(hotelsParams)) {
-            const namesMap: { [key: string]: string } = {};
-            hotelsParams.forEach((h: any) => {
-              if (h.id && h.name) {
-                namesMap[h.id] = h.name;
-              }
-            });
-            setHotelNames(namesMap);
-          }
+        if (Array.isArray(hotelsParams)) {
+          setHotelNames(Object.fromEntries(
+            hotelsParams
+              .filter((hotel: any) => hotel.id)
+              .map((hotel: any) => [hotel.id, hotel.name || hotel.nombre || "Hotel"]),
+          ));
         }
+
+        const packageIds = Array.from(new Set(
+          data.map((reservation: any) => reservation.package_id).filter(Boolean),
+        )) as string[];
+        const packages = await Promise.all(packageIds.map((packageId) =>
+          apiClient.getPackage(user.iweb_client_id, packageId).catch(() => null),
+        ));
+        setPackageDetails(Object.fromEntries(
+          packages.filter(Boolean).map((pkg: any) => [pkg.id, pkg]),
+        ));
+
       } catch (err) {
         console.error("Error fetching rooming reservas:", err);
       } finally {
@@ -114,7 +114,7 @@ export default function RoomingPage() {
     );
   };
 
-  const renderHotelRoomingSection = (resList: any[], hotelTitle?: string) => {
+  const renderHotelRoomingSection = (resList: any[], hotelTitle?: string, hotelId?: string) => {
     if (resList.length === 0) return null;
 
     const roomsList: Array<{ id: string; type: string; pasajeros: string[] }> = [];
@@ -122,21 +122,48 @@ export default function RoomingPage() {
     let roomCounter = 1;
 
     resList.forEach((r) => {
-      const paxs = r.reservation_passengers && r.reservation_passengers.length > 0
+      const allPaxs = r.reservation_passengers && r.reservation_passengers.length > 0
         ? r.reservation_passengers
         : [r];
+      const paxs = hotelId === undefined
+        ? allPaxs
+        : allPaxs.filter((pax: any) => (pax.hotel_id || r.hotel_id || "") === hotelId);
+      if (paxs.length === 0) return;
 
-      const paxNames: string[] = paxs.map((pax: any) => {
+      const passengerName = (pax: any) => {
         if (pax.name || pax.last_name) {
           return formatPassengerName(pax.name, pax.last_name);
         }
         const full = pax.nombre_completo || r.nombre_completo || "";
         return full ? formatFullName(full) : "DESCONOCIDO";
-      });
-      totalPaxSum += paxNames.length;
+      };
+      totalPaxSum += paxs.length;
 
       const roomDetailsList = parseRoomTypes(r.room_type);
       const roomsToCreate = roomDetailsList.length > 0 ? roomDetailsList : [parseRoomItem("doble_matrimonial_estandar")];
+
+      const hasRoomIndexes = paxs.some((pax: any) => pax.room_index !== undefined && pax.room_index !== null);
+      if (hasRoomIndexes) {
+        const passengersByRoom = new Map<number, any[]>();
+        paxs.forEach((pax: any) => {
+          const roomIndex = Number(pax.room_index) || 0;
+          passengersByRoom.set(roomIndex, [...(passengersByRoom.get(roomIndex) || []), pax]);
+        });
+        Array.from(passengersByRoom.entries()).sort(([left], [right]) => left - right).forEach(([roomIndex, roomPaxs]) => {
+          const roomDetail = roomsToCreate[roomIndex] || roomsToCreate[0];
+          const roomIdLabel = r.rooming_id
+            ? (roomsToCreate.length > 1 ? `${r.rooming_id} (${roomIndex + 1})` : r.rooming_id)
+            : `${r.codigo_reserva || "Res"}-H${roomCounter++}`;
+          roomsList.push({
+            id: roomIdLabel,
+            type: roomDetail.raw || "doble_matrimonial_estandar",
+            pasajeros: roomPaxs.map(passengerName),
+          });
+        });
+        return;
+      }
+
+      const paxNames: string[] = paxs.map(passengerName);
 
       let paxIndex = 0;
       roomsToCreate.forEach((roomDetail, idx) => {
@@ -217,7 +244,7 @@ export default function RoomingPage() {
     const totalHabs = roomsList.length;
 
     return (
-      <div key={hotelTitle || "global"} className="mb-12 border border-gray-200 p-4 md:p-6 rounded-2xl bg-white shadow-sm">
+      <div key={hotelTitle || "global"} className="mb-8 md:mb-12 border border-gray-200 p-3 sm:p-4 md:p-6 rounded-2xl bg-white shadow-sm">
         {hotelTitle && (
           <h2 className="text-xl md:text-2xl font-bold text-primary mb-6 border-b border-primary/20 pb-3">
             🏨 {hotelTitle}
@@ -235,8 +262,8 @@ export default function RoomingPage() {
           Resumen de Ocupación {hotelTitle ? `— ${hotelTitle}` : ""}
         </h3>
         <section className="flex items-center justify-center gap-2 md:gap-10 pb-6">
-          <div className="flex justify-center items-center text-xs bg-gray-100 w-full max-w-2xl">
-            <div className="border border-border rounded-t-2xl overflow-hidden w-full shadow-md">
+          <div className="flex justify-start md:justify-center items-center text-xs bg-gray-100 w-full max-w-2xl overflow-x-auto">
+            <div className="border border-border rounded-t-2xl overflow-hidden w-full min-w-[500px] md:min-w-0 shadow-md">
               <div className="grid grid-cols-3 bg-gray-300 text-center font-bold text-gray-800">
                 <div className="py-4 border-r border-border">TIPO</div>
                 <div className="py-4 border-r border-border">TOTAL HABS</div>
@@ -305,6 +332,37 @@ export default function RoomingPage() {
     );
   };
 
+  const activeReservations = reservas.filter((reservation) => reservation.active !== false);
+  const packageGroups = Array.from(new Set(
+    activeReservations.map((reservation) => reservation.package_id || "__without_package__"),
+  )).map((packageKey) => {
+    const packageReservations = activeReservations.filter(
+      (reservation) => (reservation.package_id || "__without_package__") === packageKey,
+    );
+    const packageInfo = packageKey === "__without_package__" ? null : packageDetails[packageKey];
+    const usedHotelIds = Array.from(new Set(packageReservations.flatMap((reservation) => {
+      const passengers = reservation.reservation_passengers?.length
+        ? reservation.reservation_passengers
+        : [reservation];
+      return passengers.map((passenger: any) => passenger.hotel_id || reservation.hotel_id || "");
+    }))) as string[];
+    return {
+      key: packageKey,
+      title: packageInfo?.name_system || packageInfo?.name || (
+        packageKey === "__without_package__" ? "Reservas sin paquete" : "Paquete"
+      ),
+      reservations: packageReservations,
+      hotels: usedHotelIds.map((hotelId) => {
+        const packageHotel = packageInfo?.hotels?.find((hotel: any) => hotel.hotel_id === hotelId);
+        const hotelName = hotelNames[hotelId] || (hotelId ? "Hotel" : "Sin hotel asignado");
+        return {
+          id: hotelId,
+          title: packageHotel?.hotel_noches ? `${hotelName} (${packageHotel.hotel_noches} Noches)` : hotelName,
+        };
+      }),
+    };
+  });
+
   return (
     <Container>
       <ToggleSalidas />
@@ -326,17 +384,19 @@ export default function RoomingPage() {
       </section>
 
       {/* Grids y resúmenes de habitaciones */}
-      {reservas.length === 0 ? (
+      {activeReservations.length === 0 ? (
         <p className="text-center text-gray-500 py-10 font-medium">No hay pasajeros ni habitaciones asignadas para esta salida.</p>
-      ) : packageHotels.length > 1 ? (
-        packageHotels.map((ph) => {
-          const resListForHotel = reservas.filter((r) => r.hotel_id === ph.hotel_id);
-          const hName = hotelNames[ph.hotel_id] || "Hotel";
-          const title = ph.hotel_noches ? `${hName} (${ph.hotel_noches} Noches)` : hName;
-          return renderHotelRoomingSection(resListForHotel, title);
-        })
       ) : (
-        renderHotelRoomingSection(reservas)
+        packageGroups.map((group) => (
+          <section key={group.key} className="mb-10">
+            <h1 className="text-xl md:text-2xl font-bold text-black mb-4">
+              {group.title}
+            </h1>
+            {group.hotels.map((hotel) =>
+              renderHotelRoomingSection(group.reservations, hotel.title, hotel.id)
+            )}
+          </section>
+        ))
       )}
     </Container>
   );

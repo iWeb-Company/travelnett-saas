@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import BOOLEAN, INT, Date, DateTime, Integer, SmallInteger, String, Numeric, Text, JSON
+from sqlalchemy import BOOLEAN, INT, Date, DateTime, Integer, SmallInteger, String, Numeric, Text, JSON, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.database import Base
@@ -175,7 +175,7 @@ class BusTypes(Base):
 
 class Permission(Base):
     __tablename__ = "permissions"
-    
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -185,19 +185,19 @@ class Permission(Base):
     parametros: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
     web: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
     permisos_users: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
-    
+
 class Flyers(Base):
     __tablename__ = "flyers"
-    
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    
+
 class News(Base):
     __tablename__ = "news"
-    
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     url: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -212,7 +212,7 @@ class Documentations(Base):
 
 class Accounts(Base):
     __tablename__ = "accounts"
-    
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     account_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -263,6 +263,7 @@ class Packages(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name_system: Mapped[str | None] = mapped_column(String(255), nullable=True)
     subtitle: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(String(510), nullable=True)
     price: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -297,6 +298,9 @@ class PackageHotels(Base):
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     package_id: Mapped[str] = mapped_column(String(36), nullable=False)
     hotel_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    estandar: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False, server_default="0")
+    superior: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False, server_default="0")
+    suite: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False, server_default="0")
     hotel_noches: Mapped[int | None] = mapped_column(Integer, nullable=True)
     hotel_fecha_in: Mapped[str | None] = mapped_column(String(50), nullable=True)
     hotel_fecha_out: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -310,6 +314,21 @@ class PackageHotels(Base):
     tarifa_quintuple: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tarifa_menores: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pricing_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="persona")
+
+
+class PackageHotelCapacity(Base):
+    __tablename__ = "package_hotel_capacity"
+    __table_args__ = (
+        UniqueConstraint("iweb_client_id", "package_id", "hotel_id", "salida_id", name="uq_package_hotel_capacity"),
+        CheckConstraint("capacidad >= 0", name="ck_hotel_capacity_nonnegative"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    package_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    hotel_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    salida_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    capacidad: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class Reservas(Base):
@@ -344,6 +363,7 @@ class ReservationPassengers(Base):
     reserva_id: Mapped[str] = mapped_column(String(36), nullable=False)
     pasajero_id: Mapped[str] = mapped_column(String(36), nullable=False)
     pasajero_type: Mapped[str] = mapped_column(String(36), nullable=False)
+    hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     butaca_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     butaca_type: Mapped[str | None] = mapped_column(String(36), nullable=True)
     bus_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -359,7 +379,7 @@ class Vouchers(Base):
     reserva_id: Mapped[str] = mapped_column(String(36), nullable=False)
     salida_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     package_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    
+
     # Datos snapshot resueltos para el voucher
     destino_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     titular_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -536,4 +556,4 @@ class InicioWeb(Base):
     banner_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     carrusel_urls: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     portada_footer_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-
+

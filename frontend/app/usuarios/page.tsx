@@ -329,13 +329,13 @@ export default function UsuariosPage() {
               Agregar
             </button>
           </div>
-          <div className="w-full max-w-2xl mx-auto mb-4 flex justify-between gap-3">
-            <select name="" id="" className="w-1/2 border border-gray-300 rounded-lg p-2">
+          <div className="w-full max-w-2xl mx-auto mb-4 flex flex-col sm:flex-row justify-between gap-3">
+            <select name="" id="" className="w-full sm:w-1/2 border border-gray-300 rounded-lg p-2">
               <option value="">Estado: Todos</option>
               <option value="">Activos</option>
               <option value="">Inactivos</option>
             </select>
-            <input placeholder='Buscar' type="text" className="border border-gray-300 text-gray-200 rounded-lg p-2 w-1/2  " />
+            <input placeholder='Buscar' type="text" className="border border-gray-300 text-gray-800 rounded-lg p-2 w-full sm:w-1/2" />
           </div>
           <div className="w-full max-w-2xl mx-auto">
             <ul className="border border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-200 bg-white">
@@ -343,8 +343,8 @@ export default function UsuariosPage() {
                 <li className="py-8 text-center text-gray-500 text-sm">No hay usuarios registrados</li>
               ) : (
                 users.map((u) => (
-                  <li key={u.id} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50">
-                    <div className="flex flex-col">
+                  <li key={u.id} className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3 sm:px-4 py-3 bg-white hover:bg-gray-50">
+                    <div className="min-w-0 flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-800">{u.name} {u.last_name}</span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 capitalize">
@@ -353,7 +353,7 @@ export default function UsuariosPage() {
                       </div>
                       <span className="text-xs text-gray-500">@{u.username}</span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-end gap-3">
                       {/* Toggle activo */}
                       <button
                         onClick={() => handleToggleStatus(u)}
@@ -407,8 +407,8 @@ export default function UsuariosPage() {
                 <li className="py-8 text-center text-gray-500 text-sm">No hay permisos registrados</li>
               ) : (
                 permissions.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50">
-                    <div className="flex flex-col">
+                  <li key={p.id} className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3 sm:px-4 py-3 bg-white hover:bg-gray-50">
+                    <div className="min-w-0 flex flex-col">
                       <span className="font-medium text-gray-800">{p.name || 'Sin nombre'}</span>
                       <span className="text-xs text-gray-400">
                         {[
@@ -421,7 +421,7 @@ export default function UsuariosPage() {
                         ].filter(Boolean).join(', ')}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-end gap-3">
                       <button onClick={() => openEditPermission(p)} title="Editar" className="text-gray-600 hover:text-primary">
                         <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M8.6821 0.655196C9.10147 0.23574 9.67029 5.8616e-05 10.2634 1.09323e-08C10.8566 -5.85942e-05 11.4255 0.23551 11.8449 0.654884C12.2644 1.07426 12.5 1.64308 12.5001 2.23622C12.5002 2.82937 12.2646 3.39824 11.8452 3.8177L11.2877 4.37582L8.12522 1.2127L8.6821 0.655196ZM7.46272 1.87582L1.21272 8.1252C0.958684 8.37897 0.780167 8.69836 0.697097 9.0477L0.0127222 11.9239C-0.00580801 12.0019 -0.00407066 12.0832 0.0177686 12.1602C0.039608 12.2373 0.0808211 12.3075 0.137477 12.3641C0.194133 12.4206 0.264344 12.4618 0.341412 12.4835C0.41848 12.5053 0.499837 12.5069 0.577722 12.4883L3.45335 11.8033C3.80291 11.7204 4.12252 11.5418 4.37647 11.2877L10.6252 5.03832L7.46272 1.87582Z" fill="black" />

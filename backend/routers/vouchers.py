@@ -183,13 +183,13 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
     
     salida_id = reserva.salida_id
     if (not salida_id or salida_id.strip() in ("", "undefined", "null", "none")) and reserva.package_id:
-        rel = db.query(PackagesDatesOfExit).filter(
+        relations = db.query(PackagesDatesOfExit).filter(
             PackagesDatesOfExit.package_id == reserva.package_id,
             PackagesDatesOfExit.iweb_client_id == iweb_client_id,
             PackagesDatesOfExit.active == True
-        ).first()
-        if rel:
-            salida_id = rel.salida_id
+        ).all()
+        if len(relations) == 1:
+            salida_id = relations[0].salida_id
             
     salida = None
     if salida_id:
@@ -200,13 +200,14 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         
     package_id = reserva.package_id
     if (not package_id or package_id.strip() in ("", "undefined", "null", "none")) and salida_id:
-        rel = db.query(PackagesDatesOfExit).filter(
+        relations = db.query(PackagesDatesOfExit).filter(
             PackagesDatesOfExit.salida_id == salida_id,
             PackagesDatesOfExit.iweb_client_id == iweb_client_id,
             PackagesDatesOfExit.active == True
-        ).first()
-        if rel:
-            package_id = rel.package_id
+        ).all()
+        unique_package_ids = {relation.package_id for relation in relations}
+        if len(unique_package_ids) == 1:
+            package_id = unique_package_ids.pop()
             
     package = None
     if package_id:
@@ -216,7 +217,7 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         ).first()
         
     destino_name = ""
-    dest_id = (salida.destino if salida else None) or (package.destino if package else None)
+    dest_id = (package.destino if package else None) or (salida.destino if salida else None)
     if dest_id:
         dest_obj = db.query(Destinos).filter(
             Destinos.id == dest_id,
@@ -229,9 +230,13 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
 
     lugar_carga_name = ""
     horario_carga_val = ""
-    if reserva.lugar_carga_id:
+    lugar_carga_id = reserva.lugar_carga_id or next(
+        (rp.lugar_carga_id for rp in rp_list if rp.lugar_carga_id),
+        None,
+    )
+    if lugar_carga_id:
         lc = db.query(LugaresCarga).filter(
-            LugaresCarga.id == reserva.lugar_carga_id,
+            LugaresCarga.id == lugar_carga_id,
             LugaresCarga.iweb_client_id == iweb_client_id
         ).first()
         if lc:
@@ -244,24 +249,29 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
             ).first()
             if rel_lc and rel_lc.cargas:
                 c_ids = [c.strip() for c in rel_lc.cargas.split(",") if c.strip()]
-                h_vals = [h.strip() for h in rel_lc.horarios.split(",") if h.strip()] if rel_lc.horarios else []
-                if reserva.lugar_carga_id in c_ids:
-                    idx = c_ids.index(reserva.lugar_carga_id)
+                # Empty entries are significant: horarios and cargas are positional arrays.
+                h_vals = [h.strip() for h in rel_lc.horarios.split(",")] if rel_lc.horarios else []
+                while len(h_vals) < len(c_ids):
+                    h_vals.append("")
+                if lugar_carga_id in c_ids:
+                    idx = c_ids.index(lugar_carga_id)
                     if idx < len(h_vals):
                         horario_carga_val = h_vals[idx]
 
-    # Resolver hotel_id: reserva → salida → primer package_hotel
+    # Resolver hotel comercial sin elegir arbitrariamente entre varios hoteles.
     hotel_name = ""
     hotel_address = ""
     hotel_phone = ""
-    hotel_id = reserva.hotel_id or (salida.hotel_id if salida else None)
+    hotel_id = reserva.hotel_id
     if not hotel_id and package:
-        ph_fallback = db.query(PackageHotels).filter(
+        package_hotels = db.query(PackageHotels).filter(
             PackageHotels.package_id == package.id,
             PackageHotels.iweb_client_id == iweb_client_id
-        ).first()
-        if ph_fallback:
-            hotel_id = ph_fallback.hotel_id
+        ).all()
+        if len(package_hotels) == 1:
+            hotel_id = package_hotels[0].hotel_id
+    if not hotel_id and not package:
+        hotel_id = salida.hotel_id if salida else None
 
     hotel_obj = None
     if hotel_id:
@@ -287,16 +297,18 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
             PackageHotels.hotel_id == hotel_id
         ).first()
         if not matching_ph:
-            matching_ph = db.query(PackageHotels).filter(
+            package_hotels = db.query(PackageHotels).filter(
                 PackageHotels.package_id == package.id,
                 PackageHotels.iweb_client_id == iweb_client_id
-            ).first()
+            ).all()
+            if len(package_hotels) == 1:
+                matching_ph = package_hotels[0]
 
     regimen_name = ""
     reg_id = (
         reserva.regimen_id
-        or (salida.regimen_id if salida else None)
         or (matching_ph.hotel_regimen_id if matching_ph else None)
+        or (salida.regimen_id if salida and not package else None)
     )
     if reg_id:
         reg_obj = db.query(Regimenes).filter(
@@ -333,7 +345,7 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
     fecha_regreso_str = ""
     if salida and salida.date_of_out:
         try:
-            raw_d = str(salida.date_of_out).split(" ")[0]
+            raw_d = str(salida.date_of_out).strip()[:10]
             dt = datetime.strptime(raw_d, "%Y-%m-%d")
             fecha_salida_str = dt.strftime("%d/%m/%Y")
             if matching_ph and matching_ph.hotel_fecha_out:

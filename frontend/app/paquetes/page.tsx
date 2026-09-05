@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
-import { Loader } from "../components/Loader";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 import DateRangePicker, {
   formatDateRangeParam,
 } from "../components/DateRangePicker";
@@ -70,7 +70,7 @@ export default function PaquetesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader />
+        <FormSkeleton />
       </div>
     );
   }

@@ -14,7 +14,7 @@ import Hotel from "@/app/components/icons/salidas/Hotel";
 import Transporte from "@/app/components/icons/salidas/Transporte";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
-import { Loader } from "@/app/components/Loader";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 import toast from "react-hot-toast";
 import { exportListaToExcel, PasajeroListaData, LugarCargaListaData } from "@/app/utils/exportLista";
 import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
@@ -50,10 +50,17 @@ export default function SalidasIDPage() {
   const [isSavingHorarios, setIsSavingHorarios] = useState(false);
 
   const [clientes, setClientes] = useState<any[]>([]);
-  const [packageHotelCount, setPackageHotelCount] = useState<number>(0);
   const salidaCargas = Array.isArray(salida?.cargas)
     ? salida.cargas.filter((carga: any) => carga?.id)
     : [];
+  const pasajerosPorCarga = new Map<string, number>();
+  reservas.filter(r => r.active !== false).forEach(r => {
+    (r.reservation_passengers || []).forEach((p: any) => {
+      const cargaId = p.lugar_carga_id || r.lugar_carga_id;
+      if (cargaId) pasajerosPorCarga.set(cargaId, (pasajerosPorCarga.get(cargaId) || 0) + 1);
+    });
+  });
+  const cargasConPasajeros = salidaCargas.filter((c: any) => pasajerosPorCarga.has(c.id));
 
   const loadData = async () => {
     if (!user?.iweb_client_id || !id) return;
@@ -76,11 +83,6 @@ export default function SalidasIDPage() {
       setDestinos(destData);
       setClientes(clientData);
 
-      const firstWithPkg = resData.find((r: any) => r.package_id);
-      if (firstWithPkg?.package_id) {
-        const pkgData = await apiClient.getPackage(user.iweb_client_id, firstWithPkg.package_id).catch(() => null);
-        setPackageHotelCount(pkgData?.hotels?.length || 0);
-      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -115,7 +117,7 @@ export default function SalidasIDPage() {
     setShowHotelModal(true);
   };
 
-  // Batch Update Hotel and Regimen on the departure AND passenger reservations
+  // Update the operative departure and legacy reservations without a package.
   const handleUpdateHotel = async () => {
     if (!user?.iweb_client_id || !id) return;
     setIsUpdatingHotel(true);
@@ -126,10 +128,11 @@ export default function SalidasIDPage() {
         regimen_id: selectedRegimen || null,
       });
 
-      // 2. Update all passenger reservations to maintain consistency
-      if (reservas.length > 0) {
+      // 2. Packaged reservations keep their own commercial hotel and regimen.
+      const reservationsWithoutPackage = reservas.filter((reservation) => !reservation.package_id);
+      if (reservationsWithoutPackage.length > 0) {
         await Promise.all(
-          reservas.map(r =>
+          reservationsWithoutPackage.map(r =>
             apiClient.updateReserva(user.iweb_client_id, r.id, {
               hotel_id: selectedHotel || null,
               regimen_id: selectedRegimen || null,
@@ -190,10 +193,19 @@ export default function SalidasIDPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader />
+        <FormSkeleton />
       </div>
     );
   }
+
+  const resolvePassengerHotel = (reservation: any, passenger: any): { id: string | null; name: string } => {
+    const hotelId = (passenger?.hotel_id || reservation.hotel_id || null) as string | null;
+    const hotel = hoteles.find((candidate: any) => candidate.id === hotelId);
+    return {
+      id: hotelId,
+      name: hotel?.name || hotel?.nombre || reservation.hotel_nombre || "-",
+    };
+  };
 
   const mappedPasajeros: any[] = [];
   let counter = 1;
@@ -224,6 +236,7 @@ export default function SalidasIDPage() {
 
       // Render individual rows for passengers with loaded data
       paxsConDatos.forEach((pax: any) => {
+        const passengerHotel = resolvePassengerHotel(r, pax);
         let apellido = (pax.last_name || "").trim().toUpperCase();
         let nombres = (pax.name || "").trim().toUpperCase();
         if (!apellido && !nombres) {
@@ -262,8 +275,8 @@ export default function SalidasIDPage() {
           client_id: r.client_id || null,
           ascenso: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
           lugar_carga_id: pax.lugar_carga_id || r.lugar_carga_id || null,
-          hotel: r.hotel_nombre || "-",
-          hotel_id: r.hotel_id || null,
+          hotel: passengerHotel.name,
+          hotel_id: passengerHotel.id,
           regimen_id: r.regimen_id || null,
           edad: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
           servicio: servicio,
@@ -280,6 +293,11 @@ export default function SalidasIDPage() {
       // Group remaining passengers without loaded data in a single row
       if (paxsSinDatos.length > 0) {
         const firstPax = paxsSinDatos[0];
+        const groupHotels: Array<{ id: string | null; name: string }> = paxsSinDatos.map(
+          (pax: any) => resolvePassengerHotel(r, pax),
+        );
+        const groupHotelNames = Array.from(new Set(groupHotels.map((hotel) => hotel.name))).join(" / ");
+        const groupHotelIds = Array.from(new Set(groupHotels.map((hotel) => hotel.id).filter(Boolean)));
         const semicamaCount = paxsSinDatos.filter((p: any) => (p.butaca_type || r.butaca_type || "").toLowerCase().includes("semicama")).length;
         const camaCount = paxsSinDatos.filter((p: any) => {
           const bt = (p.butaca_type || r.butaca_type || "").toLowerCase();
@@ -317,8 +335,8 @@ export default function SalidasIDPage() {
           client_id: r.client_id || null,
           ascenso: firstPax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
           lugar_carga_id: firstPax.lugar_carga_id || r.lugar_carga_id || null,
-          hotel: r.hotel_nombre || "-",
-          hotel_id: r.hotel_id || null,
+          hotel: groupHotelNames || "-",
+          hotel_id: groupHotelIds.length === 1 ? groupHotelIds[0] : null,
           regimen_id: r.regimen_id || null,
           edad: `ADL (x${paxsSinDatos.length})`,
           servicio: servicio,
@@ -333,6 +351,7 @@ export default function SalidasIDPage() {
       }
     } else {
       paxs.forEach((pax: any) => {
+        const passengerHotel = resolvePassengerHotel(r, pax);
         let apellido = (pax.last_name || "").trim().toUpperCase();
         let nombres = (pax.name || "").trim().toUpperCase();
         if (!apellido && !nombres) {
@@ -371,8 +390,8 @@ export default function SalidasIDPage() {
           client_id: r.client_id || null,
           ascenso: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
           lugar_carga_id: pax.lugar_carga_id || r.lugar_carga_id || null,
-          hotel: r.hotel_nombre || "-",
-          hotel_id: r.hotel_id || null,
+          hotel: passengerHotel.name,
+          hotel_id: passengerHotel.id,
           regimen_id: r.regimen_id || null,
           edad: pax.pasajero_type || pax.edad_categoria || r.edad_categoria || "ADL",
           servicio: servicio,
@@ -545,16 +564,14 @@ export default function SalidasIDPage() {
           <p className="text-xs text-black md:block hidden">Horarios</p>
         </button>
         {/* Cambiar Hotel */}
-        {packageHotelCount === 1 && (
-          <button
-            className="p-1.5 flex items-center gap-2 font-semibold text-black hover:text-secondary transition-colors"
-            title="Hotel y Régimen de la Salida"
-            onClick={handleOpenHotelModal}
-          >
-            <Hotel />
-            <p className="text-xs text-black md:block hidden">Cambiar Hotel</p>
-          </button>
-        )}
+        <button
+          className="p-1.5 flex items-center gap-2 font-semibold text-black hover:text-secondary transition-colors"
+          title="Hotel y Régimen de la Salida"
+          onClick={handleOpenHotelModal}
+        >
+          <Hotel />
+          <p className="text-xs text-black md:block hidden">Cambiar Hotel</p>
+        </button>
       </section>
 
       {/* Lista de pasajeros */}
@@ -672,7 +689,7 @@ export default function SalidasIDPage() {
       {
         showRelojModal && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4"
             onClick={() => setShowRelojModal(false)}
           >
             <div
@@ -691,7 +708,7 @@ export default function SalidasIDPage() {
               <h3 className="text-center font-bold text-sm mb-3">Horarios y Coordinación</h3>
 
               {/* Tabla Ascenso (scrollable) */}
-              <div className="px-6 py-2 max-h-[25vh] overflow-y-auto mt-2">
+              <div className="px-2 sm:px-6 py-2 max-h-[25dvh] overflow-auto mt-2">
                 <table className="w-full text-xs text-center border-collapse">
                   <thead className="sticky top-0 bg-gray-700">
                     <tr>
@@ -702,17 +719,16 @@ export default function SalidasIDPage() {
                   </thead>
                   <tbody>
                     {(() => {
-                      if (salidaCargas.length === 0) {
+                      if (cargasConPasajeros.length === 0) {
                         return (
                           <tr className="bg-gray-600">
-                            <td colSpan={3} className="py-2 px-3">Sin lugares de carga configurados</td>
+                            <td colSpan={3} className="py-2 px-3">Sin pasajeros asignados a lugares de carga</td>
                           </tr>
                         );
                       }
 
-                      return salidaCargas.map((lc: any) => {
-                        const lcName = (lc.name || lc.nombre || "").toLowerCase();
-                        const count = mappedPasajeros.filter((p) => p.lugar_carga_id === lc.id || (lcName && (p.ascenso || "").toLowerCase() === lcName)).length;
+                      return cargasConPasajeros.map((lc: any) => {
+                        const count = pasajerosPorCarga.get(lc.id) || 0;
                         return (
                           <tr key={lc.id} className="bg-gray-600 border-t border-gray-700">
                             <td className="py-1.5 px-2">{count}</td>
@@ -742,7 +758,7 @@ export default function SalidasIDPage() {
               </div>
 
               {/* Formulario Coordinación */}
-              <div className="px-6 py-2 max-h-[25vh] overflow-y-auto mt-2">
+              <div className="px-2 sm:px-6 py-2 max-h-[25dvh] overflow-auto mt-2">
                 <table className="w-full text-xs text-center border-collapse">
                   <thead className="sticky top-0 bg-gray-700">
                     <tr>
@@ -776,17 +792,17 @@ export default function SalidasIDPage() {
               </div>
 
               {/* Botones */}
-              <div className="flex justify-center gap-4 px-4 py-5">
+              <div className="flex justify-center gap-3 sm:gap-4 px-3 sm:px-4 py-4 sm:py-5">
                 <button
                   onClick={() => setShowRelojModal(false)}
-                  className="bg-white text-black font-semibold text-sm px-6 py-2 rounded-lg cursor-pointer border border-gray-300"
+                  className="flex-1 sm:flex-none bg-white text-black font-semibold text-sm px-4 sm:px-6 py-2 rounded-lg cursor-pointer border border-gray-300"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSaveHorarios}
                   disabled={isSavingHorarios}
-                  className="bg-secondary text-white font-semibold text-sm px-6 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+                  className="flex-1 sm:flex-none bg-secondary text-white font-semibold text-sm px-4 sm:px-6 py-2 rounded-lg cursor-pointer disabled:opacity-50"
                 >
                   {isSavingHorarios ? "Guardando..." : "Confirmar"}
                 </button>
@@ -800,7 +816,7 @@ export default function SalidasIDPage() {
       {
         showHotelModal && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4"
             onClick={() => setShowHotelModal(false)}
           >
             <div
@@ -863,7 +879,7 @@ export default function SalidasIDPage() {
               </table>
 
               {/* Botones */}
-              <div className="flex justify-center gap-4 px-4 py-5">
+              <div className="flex justify-center gap-3 sm:gap-4 px-3 sm:px-4 py-4 sm:py-5">
                 <button
                   onClick={() => setShowHotelModal(false)}
                   className="bg-white text-black font-semibold text-sm px-6 py-2 rounded-lg cursor-pointer border border-gray-300"

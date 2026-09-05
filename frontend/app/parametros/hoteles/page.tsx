@@ -516,7 +516,7 @@ export default function HotelesPage() {
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               {previews.length > 0 && (
-                <div className="grid grid-cols-4 gap-2 w-full mt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full mt-2">
                   {previews.map((url, idx) => (
                     <div
                       key={idx}
@@ -606,7 +606,7 @@ export default function HotelesPage() {
                 onChange={(e) => setSelectedFiles(e.target.files)}
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
-              <div className="grid grid-cols-4 gap-2 w-full mt-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full mt-2">
                 {/* Imágenes actuales en el servidor */}
                 {hotelData.images?.map((url, idx) => (
                   <div

@@ -174,7 +174,7 @@ export default function PasajerosPage() {
           <Loader />
         </div>
       ) : hasSearched ? (
-        <div className="flex flex-col justify-center mx-auto max-w-4xl items-end overflow-x-auto">
+        <div className="flex w-full flex-col justify-center mx-auto max-w-4xl items-end overflow-x-auto">
           <button
             onClick={() => {
               setSearch({ nombre: "", last_name: "", dni: "", reserva: "", birstday: "" });
@@ -186,7 +186,7 @@ export default function PasajerosPage() {
           >
             Limpiar búsqueda
           </button>
-          <table className="w-full mx-auto mt-6 border divide-x divide-white border-black rounded-lg overflow-hidden">
+          <table className="w-full min-w-[700px] mx-auto mt-6 border divide-x divide-white border-black rounded-lg overflow-hidden">
             <thead className="bg-black text-white">
               <tr>
                 <th className="px-4 py-2 text-left">DNI</th>

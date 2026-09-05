@@ -206,7 +206,7 @@ export default function InicioWebPage() {
         Configuración de Página de Inicio
       </h2>
 
-      <form onSubmit={handleSubmit} className="w-full max-w-3xl mx-auto rounded-2xl p-6 md:p-8 flex flex-col gap-6 text-black mb-10">
+      <form onSubmit={handleSubmit} className="w-full max-w-3xl mx-auto rounded-2xl p-3 sm:p-6 md:p-8 flex flex-col gap-6 text-black mb-10">
         <div className="flex flex-col items-center justify-center gap-2 font-semibold text-sm md:text-base text-gray-700 bg-gray-100 p-4 rounded-xl">
           <p>Formato de imagen: JPG, JPEG, PNG, WEBP</p>
           <p>Formato de video: MP4, GIF</p>
@@ -217,7 +217,7 @@ export default function InicioWebPage() {
         <h2 className="text-center font-bold text-xl">Banner Principal</h2>
         <div className="flex flex-col justify-center items-center gap-2 my-2">
           {currentBannerDisplay ? (
-            <div className="relative w-72 h-44 rounded-xl overflow-hidden border border-gray-300 shadow-md group">
+            <div className="relative w-full max-w-72 h-44 rounded-xl overflow-hidden border border-gray-300 shadow-md group">
               <MediaDisplay url={currentBannerDisplay} />
               <button
                 type="button"
@@ -231,7 +231,7 @@ export default function InicioWebPage() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
               <label className="flex items-center gap-2 bg-[#f1f1f1] border border-gray-300 py-2.5 px-4 rounded-lg shadow-md cursor-pointer hover:bg-gray-200 transition-all font-semibold text-gray-700 text-sm">
                 <span>Cargar banner (Imagen / Video)</span>
                 <input
@@ -300,7 +300,7 @@ export default function InicioWebPage() {
         <h2 className="text-center font-bold text-xl">Portada antes del Pie de Página</h2>
         <div className="flex flex-col justify-center items-center gap-2 my-2">
           {currentPortadaFooterDisplay ? (
-            <div className="relative w-72 h-44 rounded-xl overflow-hidden border border-gray-300 shadow-md group">
+            <div className="relative w-full max-w-72 h-44 rounded-xl overflow-hidden border border-gray-300 shadow-md group">
               <MediaDisplay url={currentPortadaFooterDisplay} />
               <button
                 type="button"
@@ -314,7 +314,7 @@ export default function InicioWebPage() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
               <label className="flex items-center gap-2 bg-[#f1f1f1] border border-gray-300 py-2.5 px-4 rounded-lg shadow-md cursor-pointer hover:bg-gray-200 transition-all font-semibold text-gray-700 text-sm">
                 <span>Cargar portada footer (Imagen / Video)</span>
                 <input
@@ -334,7 +334,7 @@ export default function InicioWebPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="bg-primary text-white px-10 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-center cursor-pointer disabled:opacity-50 shadow-md"
+            className="w-full sm:w-auto bg-primary text-white px-4 sm:px-10 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-center cursor-pointer disabled:opacity-50 shadow-md"
           >
             {isSubmitting ? "Guardando cambios..." : "Guardar Cambios"}
           </button>

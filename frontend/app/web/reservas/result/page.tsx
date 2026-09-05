@@ -102,7 +102,9 @@ function ResultContent() {
           client_nombre: r.client_nombre || "",
           client_id: r.client_id || "",
           fechaRaw: r.fecha || "",
-          createdAtRaw: String(r.created_at || "").split("T")[0].split(" ")[0],
+          createdAtRaw: String(r.created_at || "")
+            .split("T")[0]
+            .split(" ")[0],
           fecha: formatDateDDMMYY(r.fecha),
           nombre_completo: formatFullName(r.nombre_completo),
           reservation_passengers: r.reservation_passengers || [],
