@@ -3,7 +3,7 @@
 import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
-import { Loader } from "@/app/components/Loader";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -387,6 +387,22 @@ function Paso3Content() {
 
     setLoading(true);
     try {
+      if (!actualPaqueteId || !actualSalidaId) throw new Error("Seleccioná un paquete y una salida para reservar");
+      const capacities = await apiClient.getHotelAvailability(user.iweb_client_id, actualPaqueteId);
+      const requested: Record<string, number> = {};
+      if (tipoReserva === "bloqueo") {
+        requested[hotelIdParam] = (bloqueoData.cantSemicama || 0) + (bloqueoData.cantCama || 0);
+      } else {
+        roomPassengers.forEach((passengers, index) => {
+          const hotel = roomsConfig[index]?.hotel || hotelIdParam;
+          requested[hotel] = (requested[hotel] || 0) + passengers.length;
+        });
+      }
+      for (const [hotel, count] of Object.entries(requested)) {
+        const cap = capacities.find(c => c.hotel_id === hotel && c.salida_id === actualSalidaId);
+        if (cap?.capacidad == null) throw new Error("Cupo hotelero sin configurar para esta salida");
+        if (count > cap.disponible) throw new Error(`Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
+      }
       const passengersPayload: any[] = [];
       const allPassengersList: any[] = [];
 
@@ -512,6 +528,7 @@ function Paso3Content() {
               butaca_type: p.tipoButaca || "semicama",
               lugar_carga_id: p.puntoAscenso || null,
               room_index: rIdx,
+              hotel_id: roomsConfig[rIdx]?.hotel || hotelIdParam || null,
               phone: p.phone || null,
             });
 
@@ -762,7 +779,7 @@ function Paso3Content() {
       router.push(`/web/reservas`);
     } catch (error) {
       console.error(error);
-      toast.error("Error al registrar la reserva");
+      toast.error(error instanceof Error ? error.message : "Error al registrar la reserva");
     } finally {
       setLoading(false);
     }
@@ -771,7 +788,7 @@ function Paso3Content() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
-        <Loader />
+        <FormSkeleton />
         <p className="mt-4 font-semibold md:text-xl">
           Registrando reserva, pasajeros, liquidacion...
         </p>
@@ -1195,7 +1212,7 @@ export default function Paso3Page() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center h-screen">
-          <Loader />
+          <FormSkeleton />
         </div>
       }>
       <Paso3Content />

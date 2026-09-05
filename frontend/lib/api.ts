@@ -1,3 +1,5 @@
+import { sortLabels } from './sortLabels';
+
 const API_BASE_URL = typeof window !== 'undefined'
   ? '/api'
   : (process.env.INTERNAL_API_URL || 'http://localhost:8000');
@@ -46,7 +48,26 @@ function setTokenCookie(token: string) {
   document.cookie = `access_token=${encodeURIComponent(bearerToken)}; path=/; max-age=2592000; SameSite=Lax`;
 }
 
+export interface HotelAvailability {
+  hotel_id: string;
+  salida_id: string;
+  capacidad: number | null;
+  ocupacion: number;
+  disponible: number;
+}
+
+async function apiError(response: Response, fallback: string): Promise<Error> {
+  const body = await response.json().catch(() => ({}));
+  const detail = typeof body.detail === 'string' ? body.detail : fallback;
+  return new Error(detail);
+}
+
 export const apiClient = {
+  async getHotelAvailability(iwebClientId: string, packageId: string): Promise<HotelAvailability[]> {
+    const response = await fetch(`${API_BASE_URL}/packages/get_availability/${encodeURIComponent(packageId)}?iweb_client_id=${encodeURIComponent(iwebClientId)}`, { credentials: 'include', cache: 'no-store' });
+    if (!response.ok) throw new Error('No se pudo consultar el cupo hotelero');
+    return response.json();
+  },
   async getPublicTenantInfo(slug: string): Promise<PublicTenantInfo> {
     const response = await fetch(`${API_BASE_URL}/iweb-clients/public/${encodeURIComponent(slug)}`, {
       method: 'GET',
@@ -133,7 +154,14 @@ export const apiClient = {
       headers: { 'Content-Type': 'application/json' },
     });
     if (!response.ok) throw new Error(`Failed to get ${name}`);
-    return response.json();
+    const data = await response.json();
+    if (Array.isArray(data) && name === 'get_destinos') {
+      return sortLabels(data, d => d.name || d.nombre || '');
+    }
+    if (Array.isArray(data) && name === 'get_clients') {
+      return sortLabels(data, c => c.complete_name || c.name_system || '');
+    }
+    return data;
   },
 
   async getTransportCompanies(iwebClientId?: string): Promise<any[]> {
@@ -155,7 +183,9 @@ export const apiClient = {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to get all parameters');
-    return response.json();
+    const data = await response.json();
+    data.destinos = sortLabels(data.destinos || [], (d: any) => d.name || d.nombre || '');
+    return data;
   },
 
   async deleteParameter(name: string, id: string, iwebClientId?: string): Promise<any> {
@@ -502,7 +532,7 @@ export const apiClient = {
       credentials: 'include',
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to create package');
+    if (!response.ok) throw await apiError(response, 'No se pudo guardar el cambio (create package)');
     return response.json();
   },
 
@@ -513,7 +543,7 @@ export const apiClient = {
       credentials: 'include',
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update package');
+    if (!response.ok) throw await apiError(response, 'No se pudo guardar el cambio (update package)');
     return response.json();
   },
 
@@ -522,7 +552,7 @@ export const apiClient = {
       method: 'DELETE',
       credentials: 'include',
     });
-    if (!response.ok) throw new Error('Failed to delete package');
+    if (!response.ok) throw await apiError(response, 'No se pudo guardar el cambio (delete package)');
   },
 
   // RESERVAS / BOOKINGS
@@ -546,7 +576,7 @@ export const apiClient = {
       credentials: 'include',
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to create reserva');
+    if (!response.ok) throw await apiError(response, 'No se pudo guardar el cambio (create reserva)');
     return response.json();
   },
 
@@ -557,7 +587,7 @@ export const apiClient = {
       credentials: 'include',
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update reserva');
+    if (!response.ok) throw await apiError(response, 'No se pudo guardar el cambio (update reserva)');
     return response.json();
   },
 
@@ -574,7 +604,7 @@ export const apiClient = {
       method: 'POST',
       credentials: 'include',
     });
-    if (!response.ok) throw new Error('Failed to duplicate reserva');
+    if (!response.ok) throw await apiError(response, 'No se pudo guardar el cambio (duplicate reserva)');
     return response.json();
   },
 
@@ -593,7 +623,7 @@ export const apiClient = {
       credentials: 'include',
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update reservation passenger');
+    if (!response.ok) throw await apiError(response, 'No se pudo guardar el cambio (update reservation passenger)');
     return response.json();
   },
 

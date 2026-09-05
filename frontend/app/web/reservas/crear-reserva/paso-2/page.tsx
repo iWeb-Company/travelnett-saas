@@ -7,9 +7,9 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { apiClient } from "@/lib/api";
+import { apiClient, HotelAvailability } from "@/lib/api";
 import toast from "react-hot-toast";
-import { Loader } from "@/app/components/Loader";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 import AddVioleta from "@/app/components/icons/AddVioleta";
 import { getRoomCapacity } from "@/lib/formatRooms";
 import { formatDateDDMMYY } from "@/lib/formatDate";
@@ -26,6 +26,7 @@ function Paso2Content() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [salidaInfo, setSalidaInfo] = useState<any>(null);
   const [paqueteInfo, setPaqueteInfo] = useState<any>(null);
+  const [availability, setAvailability] = useState<HotelAvailability[]>([]);
 
   // Query Parameters from step 1
   const destinoId = searchParams.get("destino") || "";
@@ -85,9 +86,19 @@ function Paso2Content() {
         const sal = await apiClient.getSalida(user.iweb_client_id, actualSalidaId).catch(() => null);
         setSalidaInfo(sal);
       }
-      if (actualPaqueteId) {
-        const pack = await apiClient.getPackage(user.iweb_client_id, actualPaqueteId).catch(() => null);
+      let resolvedPackageId = actualPaqueteId;
+      if (!resolvedPackageId && actualSalidaId) {
+        const packages = await apiClient.getPackages(user.iweb_client_id);
+        const matches = packages.filter((p: any) => p.dates?.includes(actualSalidaId));
+        if (matches.length === 1) resolvedPackageId = matches[0].id;
+      }
+      if (resolvedPackageId) {
+        const [pack, capacities] = await Promise.all([
+          apiClient.getPackage(user.iweb_client_id, resolvedPackageId),
+          apiClient.getHotelAvailability(user.iweb_client_id, resolvedPackageId),
+        ]);
         setPaqueteInfo(pack);
+        setAvailability(capacities);
       }
     } catch (error) {
       console.error(error);
@@ -118,6 +129,24 @@ function Paso2Content() {
     setRooms(rooms.filter((_, i) => i !== index));
   };
 
+  const selectedSalidaId = salidaId || (itemType === "salida" ? itemId : "") ||
+    (paqueteInfo?.dates?.length === 1 ? paqueteInfo.dates[0] : "");
+  const hotelCapacity = (id: string) => availability.find(a => a.hotel_id === id && a.salida_id === selectedSalidaId);
+  const hotelLabel = (hotel: any) => {
+    const cap = hotelCapacity(hotel.id);
+    return `${hotel.name || hotel.nombre} — ${cap?.capacidad == null ? "Cupo sin configurar" : `${cap.disponible} plazas disponibles`}`;
+  };
+  const checkHotelCapacity = (requested: Record<string, number>) => {
+    for (const [hotel, count] of Object.entries(requested)) {
+      const cap = hotelCapacity(hotel);
+      if (cap?.capacidad == null || cap.disponible < count) {
+        toast.error(cap?.capacidad == null ? "Cupo hotelero sin configurar para esta salida" : `Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleNextTraditional = (e: React.FormEvent) => {
     e.preventDefault();
     for (let i = 0; i < rooms.length; i++) {
@@ -132,8 +161,11 @@ function Paso2Content() {
     const actualPaqueteId = paqueteId || (itemType === "paquete" ? itemId : "");
 
     const roomsParam = encodeURIComponent(JSON.stringify(rooms));
+    const requested: Record<string, number> = {};
+    rooms.forEach(room => { requested[room.hotel] = (requested[room.hotel] || 0) + getRoomCapacity(room.tipoCama); });
+    if (!checkHotelCapacity(requested)) return;
     r.push(
-      `/web/reservas/crear-reserva/paso-3?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${actualSalidaId}&paquete=${actualPaqueteId}&rooms=${roomsParam}`
+      `/web/reservas/crear-reserva/paso-3?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${selectedSalidaId}&paquete=${actualPaqueteId || paqueteInfo?.id || ""}&rooms=${roomsParam}`
     );
   };
 
@@ -147,6 +179,8 @@ function Paso2Content() {
 
     const totalPaxInRooms = (roomCounts.single * 1) + (roomCounts.doble * 2) + (roomCounts.triple * 3) + (roomCounts.cuadruple * 4) + (roomCounts.quintuple * 5);
     const totalSeats = (bloqueoData.cantSemicama || 0) + (bloqueoData.cantCama || 0);
+
+    if (!checkHotelCapacity({ [hotelId]: totalSeats })) return;
 
     if (totalPaxInRooms === 0 && totalSeats === 0) {
       toast.error("Por favor agrega al menos una habitación o la cantidad de pasajeros (Semicama / Cama).");
@@ -169,6 +203,11 @@ function Paso2Content() {
 
     setIsSubmitting(true);
     try {
+      const capacities = await apiClient.getHotelAvailability(user.iweb_client_id, paqueteInfo?.id || paqueteId);
+      setAvailability(capacities);
+      const cap = capacities.find(c => c.hotel_id === hotelId && c.salida_id === selectedSalidaId);
+      if (cap?.capacidad == null) throw new Error("Cupo hotelero sin configurar para esta salida");
+      if (totalSeats > cap.disponible) throw new Error(`Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
       // 1. Build room_type list
       const roomTypesList: string[] = [];
       for (let i = 0; i < roomCounts.single; i++) roomTypesList.push("single_individual_estandar");
@@ -238,8 +277,8 @@ function Paso2Content() {
       const actualPaqueteId = paqueteId || (itemType === "paquete" ? itemId : null);
 
       const createdReserva = await apiClient.createReserva(user.iweb_client_id, {
-        salida_id: actualSalidaId,
-        package_id: actualPaqueteId,
+        salida_id: actualSalidaId || selectedSalidaId,
+        package_id: actualPaqueteId || paqueteInfo?.id,
         client_id: clienteId || null,
         hotel_id: hotelId,
         room_type: roomTypesJoined,
@@ -294,7 +333,7 @@ function Paso2Content() {
       r.push(`/web/reservas/result?reserva_id=${createdReserva.id}`);
     } catch (err) {
       console.error(err);
-      toast.error("Error al crear la reserva de bloqueo");
+      toast.error(err instanceof Error ? err.message : "Error al crear la reserva de bloqueo");
     } finally {
       setIsSubmitting(false);
     }
@@ -303,7 +342,7 @@ function Paso2Content() {
   if (loading || isSubmitting) {
     return (
       <div className="flex items-center justify-center h-screen flex-col gap-3">
-        <Loader />
+        <FormSkeleton />
         {isSubmitting && <p className="text-gray-600 font-medium text-sm">Guardando reserva de Bloqueo/Grupo...</p>}
       </div>
     );
@@ -439,7 +478,7 @@ function Paso2Content() {
               >
                 <option value="" disabled>Selecciona un Hotel</option>
                 {filteredHotels.map((h: any) => (
-                  <option key={h.id} value={h.id}>{h.name || h.nombre}</option>
+                  <option key={h.id} value={h.id} disabled={!hotelCapacity(h.id)?.disponible}>{hotelLabel(h)}</option>
                 ))}
               </select>
             </div>
@@ -601,7 +640,7 @@ function Paso2Content() {
                   >
                     <option value="" disabled>Selecciona un Hotel</option>
                     {filteredHotels.map((h: any) => (
-                      <option key={h.id} value={h.id}>{h.name || h.nombre}</option>
+                      <option key={h.id} value={h.id} disabled={!hotelCapacity(h.id)?.disponible}>{hotelLabel(h)}</option>
                     ))}
                   </select>
                 </div>
@@ -682,7 +721,7 @@ function Paso2Content() {
 
 export default function Paso2Page() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><FormSkeleton /></div>}>
       <Paso2Content />
     </Suspense>
   );

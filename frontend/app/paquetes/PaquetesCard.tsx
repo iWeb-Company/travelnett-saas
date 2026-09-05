@@ -3,6 +3,7 @@ import Link from "next/link";
 export interface Paquete {
   id: string;
   nombre: string;
+  image?: string | null;
   destinoNombre: string;
   fechaSalida: string;
   fechasSalida?: string[];
@@ -244,8 +245,9 @@ export default function PaquetesCard({
       {/* Columna 3: Imagen + acciones */}
       <div className="flex md:flex-col items-center md:items-end justify-between gap-2 border-t md:border-t-0 md:border-l border-white/20 pt-3 md:pt-0 md:pl-4">
         <img
-          src="/paquete.png"
-          alt="Paquete"
+          src={paquete.image || '/sin-imagen.svg'}
+          onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = '/sin-imagen.svg'; }}
+          alt={paquete.nombre}
           className="w-20 md:w-24 mx-auto border border-white/40 rounded-xl object-cover"
         />
         <div className="flex flex-col md:flex-row items-center gap-3 text-sm md:text-base font-semibold">

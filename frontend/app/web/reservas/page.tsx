@@ -11,11 +11,13 @@ import { apiClient } from "@/lib/api";
 import DateRangePicker, {
   formatDateRangeParam,
 } from "@/app/components/DateRangePicker";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 
 export default function ReservasPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [clientes, setClientes] = useState<any[]>([]);
+  const [loadingFilters, setLoadingFilters] = useState(true);
   const [periodos, setPeriodos] = useState<any[]>([]);
   const [paquetes, setPaquetes] = useState<any[]>([]);
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -42,6 +44,8 @@ export default function ReservasPage() {
       setPaquetes(packData || []);
     } catch (error) {
       console.error(error);
+    } finally {
+      setLoadingFilters(false);
     }
   };
 
@@ -66,6 +70,8 @@ export default function ReservasPage() {
       [e.target.name]: e.target.value,
     });
   };
+
+  if (loadingFilters) return <Container><FormSkeleton /></Container>;
 
   return (
     <Container>

@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from db.database import get_db
-from models.models import Packages, PackagesDatesOfExit, PackageHotels
+from models.models import Packages, PackagesDatesOfExit, PackageHotels, PackageHotelCapacity, Reservas
+from services.availability import get_inventory_db, save_package_capacity, hotel_availability
 from schemas.schemas import (
     PackageResponse,
     PackageHotelResponse,
@@ -14,8 +15,22 @@ from schemas.schemas import (
 router = APIRouter(prefix="/packages", tags=["Packages CRUD"])
 
 
-def _build_hotel_response(ph: PackageHotels) -> PackageHotelResponse:
+def _capacity_by_hotel(db, tenant, package_ids):
+    result = {}
+    for cap in db.query(PackageHotelCapacity).filter(
+        PackageHotelCapacity.iweb_client_id == tenant,
+        PackageHotelCapacity.package_id.in_(package_ids),
+    ).all():
+        result.setdefault((cap.package_id, cap.hotel_id), []).append(dict(salida_id=cap.salida_id, capacidad=cap.capacidad))
+    return result
+
+
+def _build_hotel_response(ph: PackageHotels, capacities: dict) -> PackageHotelResponse:
     return PackageHotelResponse(
+        estandar=ph.estandar,
+        superior=ph.superior,
+        suite=ph.suite,
+        cupos=capacities.get((ph.package_id, ph.hotel_id), []),
         id=ph.id,
         iweb_client_id=ph.iweb_client_id,
         package_id=ph.package_id,
@@ -45,6 +60,7 @@ def _build_package_response(
         id=p.id,
         iweb_client_id=p.iweb_client_id,
         name=p.name,
+        name_system=p.name_system,
         subtitle=p.subtitle,
         description=p.description,
         price=p.price,
@@ -111,10 +127,11 @@ async def get_packages(
         PackageHotels.package_id.in_(pkg_ids),
     ).all()
     hotels_by_pkg: dict[str, list[PackageHotelResponse]] = {}
+    capacities = _capacity_by_hotel(db, iweb_client_id, pkg_ids)
     for ph in all_ph:
         if ph.package_id not in hotels_by_pkg:
             hotels_by_pkg[ph.package_id] = []
-        hotels_by_pkg[ph.package_id].append(_build_hotel_response(ph))
+        hotels_by_pkg[ph.package_id].append(_build_hotel_response(ph, capacities))
 
     res_list = [
         _build_package_response(
@@ -158,7 +175,8 @@ async def get_package(id: str, iweb_client_id: str, db: Session = Depends(get_db
         PackageHotels.iweb_client_id == iweb_client_id,
         PackageHotels.package_id == p.id,
     ).all()
-    hotels_list = [_build_hotel_response(ph) for ph in ph_rows]
+    capacities = _capacity_by_hotel(db, iweb_client_id, [p.id])
+    hotels_list = [_build_hotel_response(ph, capacities) for ph in ph_rows]
 
     return _build_package_response(p, dates_list, hotels_list)
 
@@ -167,13 +185,14 @@ async def get_package(id: str, iweb_client_id: str, db: Session = Depends(get_db
 async def create_package(
     body: PackageCreateRequest,
     iweb_client_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_inventory_db)
 ):
     pkg_id = str(uuid.uuid4())
     new_pkg = Packages(
         id=pkg_id,
         iweb_client_id=iweb_client_id,
         name=body.name,
+        name_system=body.name_system,
         subtitle=body.subtitle,
         description=body.description,
         price=body.price,
@@ -191,6 +210,8 @@ async def create_package(
         excursiones=body.excursiones,
     )
     db.add(new_pkg)
+
+    save_package_capacity(db, iweb_client_id, pkg_id, body.dates, body.hotels)
 
     # Guardar fechas de salida
     if body.dates:
@@ -212,6 +233,9 @@ async def create_package(
             iweb_client_id=iweb_client_id,
             package_id=pkg_id,
             hotel_id=h.hotel_id,
+            estandar=h.estandar,
+            superior=h.superior,
+            suite=h.suite,
             hotel_noches=h.hotel_noches,
             hotel_fecha_in=h.hotel_fecha_in,
             hotel_fecha_out=h.hotel_fecha_out,
@@ -232,6 +256,9 @@ async def create_package(
             iweb_client_id=iweb_client_id,
             package_id=pkg_id,
             hotel_id=h.hotel_id,
+            estandar=h.estandar,
+            superior=h.superior,
+            suite=h.suite,
             hotel_noches=h.hotel_noches,
             hotel_fecha_in=h.hotel_fecha_in,
             hotel_fecha_out=h.hotel_fecha_out,
@@ -250,7 +277,7 @@ async def create_package(
     db.commit()
     db.refresh(new_pkg)
 
-    return _build_package_response(new_pkg, body.dates, hotels_created)
+    return await get_package(pkg_id, iweb_client_id, db)
 
 
 @router.put("/update_package/{id}", response_model=PackageResponse)
@@ -258,7 +285,7 @@ async def update_package(
     id: str,
     body: PackageUpdateRequest,
     iweb_client_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_inventory_db)
 ):
     p = db.query(Packages).filter(
         Packages.id == id,
@@ -268,6 +295,8 @@ async def update_package(
     if not p:
         raise HTTPException(status_code=404, detail="Paquete no encontrado")
 
+    if body.name_system is not None:
+        p.name_system = body.name_system.strip()
     # Actualizar campos del paquete
     if body.name is not None:
         p.name = body.name
@@ -302,6 +331,10 @@ async def update_package(
     if body.excursiones is not None:
         p.excursiones = body.excursiones
 
+    final_dates = body.dates if body.dates is not None else [r.salida_id for r in db.query(PackagesDatesOfExit).filter_by(iweb_client_id=iweb_client_id, package_id=p.id, active=True).all()]
+    final_hotels = body.hotels if body.hotels is not None else db.query(PackageHotels).filter_by(iweb_client_id=iweb_client_id, package_id=p.id).all()
+    save_package_capacity(db, iweb_client_id, p.id, final_dates, final_hotels)
+
     # Actualizar fechas de salida
     if body.dates is not None:
         db.query(PackagesDatesOfExit).filter(
@@ -329,6 +362,9 @@ async def update_package(
                 iweb_client_id=iweb_client_id,
                 package_id=p.id,
                 hotel_id=h.hotel_id,
+                estandar=h.estandar,
+                superior=h.superior,
+                suite=h.suite,
                 hotel_noches=h.hotel_noches,
                 hotel_fecha_in=h.hotel_fecha_in,
                 hotel_fecha_out=h.hotel_fecha_out,
@@ -359,13 +395,14 @@ async def update_package(
         PackageHotels.iweb_client_id == iweb_client_id,
         PackageHotels.package_id == p.id,
     ).all()
-    hotels_list = [_build_hotel_response(ph) for ph in ph_rows]
+    capacities = _capacity_by_hotel(db, iweb_client_id, [p.id])
+    hotels_list = [_build_hotel_response(ph, capacities) for ph in ph_rows]
 
     return _build_package_response(p, dates_list, hotels_list)
 
 
 @router.delete("/delete_package/{id}")
-async def delete_package(id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+async def delete_package(id: str, iweb_client_id: str, db: Session = Depends(get_inventory_db)):
     p = db.query(Packages).filter(
         Packages.id == id,
         Packages.iweb_client_id == iweb_client_id
@@ -374,6 +411,9 @@ async def delete_package(id: str, iweb_client_id: str, db: Session = Depends(get
     if not p:
         raise HTTPException(status_code=404, detail="Paquete no encontrado")
 
+    if db.query(Reservas).filter_by(iweb_client_id=iweb_client_id, package_id=p.id).filter(Reservas.active.is_not(False)).first():
+        raise HTTPException(400, "No se puede eliminar un paquete con reservas vigentes")
+    db.query(PackageHotelCapacity).filter_by(iweb_client_id=iweb_client_id, package_id=p.id).delete(synchronize_session=False)
     # Eliminar fechas de salida y hoteles asociados
     db.query(PackagesDatesOfExit).filter(
         PackagesDatesOfExit.iweb_client_id == iweb_client_id,
@@ -389,3 +429,9 @@ async def delete_package(id: str, iweb_client_id: str, db: Session = Depends(get
     db.commit()
 
     return {"message": "Paquete eliminado con éxito"}
+
+@router.get("/get_availability/{id}")
+async def get_availability(id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+    if not db.query(Packages).filter_by(id=id, iweb_client_id=iweb_client_id).first():
+        raise HTTPException(404, "Paquete no encontrado")
+    return hotel_availability(db, iweb_client_id, id)

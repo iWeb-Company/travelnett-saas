@@ -10,7 +10,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
-import { Loader } from "@/app/components/Loader";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 import ComponentToogleModal from "@/app/components/ComponentToogleModal";
 import { useMemo } from "react";
 import {
@@ -28,6 +28,10 @@ import DateInput from "@/app/components/DateComponent";
 
 // ─── Hotel entry type for the multi-hotel form ────────────────────────────────
 interface HotelEntry {
+  estandar: boolean;
+  superior: boolean;
+  suite: boolean;
+  cupos: Record<string, string>;
   hotel_id: string;
   open: boolean;
   hotel_noches: string;
@@ -46,6 +50,10 @@ interface HotelEntry {
 }
 
 const emptyHotelEntry = (): HotelEntry => ({
+  estandar: false,
+  superior: false,
+  suite: false,
+  cupos: {},
   hotel_id: "",
   open: false,
   hotel_noches: "",
@@ -65,6 +73,10 @@ const emptyHotelEntry = (): HotelEntry => ({
 
 function pkgHotelToEntry(h: PackageHotel): HotelEntry {
   return {
+    estandar: h.estandar ?? false,
+    superior: h.superior ?? false,
+    suite: h.suite ?? false,
+    cupos: Object.fromEntries((h.cupos || []).map(c => [c.salida_id, String(c.capacidad)])),
     hotel_id: h.hotel_id || "",
     open: !!h.hotel_id,
     hotel_noches: String(h.hotel_noches ?? ""),
@@ -103,6 +115,7 @@ function AgregarPaqueteContent() {
 
   // Form State
   const [nombre, setNombre] = useState("");
+  const [nombreSistema, setNombreSistema] = useState("");
   const [subtitulo, setSubtitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [destino, setDestino] = useState("");
@@ -157,15 +170,13 @@ function AgregarPaqueteContent() {
 
     try {
       const [params, pkgsData, salidasData] = await Promise.all([
-        apiClient
-          .getAllParameters(user.iweb_client_id)
-          .catch(() => ({
-            destinos: [],
-            hotels: [],
-            excursions: [],
-            periods: [],
-            regimenes: [],
-          })),
+        apiClient.getAllParameters(user.iweb_client_id).catch(() => ({
+          destinos: [],
+          hotels: [],
+          excursions: [],
+          periods: [],
+          regimenes: [],
+        })),
         apiClient.getPackages(user.iweb_client_id).catch(() => []),
         apiClient.getSalidas(user.iweb_client_id).catch(() => []),
       ]);
@@ -182,6 +193,7 @@ function AgregarPaqueteContent() {
         const pkg = pkgsData.find((p: Package) => p.id === id);
         if (pkg) {
           setNombre(pkg.name || "");
+          setNombreSistema(pkg.name_system || "");
           setSubtitulo(pkg.subtitle || "");
           setDescripcion(pkg.description || "");
           setDestino(pkg.destino || "");
@@ -318,6 +330,12 @@ function AgregarPaqueteContent() {
         .filter((e) => e.hotel_id)
         .map((e) => ({
           hotel_id: e.hotel_id,
+          estandar: e.estandar,
+          superior: e.superior,
+          suite: e.suite,
+          cupos: selectedSalidaIds.filter(salidaId => e.cupos[salidaId]?.trim()).map(salidaId => ({
+            salida_id: salidaId, capacidad: Number(e.cupos[salidaId]),
+          })),
           hotel_noches: parseInt(e.hotel_noches) || null,
           hotel_fecha_in: e.hotel_fecha_in || null,
           hotel_fecha_out: e.hotel_fecha_out || null,
@@ -335,6 +353,7 @@ function AgregarPaqueteContent() {
 
       const apiPayload = {
         name: nombre,
+        name_system: nombreSistema.trim(),
         subtitle: subtitulo,
         description: descripcion,
         price: parseInt(precio) || 0,
@@ -371,7 +390,7 @@ function AgregarPaqueteContent() {
           })
           .catch((err) => {
             console.error(err);
-            toast.error("Error al modificar el paquete");
+            toast.error(err instanceof Error ? err.message : "Error al modificar el paquete");
             setIsSubmitting(false);
           });
       } else {
@@ -383,7 +402,7 @@ function AgregarPaqueteContent() {
           })
           .catch((err) => {
             console.error(err);
-            toast.error("Error al agregar el paquete");
+            toast.error(err instanceof Error ? err.message : "Error al agregar el paquete");
             setIsSubmitting(false);
           });
       }
@@ -403,7 +422,7 @@ function AgregarPaqueteContent() {
   if (loadingParams) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader />
+        <FormSkeleton />
       </div>
     );
   }
@@ -459,6 +478,18 @@ function AgregarPaqueteContent() {
             onChange={(e) => setNombre(e.target.value)}
             className="text-gray-800 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
             required
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <input
+            type="text"
+            placeholder="Nombre en sistema"
+            aria-label="Nombre en sistema"
+            value={nombreSistema}
+            maxLength={255}
+            onChange={(e) => setNombreSistema(e.target.value)}
+            className="text-gray-800 bg-[#f1f1f1] font-semibold w-full border border-gray-300 py-2.5 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
 
@@ -683,6 +714,14 @@ function AgregarPaqueteContent() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-2 p-3 rounded-lg">
+                    <div className="flex flex-wrap gap-3 sm:mr-auto">
+                      {([['estandar', 'Estándar'], ['superior', 'Superior'], ['suite', 'Suite']] as const).map(([field, label]) => (
+                        <label key={field} className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                          <input type="checkbox" checked={entry[field]} onChange={e => updateHotelEntry(index, field, e.target.checked)} />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
                     <span className="text-sm font-semibold text-gray-700">
                       Fecha de salida +
                     </span>
@@ -826,6 +865,21 @@ function AgregarPaqueteContent() {
                       <span>Por habitación</span>
                     </label>
                   </div>
+                  <div className="flex flex-wrap text-gray-700 justify-start gap-5">
+                    <p className="">Cupo Hotelero</p>
+                    {selectedSalidaIds.map(salidaId => (
+                      <div key={salidaId} className="flex flex-col justify-center items-center">
+                        <p>{formatDateDDMMYY(salidas.find(s => s.id === salidaId)?.date_of_out || "")}</p>
+                        <input
+                          type="number" min={0} step={1}
+                          aria-label={`Cupo hotelero ${salidas.find(s => s.id === salidaId)?.date_of_out || salidaId}`}
+                          value={entry.cupos[salidaId] ?? ""}
+                          onChange={e => updateHotelEntry(index, "cupos", { ...entry.cupos, [salidaId]: e.target.value })}
+                          className="border w-20 px-3"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </section>
               </div>
             </div>
@@ -942,7 +996,7 @@ export default function AgregarPaquetePage() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center h-screen">
-          <Loader />
+          <FormSkeleton />
         </div>
       }>
       <AgregarPaqueteContent />

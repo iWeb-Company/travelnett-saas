@@ -7,7 +7,7 @@ import Container from "@/app/components/Container";
 import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import Link from "next/link";
 import { Reserva } from "@/app/types";
-import { Loader } from "@/app/components/Loader";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 import { Trash } from "lucide-react";
 import DateInput from "@/app/components/DateComponent";
 import toast from "react-hot-toast";
@@ -257,7 +257,7 @@ export default function ReservaIdPage() {
     }
   }, [totalComisionable, clientCommissionPct]);
 
-  if (!reserva) return <Loader />;
+  if (!reserva) return <FormSkeleton />;
 
   const handleBack = () => {
     router.back();
@@ -511,6 +511,7 @@ export default function ReservaIdPage() {
         .filter((rp: any) => rp.pasajero_id)
         .map((rp: any) => ({
           pasajero_id: rp.pasajero_id,
+          hotel_id: rp.hotel_id || null,
           pasajero_type: rp.pasajero_type || "ADL",
           butaca_number: rp.butaca_number,
           butaca_type: rp.butaca_type || "semicama",
@@ -572,7 +573,7 @@ export default function ReservaIdPage() {
       toast.success("Reserva y liquidación guardadas correctamente");
     } catch (err) {
       console.error(err);
-      toast.error("Error al guardar los cambios de la reserva");
+      toast.error(err instanceof Error ? err.message : "Error al guardar los cambios de la reserva");
     } finally {
       setSaving(false);
     }

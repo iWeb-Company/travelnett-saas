@@ -14,7 +14,7 @@ import Hotel from "@/app/components/icons/salidas/Hotel";
 import Transporte from "@/app/components/icons/salidas/Transporte";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
-import { Loader } from "@/app/components/Loader";
+import { FormSkeleton } from "@/app/components/FormSkeleton";
 import toast from "react-hot-toast";
 import { exportListaToExcel, PasajeroListaData, LugarCargaListaData } from "@/app/utils/exportLista";
 import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
@@ -54,6 +54,14 @@ export default function SalidasIDPage() {
   const salidaCargas = Array.isArray(salida?.cargas)
     ? salida.cargas.filter((carga: any) => carga?.id)
     : [];
+  const pasajerosPorCarga = new Map<string, number>();
+  reservas.filter(r => r.active !== false).forEach(r => {
+    (r.reservation_passengers || []).forEach((p: any) => {
+      const cargaId = p.lugar_carga_id || r.lugar_carga_id;
+      if (cargaId) pasajerosPorCarga.set(cargaId, (pasajerosPorCarga.get(cargaId) || 0) + 1);
+    });
+  });
+  const cargasConPasajeros = salidaCargas.filter((c: any) => pasajerosPorCarga.has(c.id));
 
   const loadData = async () => {
     if (!user?.iweb_client_id || !id) return;
@@ -190,7 +198,7 @@ export default function SalidasIDPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader />
+        <FormSkeleton />
       </div>
     );
   }
@@ -702,17 +710,16 @@ export default function SalidasIDPage() {
                   </thead>
                   <tbody>
                     {(() => {
-                      if (salidaCargas.length === 0) {
+                      if (cargasConPasajeros.length === 0) {
                         return (
                           <tr className="bg-gray-600">
-                            <td colSpan={3} className="py-2 px-3">Sin lugares de carga configurados</td>
+                            <td colSpan={3} className="py-2 px-3">Sin pasajeros asignados a lugares de carga</td>
                           </tr>
                         );
                       }
 
-                      return salidaCargas.map((lc: any) => {
-                        const lcName = (lc.name || lc.nombre || "").toLowerCase();
-                        const count = mappedPasajeros.filter((p) => p.lugar_carga_id === lc.id || (lcName && (p.ascenso || "").toLowerCase() === lcName)).length;
+                      return cargasConPasajeros.map((lc: any) => {
+                        const count = pasajerosPorCarga.get(lc.id) || 0;
                         return (
                           <tr key={lc.id} className="bg-gray-600 border-t border-gray-700">
                             <td className="py-1.5 px-2">{count}</td>

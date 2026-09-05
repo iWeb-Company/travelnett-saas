@@ -1,7 +1,7 @@
 import email
 from http import client
 from fastapi import File, UploadFile
-from pydantic import BaseModel, BeforeValidator
+from pydantic import BaseModel, BeforeValidator, Field
 from typing import Annotated, Optional, Union, Any, List
 from datetime import datetime, date
 PyDate = date
@@ -477,7 +477,16 @@ class SalidaUpdateRequest(BaseModel):
     regimen_id: Optional[str] = None
 
 
+class HotelCapacityPayload(BaseModel):
+    salida_id: str
+    capacidad: int = Field(ge=0, strict=True)
+
+
 class PackageHotelPayload(BaseModel):
+    estandar: bool = False
+    superior: bool = False
+    suite: bool = False
+    cupos: Optional[list[HotelCapacityPayload]] = None
     hotel_id: Optional[str] = None
     hotel_noches: Optional[int] = None
     hotel_fecha_in: Optional[str] = None
@@ -504,6 +513,7 @@ class PackageHotelResponse(PackageHotelPayload):
 
 
 class PackageResponse(BaseModel):
+    name_system: Optional[str] = None
     id: str
     iweb_client_id: str
     name: Optional[str] = None
@@ -530,6 +540,7 @@ class PackageResponse(BaseModel):
 
 
 class PackageCreateRequest(BaseModel):
+    name_system: Optional[str] = None
     name: Optional[str] = None
     subtitle: Optional[str] = None
     description: Optional[str] = None
@@ -551,6 +562,7 @@ class PackageCreateRequest(BaseModel):
 
 
 class PackageUpdateRequest(BaseModel):
+    name_system: Optional[str] = None
     name: Optional[str] = None
     subtitle: Optional[str] = None
     description: Optional[str] = None
@@ -562,7 +574,7 @@ class PackageUpdateRequest(BaseModel):
     image: Optional[str] = None
     active: Optional[bool] = None
     web: Optional[bool] = None
-    dates: list[str] = []
+    dates: Optional[list[str]] = None
     comisionable: Optional[bool] = None
     moneda: Optional[str] = None
     moneda_gastos: Optional[str] = None

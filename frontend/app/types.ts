@@ -308,6 +308,10 @@ export interface Documentation {
 }
 
 export interface PackageHotel {
+  estandar?: boolean;
+  superior?: boolean;
+  suite?: boolean;
+  cupos?: { salida_id: string; capacidad: number }[];
   id?: string;
   iweb_client_id?: string;
   package_id?: string;
@@ -328,6 +332,7 @@ export interface PackageHotel {
 }
 
 export interface Package {
+  name_system?: string | null;
   id?: string;
   iweb_client_id: string;
   name: string;
