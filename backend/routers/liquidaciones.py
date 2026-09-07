@@ -1,3 +1,4 @@
+import math
 import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +14,8 @@ from schemas.schemas import (
 )
 
 router = APIRouter(prefix="/liquidaciones", tags=["Liquidaciones"])
+
+ADMIN_GASTOS_NAMES = {"Gastos administrativos", "Gastos de Reserva", "Gastos de reserva"}
 
 
 def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
@@ -404,7 +407,7 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     added_gasto = False
 
     # Gastos de reserva / administrativos del paquete: eliminar duplicados si existieren
-    admin_gastos_list = [g for g in existing_gastos if g.name in ["Gastos administrativos", "Gastos de Reserva", "Gastos de reserva"]]
+    admin_gastos_list = [g for g in existing_gastos if g.name in ADMIN_GASTOS_NAMES]
     if len(admin_gastos_list) > 1:
         for extra_g in admin_gastos_list[1:]:
             db.delete(extra_g)
@@ -413,17 +416,21 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
         added_gasto = True
 
     if res_obj and res_obj.package_id:
+        admin_amount = float(liq.admin_gastos_override) if liq.admin_gastos_override is not None else calc["pkg_gastos"]
         admin_gasto = admin_gastos_list[0] if admin_gastos_list else None
         if admin_gasto:
-            if admin_gasto.amount != calc["pkg_gastos"]:
-                admin_gasto.amount = calc["pkg_gastos"]
+            if liq.admin_gastos_override == 0:
+                db.delete(admin_gasto)
                 added_gasto = True
-        elif calc["pkg_gastos"] > 0:
+            elif admin_gasto.amount != admin_amount:
+                admin_gasto.amount = admin_amount
+                added_gasto = True
+        elif admin_amount > 0:
             g_adm = GastosNoCommission(
                 id=str(uuid.uuid4()),
                 liquidacion_id=liq.id,
                 name="Gastos administrativos",
-                amount=calc["pkg_gastos"],
+                amount=admin_amount,
                 iweb_client_id=liq.iweb_client_id
             )
             db.add(g_adm)
@@ -485,7 +492,8 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     # Solo sincronizar automáticamente desde el paquete si la reserva TIENE un paquete con precio/tarifa > 0
     has_package_price = bool(calc and res_obj and res_obj.package_id and (calc.get("pkg_price", 0) > 0 or calc.get("pax_total", 0) > 0))
     if has_package_price:
-        calc_total = calc["total_bruto"] + sum_extra_gastos
+        admin_total = sum(float(g.amount or 0) for g in all_gastos if g.name in ADMIN_GASTOS_NAMES)
+        calc_total = calc["total_bruto"] - calc["pkg_gastos"] + admin_total + sum_extra_gastos
         calc_comm = calc["comm_amount"]
         calc_monto_comm = calc.get("monto_comisionable", calc_total)
 
@@ -540,19 +548,43 @@ def get_liquidacion_by_booking(booking_id: str, db: Session = Depends(get_db)):
 @router.put("/update_liquidacion/{id}", response_model=LiquidacionResponse)
 def update_liquidacion(id: str, payload: LiquidacionCreateRequest, db: Session = Depends(get_db)):
     try:
-        liq = db.query(Liquidaciones).filter(Liquidaciones.id == id).first()
+        liq = db.query(Liquidaciones).filter(
+            Liquidaciones.id == id,
+            func.lower(Liquidaciones.iweb_client_id) == payload.iweb_client_id.strip().lower()
+        ).first()
         if not liq:
             raise HTTPException(status_code=404, detail="Liquidacion not found")
         
-        liq.booking_id = payload.booking_id
-        liq.total_amout = payload.total_amout
-        liq.total_commission = payload.total_commission
-        liq.commission = payload.commission
-        
-        # Sincronizar gastos
+        if payload.booking_id and payload.booking_id != liq.booking_id:
+            raise HTTPException(400, "La liquidación no corresponde a la reserva")
+        booking = db.query(Reservas).filter(
+            Reservas.id == liq.booking_id, Reservas.iweb_client_id == liq.iweb_client_id
+        ).first()
+        if not booking:
+            raise HTTPException(404, "Reserva no encontrada en la agencia")
         existing_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == id).all()
         existing_gastos_dict = {g.id: g for g in existing_gastos}
-        
+        incoming = payload.gastos or []
+        for g in incoming:
+            if g.id and g.id not in existing_gastos_dict:
+                raise HTTPException(400, "El gasto no pertenece a esta liquidación")
+            if g.iweb_client_id and g.iweb_client_id != liq.iweb_client_id:
+                raise HTTPException(400, "El gasto no pertenece a la agencia")
+            if g.amount is None or not math.isfinite(float(g.amount)) or g.amount < 0:
+                raise HTTPException(400, "El importe del gasto debe ser finito y no negativo")
+        old_admin = sum(float(g.amount or 0) for g in existing_gastos if g.name in ADMIN_GASTOS_NAMES)
+        new_admin = sum(float(g.amount or 0) for g in incoming if g.name in ADMIN_GASTOS_NAMES)
+        if old_admin != new_admin or (any(g.name in ADMIN_GASTOS_NAMES for g in existing_gastos)
+                                    and not any(g.name in ADMIN_GASTOS_NAMES for g in incoming)):
+            liq.admin_gastos_override = new_admin
+        if payload.expenses_only:
+            delta = sum(float(g.amount or 0) for g in incoming) - sum(float(g.amount or 0) for g in existing_gastos)
+            liq.total_amout = float(liq.total_amout or 0) + delta
+        else:
+            liq.total_amout = payload.total_amout
+            liq.total_commission = payload.total_commission
+            liq.commission = payload.commission
+
         incoming_gastos_ids = set()
         updated_gastos = []
         
@@ -563,7 +595,7 @@ def update_liquidacion(id: str, payload: LiquidacionCreateRequest, db: Session =
                     gasto = existing_gastos_dict[g_payload.id]
                     gasto.name = g_payload.name
                     gasto.amount = g_payload.amount
-                    gasto.iweb_client_id = g_payload.iweb_client_id or gasto.iweb_client_id
+                    gasto.iweb_client_id = liq.iweb_client_id
                     incoming_gastos_ids.add(gasto.id)
                     updated_gastos.append(gasto)
                 else:
@@ -574,7 +606,7 @@ def update_liquidacion(id: str, payload: LiquidacionCreateRequest, db: Session =
                         liquidacion_id=id,
                         name=g_payload.name,
                         amount=g_payload.amount,
-                        iweb_client_id=g_payload.iweb_client_id
+                        iweb_client_id=liq.iweb_client_id
                     )
                     db.add(gasto)
                     incoming_gastos_ids.add(gasto.id)
@@ -587,7 +619,9 @@ def update_liquidacion(id: str, payload: LiquidacionCreateRequest, db: Session =
                 
         db.commit()
         db.refresh(liq)
-        
+        liq = create_or_update_booking_liquidacion(db, liq.booking_id, liq.iweb_client_id)
+        updated_gastos = db.query(GastosNoCommission).filter_by(liquidacion_id=liq.id).all()
+
         return LiquidacionResponse(
             id=liq.id,
             iweb_client_id=liq.iweb_client_id,

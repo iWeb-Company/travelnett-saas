@@ -482,6 +482,8 @@ class Liquidaciones(Base):
     total_amout: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
     total_commission: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
     commission: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    # NULL: automatic package fees. Zero: explicitly removed for this booking.
+    admin_gastos_override: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
 
 
 class GastosNoCommission(Base):
@@ -556,4 +558,3 @@ class InicioWeb(Base):
     banner_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     carrusel_urls: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     portada_footer_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-

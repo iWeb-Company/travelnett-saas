@@ -45,6 +45,7 @@ export default function ReservaIdPage() {
     null,
   );
   const [gastos, setGastos] = useState<GastoNoComm[]>([]);
+  const [gastosDirty, setGastosDirty] = useState(false);
   const [pagosRealizados, setPagosRealizados] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [openRoomIdx, setOpenRoomIdx] = useState<number | null>(null);
@@ -373,6 +374,7 @@ export default function ReservaIdPage() {
 
   // Gastos No Comisionables helpers
   const handleAddGasto = () => {
+    setGastosDirty(true);
     setGastos((prev) => [
       ...prev,
       { name: "Nuevo Gasto No Comisionable", amount: 0 },
@@ -380,6 +382,7 @@ export default function ReservaIdPage() {
   };
 
   const handleRemoveGasto = (index: number) => {
+    setGastosDirty(true);
     setGastos((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -388,6 +391,7 @@ export default function ReservaIdPage() {
     field: "name" | "amount",
     value: any,
   ) => {
+    setGastosDirty(true);
     setGastos((prev) => {
       const copy = [...prev];
       copy[index] = {
@@ -549,6 +553,16 @@ export default function ReservaIdPage() {
               : 0,
         }));
 
+      if (gastosDirty) {
+        if (!liquidacionId) throw new Error("No se cargó la liquidación. Recargá la reserva antes de guardar los gastos.");
+        await apiClient.updateLiquidacion(liquidacionId, {
+          iweb_client_id: user.iweb_client_id,
+          booking_id: id,
+          expenses_only: true,
+          gastos: gastos.map(g => ({ ...g, iweb_client_id: user.iweb_client_id })),
+        });
+      }
+
       await apiClient.updateReserva(user.iweb_client_id, id, {
         active: reserva.active,
         venciment: reserva.venciment,
@@ -593,9 +607,10 @@ export default function ReservaIdPage() {
           }
         }
       } catch (e) {
-        console.warn("Could not reload liquidacion:", e);
+        throw new Error("La reserva se guardó, pero no se pudo recargar la liquidación. Recargá para verificar los importes.");
       }
 
+      setGastosDirty(false);
       toast.success("Reserva y liquidación guardadas correctamente");
     } catch (err) {
       console.error(err);

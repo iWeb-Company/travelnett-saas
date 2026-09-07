@@ -741,6 +741,7 @@ class GastoNoCommissionResponse(BaseModel):
 
 
 class LiquidacionCreateRequest(BaseModel):
+    expenses_only: bool = False
     id: Optional[str] = None
     iweb_client_id: str
     booking_id: Optional[str] = None
@@ -931,6 +932,7 @@ class GastoNoCommissionResponse(BaseModel):
 
 
 class LiquidacionCreateRequest(BaseModel):
+    expenses_only: bool = False
     id: Optional[str] = None
     iweb_client_id: str
     booking_id: Optional[str] = None
