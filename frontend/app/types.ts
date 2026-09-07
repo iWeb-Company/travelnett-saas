@@ -378,6 +378,8 @@ export interface Pago {
 }
 
 export interface ReservationPassengerDetail {
+  hotel_id?: string | null;
+  room_index?: number | null;
   id: string;
   reserva_id: string;
   pasajero_id: string;

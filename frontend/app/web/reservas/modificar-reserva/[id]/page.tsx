@@ -46,6 +46,8 @@ export default function ReservaIdPage() {
   );
   const [gastos, setGastos] = useState<GastoNoComm[]>([]);
   const [gastosDirty, setGastosDirty] = useState(false);
+  const [hotels, setHotels] = useState<any[]>([]);
+  const [hotelsLoading, setHotelsLoading] = useState(true);
   const [pagosRealizados, setPagosRealizados] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [openRoomIdx, setOpenRoomIdx] = useState<number | null>(null);
@@ -73,6 +75,12 @@ export default function ReservaIdPage() {
 
   useEffect(() => {
     if (!id || !user?.iweb_client_id) return;
+
+    setHotelsLoading(true);
+    apiClient.getParameters("get_hotels", user.iweb_client_id)
+      .then(data => setHotels(Array.isArray(data) ? data : []))
+      .catch(() => toast.error("No se pudieron cargar los nombres de los hoteles"))
+      .finally(() => setHotelsLoading(false));
 
     // Load Clients
     apiClient
@@ -808,7 +816,7 @@ export default function ReservaIdPage() {
         .map((p: any) => p.room_index)
         .filter((idx) => idx !== undefined && idx !== null),
     );
-    const isUnpartitioned = rooms.length > 1 && distinctIndexes.size <= 1;
+    const isUnpartitioned = rooms.length > 1 && (distinctIndexes.size === 0 || (distinctIndexes.size === 1 && distinctIndexes.has(0)));
 
     let roomPaxs: any[] = [];
     if (isUnpartitioned) {
@@ -983,7 +991,13 @@ export default function ReservaIdPage() {
             {rooms.map((roomType, idx) => {
               const detail = parseRoomItem(roomType);
               const roomPassengers = getPassengersForRoom(idx);
-              console.log(roomPassengers);
+              const assignedPassengers = roomPassengers.filter((p: any) => p.pasajero_id || p.hotel_id);
+              const hotelIds = [...new Set(assignedPassengers.map((p: any) => p.hotel_id || reserva.hotel_id))];
+              if (hotelIds.length === 0) hotelIds.push(reserva.hotel_id);
+              const hotelTitle = hotelIds.map(hotelId =>
+                hotels.find(h => h.id === hotelId)?.name ||
+                (hotelId === reserva.hotel_id ? reserva.hotel_nombre : null) || "Hotel a confirmar"
+              ).join(" / ");
 
               return (
                 <div
@@ -991,9 +1005,13 @@ export default function ReservaIdPage() {
                   className="flex relative min-w-0 flex-col md:flex-row items-start md:items-center font-medium gap-4 p-2 sm:p-4">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full">
                     <div className="flex items-center gap-2">
+                      <div className="flex flex-col">
+                        {hotelsLoading ? <div className="h-5 w-40 mx-4 bg-gray-200 rounded animate-pulse" /> :
+                          <h3 className="text-black font-semibold px-4">{hotelTitle}</h3>}
                       <p className="text-black font-semibold py-2.5 px-4 rounded-lg">
                         {getCamaDistribucionKey(detail)}
                       </p>
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleToggleRoomAccordion(idx)}

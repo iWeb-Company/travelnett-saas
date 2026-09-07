@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from db.database import get_db
+from services.reservation_rooms import hotel_room_groups
 from models.models import Liquidaciones, GastosNoCommission, Reservas, Packages, PackageHotels, Clients, ReservationPassengers
 from schemas.schemas import (
     LiquidacionCreateRequest,
@@ -32,7 +33,7 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
     # Paquete si existe
     pkg = None
     if res_obj.package_id:
-        pkg = db.query(Packages).filter(Packages.id == res_obj.package_id).first()
+        pkg = db.query(Packages).filter(Packages.id == res_obj.package_id, Packages.iweb_client_id == res_obj.iweb_client_id).first()
 
     pkg_price = float(pkg.price or 0) if pkg else 0.0
     pkg_gastos = float(pkg.gastos or 0) if pkg else 0.0
@@ -51,24 +52,19 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
     pax_total = 0.0
     single_no_comisionable = 0.0   # monto 50% no comisionable por comisionable_single
     if pkg and res_obj.room_type:
-        # Resolver el PackageHotel que corresponde al hotel de la reserva
-        matching_ph = None
-        if res_obj.hotel_id:
-            matching_ph = db.query(PackageHotels).filter(
-                PackageHotels.package_id == pkg.id,
-                PackageHotels.hotel_id == res_obj.hotel_id
-            ).first()
-        if not matching_ph:
-            matching_ph = db.query(PackageHotels).filter(
-                PackageHotels.package_id == pkg.id
-            ).first()
-
-        pricing_type = matching_ph.pricing_type if matching_ph else "persona"
-        is_por_habitacion = "habitacion" in (pricing_type or "").lower()
-        comisionable_single = bool(matching_ph.comisionable_single) if matching_ph else False
-
-        if isinstance(rooms_list, list) and len(rooms_list) > 0:
-            for room_idx, rm_str in enumerate(rooms_list):
+        package_hotels = db.query(PackageHotels).filter(
+            PackageHotels.package_id == pkg.id,
+            PackageHotels.iweb_client_id == res_obj.iweb_client_id,
+        ).all()
+        hotels_by_id = {ph.hotel_id: ph for ph in package_hotels}
+        if isinstance(rooms_list, list) and rooms_list:
+            for room_idx, rm_str, hotel_id, room_paxs, billable_capacity in hotel_room_groups(rooms_list, rps, res_obj.hotel_id):
+                matching_ph = hotels_by_id.get(hotel_id)
+                if not hotel_id and len(package_hotels) == 1:
+                    matching_ph = package_hotels[0]
+                pricing_type = matching_ph.pricing_type if matching_ph else "persona"
+                is_por_habitacion = "habitacion" in (pricing_type or "").lower()
+                comisionable_single = bool(matching_ph.comisionable_single) if matching_ph else False
                 rm_lower = str(rm_str).lower()
                 capacity = 1
                 tariff = pkg_price
@@ -94,13 +90,8 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
                 if is_por_habitacion:
                     room_subtotal = tariff
                 else:
-                    room_paxs = [r for r in rps if (r.room_index if r.room_index is not None else 0) == room_idx]
-                    if not room_paxs and len(rps) > 0:
-                        start_i = sum(2 if ("doble" in str(rooms_list[k]).lower() or str(rooms_list[k]).lower().startswith("dbl")) else (3 if "triple" in str(rooms_list[k]).lower() else (4 if "cuadruple" in str(rooms_list[k]).lower() else (5 if ("quintuple" in str(rooms_list[k]).lower() or "depto" in str(rooms_list[k]).lower()) else 1))) for k in range(room_idx))
-                        room_paxs = rps[start_i : start_i + capacity]
-
                     room_subtotal = 0.0
-                    for slot_i in range(capacity):
+                    for slot_i in range(billable_capacity):
                         pax = room_paxs[slot_i] if slot_i < len(room_paxs) else None
                         ptype = (pax.pasajero_type if pax and pax.pasajero_type else "ADL").upper()
 
@@ -170,7 +161,7 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
     if res_obj.commission is not None:
         client_comm_pct = float(res_obj.commission)
     elif res_obj.client_id:
-        client = db.query(Clients).filter(Clients.id == res_obj.client_id).first()
+        client = db.query(Clients).filter(Clients.id == res_obj.client_id, Clients.iweb_client_id == res_obj.iweb_client_id).first()
         if client and client.commission is not None:
             client_comm_pct = float(client.commission)
 
@@ -485,7 +476,7 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     # Recalcular total acumulado incluyendo gastos no comisionables extra
     all_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
     sum_extra_gastos = sum(
-        g.amount or 0 for g in all_gastos 
+        float(g.amount or 0) for g in all_gastos
         if g.name not in ["Gastos administrativos", "Gastos de Reserva", "Gastos de reserva", "Adicional cama (no comisionable)", "50% No Comisionable Habitación Single"]
     )
 
