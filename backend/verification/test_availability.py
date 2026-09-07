@@ -115,6 +115,42 @@ class AvailabilityTests(unittest.TestCase):
         self.db.add(rp)
         return rp
 
+    def test_manual_booking_keeps_package_null_and_controls_seats(self):
+        self.capacity(0)
+        for mode in ("tradicional", "bloqueo_grupo"):
+            pax = Passengers(id=uuid.uuid4().hex, iweb_client_id=self.tenant)
+            self.db.add(pax)
+            self.db.commit()
+            created = asyncio.run(create_reserva(ReservaCreatePayload(
+                salida_id=self.salida, hotel_id=self.hotel, type=mode,
+                passengers=[dict(pasajero_id=pax.id, pasajero_type="ADL", butaca_type="semicama", hotel_id=self.hotel)],
+            ), self.tenant, self.db))
+            self.assertIsNone(created.package_id)
+        self.db.get(Salidas, self.salida).semicama = 2
+        self.db.commit()
+        reservation = Reservas(id=uuid.uuid4().hex, iweb_client_id=self.tenant, salida_id=self.salida, active=True)
+        self.db.add(reservation)
+        self.add_passenger(reservation, hotel=self.hotel)
+        with self.assertRaisesRegex(HTTPException, "Butacas SEMICAMA insuficientes"):
+            validate_reservation(self.db, reservation)
+        self.db.rollback()
+
+    def test_manual_booking_requires_departure_and_tenant_hotels(self):
+        for salida in (None, "unknown"):
+            with self.assertRaises(HTTPException):
+                resolve_selection(self.db, self.tenant, None, salida, self.hotel)
+        other_hotel = Hotels(id=uuid.uuid4().hex, iweb_client_id="other", name="Ajeno")
+        self.db.add(other_hotel)
+        self.db.commit()
+        with self.assertRaises(HTTPException):
+            resolve_selection(self.db, self.tenant, None, self.salida, other_hotel.id)
+        reservation = Reservas(id=uuid.uuid4().hex, iweb_client_id=self.tenant, salida_id=self.salida, active=True)
+        self.db.add(reservation)
+        self.add_passenger(reservation, hotel=other_hotel.id)
+        with self.assertRaisesRegex(HTTPException, "hoteles que no pertenecen"):
+            validate_reservation(self.db, reservation)
+        self.db.rollback()
+
     def test_exact_capacity_then_reject_without_consuming(self):
         self.booking(2)
         with self.assertRaisesRegex(HTTPException, "Cupo hotelero insuficiente"):
@@ -325,8 +361,8 @@ class AvailabilityTests(unittest.TestCase):
         self.db.add_all(passengers)
         self.db.commit()
 
-        with self.assertRaisesRegex(HTTPException, "ambig"):
-            resolve_selection(self.db, self.tenant, None, self.salida, self.hotel)
+        self.assertEqual(resolve_selection(self.db, self.tenant, None, self.salida, self.hotel),
+                         (None, self.salida, self.hotel))
 
         first = asyncio.run(create_reserva(ReservaCreatePayload(
             package_id=self.pkg, salida_id=self.salida, hotel_id=self.hotel,
@@ -357,6 +393,8 @@ class AvailabilityTests(unittest.TestCase):
         self.db.rollback()
 
     def test_operational_hotel_edit_keeps_legacy_package_less_reservation(self):
+        self.db.add_all([Hotels(id="legacy-hotel", iweb_client_id=self.tenant),
+                         Hotels(id="operational-hotel", iweb_client_id=self.tenant)])
         legacy = Reservas(
             id=uuid.uuid4().hex,
             iweb_client_id=self.tenant,

@@ -111,20 +111,6 @@ function Paso3Content() {
         setSalidaInfo(sal);
       }
 
-      if (!actualPaqueteId && actualSalidaId) {
-        const pkgs = await apiClient
-          .getPackages(user.iweb_client_id)
-          .catch(() => []);
-        const matches = pkgs.filter(
-          (p: any) => p.dates && p.dates.includes(actualSalidaId),
-        );
-        if (matches.length === 1) {
-          actualPaqueteId = matches[0].id;
-        } else if (matches.length > 1) {
-          throw new Error("Esta salida tiene varios paquetes. Volvé al paso 1 y elegí uno.");
-        }
-      }
-
       if (actualPaqueteId) {
         const pack = await apiClient
           .getPackage(user.iweb_client_id, actualPaqueteId)
@@ -389,21 +375,23 @@ function Paso3Content() {
 
     setLoading(true);
     try {
-      if (!actualPaqueteId || !actualSalidaId) throw new Error("Seleccioná un paquete y una salida para reservar");
-      const capacities = await apiClient.getHotelAvailability(user.iweb_client_id, actualPaqueteId);
-      const requested: Record<string, number> = {};
-      if (tipoReserva === "bloqueo") {
-        requested[hotelIdParam] = (bloqueoData.cantSemicama || 0) + (bloqueoData.cantCama || 0);
-      } else {
-        roomPassengers.forEach((passengers, index) => {
-          const hotel = roomsConfig[index]?.hotel || hotelIdParam;
-          requested[hotel] = (requested[hotel] || 0) + passengers.length;
-        });
-      }
-      for (const [hotel, count] of Object.entries(requested)) {
-        const cap = capacities.find(c => c.hotel_id === hotel && c.salida_id === actualSalidaId);
-        if (cap?.capacidad == null) throw new Error("Cupo hotelero sin configurar para esta salida");
-        if (count > cap.disponible) throw new Error(`Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
+      if (!actualSalidaId) throw new Error("Seleccioná una salida para reservar");
+      if (actualPaqueteId) {
+        const capacities = await apiClient.getHotelAvailability(user.iweb_client_id, actualPaqueteId);
+        const requested: Record<string, number> = {};
+        if (tipoReserva === "bloqueo") {
+          requested[hotelIdParam] = (bloqueoData.cantSemicama || 0) + (bloqueoData.cantCama || 0);
+        } else {
+          roomPassengers.forEach((passengers, index) => {
+            const hotel = roomsConfig[index]?.hotel || hotelIdParam;
+            requested[hotel] = (requested[hotel] || 0) + passengers.length;
+          });
+        }
+        for (const [hotel, count] of Object.entries(requested)) {
+          const cap = capacities.find(c => c.hotel_id === hotel && c.salida_id === actualSalidaId);
+          if (cap?.capacidad == null) throw new Error("Cupo hotelero sin configurar para esta salida");
+          if (count > cap.disponible) throw new Error(`Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
+        }
       }
       const passengersPayload: any[] = [];
       const allPassengersList: any[] = [];
@@ -869,6 +857,69 @@ function Paso3Content() {
           onSubmit={handleSubmit}
           className="flex flex-col w-full gap-6 px-2">
           {/* Datos Generales (Título de Reserva & Fecha de Vencimiento) */}
+
+          {tipoReserva === "tradicional" && !paqueteInfo && (
+            <div className="flex flex-col gap-4 p-5 rounded-xl">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-gray-700">
+                  Cantidad de liberados (opcional)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Cantidad de liberados"
+                  value={bloqueoData.cantLiberados}
+                  onChange={(e) =>
+                    setBloqueoData({
+                      ...bloqueoData,
+                      cantLiberados: Number(e.target.value),
+                    })
+                  }
+                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              {/* Package price and reservation fees are hidden if a package was selected */}
+              {!paqueteInfo && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-gray-700">
+                      Precio paquete
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Precio paquete"
+                      value={bloqueoData.precioPaquete}
+                      onChange={(e) =>
+                        setBloqueoData({
+                          ...bloqueoData,
+                          precioPaquete: Number(e.target.value),
+                        })
+                      }
+                      className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-gray-700">
+                      Gastos de reserva (opcional)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Gastos de reserva"
+                      value={bloqueoData.gastosReserva}
+                      onChange={(e) =>
+                        setBloqueoData({
+                          ...bloqueoData,
+                          gastosReserva: Number(e.target.value),
+                        })
+                      }
+                      className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {tipoReserva === "bloqueo" ? (
             <div className="flex flex-col gap-4 p-5 rounded-xl ">

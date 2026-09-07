@@ -66,6 +66,16 @@ def resolve_selection(db, tenant, package_id, salida_id, hotel_id):
         return None if not value or value.strip().lower() in {"null", "none", "undefined"} else value.strip()
 
     package_id, salida_id, hotel_id = map(clean, (package_id, salida_id, hotel_id))
+    if not salida_id:
+        raise HTTPException(400, "Seleccioná una salida para reservar")
+    salida = db.query(Salidas).filter_by(id=salida_id, iweb_client_id=tenant).first()
+    if not salida:
+        raise HTTPException(400, "Salida no encontrada en la agencia")
+    # An omitted package is an intentional manual booking, never an inference.
+    if not package_id:
+        if hotel_id and not db.query(Hotels).filter_by(id=hotel_id, iweb_client_id=tenant).first():
+            raise HTTPException(400, "El hotel no pertenece a la agencia")
+        return None, salida_id, hotel_id
     q = db.query(PackagesDatesOfExit).filter_by(iweb_client_id=tenant, active=True)
     if package_id:
         q = q.filter_by(package_id=package_id)
@@ -107,6 +117,13 @@ def validate_reservation(db, reserva, previous=None):
     if reserva.active is False:
         return
     tenant = reserva.iweb_client_id
+    hotel_ids = {p.hotel_id or reserva.hotel_id for p in rows} - {None, ""}
+    if reserva.hotel_id:
+        hotel_ids.add(reserva.hotel_id)
+    if hotel_ids and db.query(Hotels.id).filter(
+        Hotels.iweb_client_id == tenant, Hotels.id.in_(hotel_ids)
+    ).count() != len(hotel_ids):
+        raise HTTPException(400, "Hay hoteles que no pertenecen a esta agencia")
     before_hotels = previous["hotels"] if previous else Counter()
     before_seats = previous["seats"] if previous else Counter()
     current = snapshot(db, reserva)
