@@ -1173,7 +1173,6 @@ function Paso3Content() {
                         <div className="flex flex-col gap-1">
                           <input
                             type="text"
-                            required
                             className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                             placeholder="Teléfono"
                             value={passenger.phone}
