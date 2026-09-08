@@ -13,6 +13,10 @@ import { FormSkeleton } from "@/app/components/FormSkeleton";
 import AddVioleta from "@/app/components/icons/AddVioleta";
 import { getRoomCapacity } from "@/lib/formatRooms";
 import { formatDateDDMMYY } from "@/lib/formatDate";
+import {
+  buildReservationStep3Href,
+  resolveReservationPackageId,
+} from "@/lib/reservationCreationFlow";
 
 function Paso2Content() {
   const searchParams = useSearchParams();
@@ -80,21 +84,17 @@ function Paso2Content() {
       setClientes(clientData || []);
 
       const actualSalidaId = salidaId || (itemType === "salida" ? itemId : "");
-      const actualPaqueteId = paqueteId || (itemType === "paquete" ? itemId : "");
+      const actualPaqueteId = resolveReservationPackageId({
+        packageId: paqueteId,
+        itemId,
+        itemType,
+      });
 
       if (actualSalidaId) {
         const sal = await apiClient.getSalida(user.iweb_client_id, actualSalidaId).catch(() => null);
         setSalidaInfo(sal);
       }
-      let resolvedPackageId = actualPaqueteId;
-      if (!resolvedPackageId && actualSalidaId) {
-        const packages = await apiClient.getPackages(user.iweb_client_id);
-        const matches = packages.filter((p: any) => p.dates?.includes(actualSalidaId));
-        if (matches.length === 1) resolvedPackageId = matches[0].id;
-        if (matches.length > 1) {
-          throw new Error("Esta salida tiene varios paquetes. Volvé al paso anterior y elegí uno.");
-        }
-      }
+      const resolvedPackageId = actualPaqueteId;
       if (resolvedPackageId) {
         const [pack, capacities] = await Promise.all([
           apiClient.getPackage(user.iweb_client_id, resolvedPackageId),
@@ -136,10 +136,12 @@ function Paso2Content() {
     (paqueteInfo?.dates?.length === 1 ? paqueteInfo.dates[0] : "");
   const hotelCapacity = (id: string) => availability.find(a => a.hotel_id === id && a.salida_id === selectedSalidaId);
   const hotelLabel = (hotel: any) => {
+    if (!paqueteInfo) return hotel.name || hotel.nombre;
     const cap = hotelCapacity(hotel.id);
     return `${hotel.name || hotel.nombre} — ${cap?.capacidad == null ? "Cupo sin configurar" : `${cap.disponible} plazas disponibles`}`;
   };
   const checkHotelCapacity = (requested: Record<string, number>) => {
+    if (!paqueteId && itemType !== "paquete") return true;
     for (const [hotel, count] of Object.entries(requested)) {
       const cap = hotelCapacity(hotel);
       if (cap?.capacidad == null || cap.disponible < count) {
@@ -161,15 +163,25 @@ function Paso2Content() {
     }
 
     const actualSalidaId = salidaId || (itemType === "salida" ? itemId : "");
-    const actualPaqueteId = paqueteId || (itemType === "paquete" ? itemId : "");
-
-    const roomsParam = encodeURIComponent(JSON.stringify(rooms));
+    const actualPaqueteId = resolveReservationPackageId({
+      packageId: paqueteId,
+      itemId,
+      itemType,
+      loadedPackageId: paqueteInfo?.id,
+    });
     const requested: Record<string, number> = {};
     rooms.forEach(room => { requested[room.hotel] = (requested[room.hotel] || 0) + getRoomCapacity(room.tipoCama); });
     if (!checkHotelCapacity(requested)) return;
-    r.push(
-      `/web/reservas/crear-reserva/paso-3?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${selectedSalidaId}&paquete=${actualPaqueteId || paqueteInfo?.id || ""}&rooms=${roomsParam}`
-    );
+    r.push(buildReservationStep3Href({
+      destinoId,
+      clienteId,
+      tipoReserva,
+      itemId,
+      itemType,
+      salidaId: selectedSalidaId,
+      packageId: actualPaqueteId,
+      rooms,
+    }));
   };
 
   const handleBloqueoSubmit = async (e: React.FormEvent) => {
@@ -206,11 +218,14 @@ function Paso2Content() {
 
     setIsSubmitting(true);
     try {
-      const capacities = await apiClient.getHotelAvailability(user.iweb_client_id, paqueteInfo?.id || paqueteId);
-      setAvailability(capacities);
-      const cap = capacities.find(c => c.hotel_id === hotelId && c.salida_id === selectedSalidaId);
-      if (cap?.capacidad == null) throw new Error("Cupo hotelero sin configurar para esta salida");
-      if (totalSeats > cap.disponible) throw new Error(`Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
+      if (!selectedSalidaId) throw new Error("Seleccioná una salida para reservar");
+      if (paqueteId || itemType === "paquete") {
+        const capacities = await apiClient.getHotelAvailability(user.iweb_client_id, paqueteInfo?.id || paqueteId);
+        setAvailability(capacities);
+        const cap = capacities.find(c => c.hotel_id === hotelId && c.salida_id === selectedSalidaId);
+        if (cap?.capacidad == null) throw new Error("Cupo hotelero sin configurar para esta salida");
+        if (totalSeats > cap.disponible) throw new Error(`Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
+      }
       // 1. Build room_type list
       const roomTypesList: string[] = [];
       for (let i = 0; i < roomCounts.single; i++) roomTypesList.push("single_individual_estandar");
@@ -281,7 +296,7 @@ function Paso2Content() {
 
       const createdReserva = await apiClient.createReserva(user.iweb_client_id, {
         salida_id: actualSalidaId || selectedSalidaId,
-        package_id: actualPaqueteId || paqueteInfo?.id,
+        package_id: actualPaqueteId || null,
         client_id: clienteId || null,
         hotel_id: hotelId,
         room_type: roomTypesJoined,
@@ -481,7 +496,7 @@ function Paso2Content() {
               >
                 <option value="" disabled>Selecciona un Hotel</option>
                 {filteredHotels.map((h: any) => (
-                  <option key={h.id} value={h.id} disabled={!hotelCapacity(h.id)?.disponible}>{hotelLabel(h)}</option>
+                  <option key={h.id} value={h.id} disabled={!!paqueteInfo && !hotelCapacity(h.id)?.disponible}>{hotelLabel(h)}</option>
                 ))}
               </select>
             </div>
@@ -643,7 +658,7 @@ function Paso2Content() {
                   >
                     <option value="" disabled>Selecciona un Hotel</option>
                     {filteredHotels.map((h: any) => (
-                      <option key={h.id} value={h.id} disabled={!hotelCapacity(h.id)?.disponible}>{hotelLabel(h)}</option>
+                      <option key={h.id} value={h.id} disabled={!!paqueteInfo && !hotelCapacity(h.id)?.disponible}>{hotelLabel(h)}</option>
                     ))}
                   </select>
                 </div>

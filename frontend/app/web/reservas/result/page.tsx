@@ -106,6 +106,7 @@ function ResultContent() {
             .split("T")[0]
             .split(" ")[0],
           fecha: formatDateDDMMYY(r.fecha),
+          titulo: r.titulo || null,
           nombre_completo: formatFullName(r.nombre_completo),
           reservation_passengers: r.reservation_passengers || [],
           pasajeros: pasajerosMap,
