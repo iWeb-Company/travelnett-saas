@@ -414,6 +414,7 @@ class SalidaResponse(BaseModel):
     active: Optional[bool] = None
     periodo: Optional[str] = None
     transport_company: Optional[str] = None
+    precio_transporte: Optional[float] = None
     type_bus: Optional[str] = None
     destino: Optional[str] = None
     coordinador_nombre: Optional[str] = None
@@ -441,6 +442,7 @@ class SalidaCreateRequest(BaseModel):
     active: Optional[bool] = True
     periodo: Optional[str] = None
     transport_company: Optional[str] = None
+    precio_transporte: Optional[float] = Field(default=None, ge=0)
     type_bus: Optional[str] = None
     destino: Optional[str] = None
     alcance: Optional[str] = "argentina"
@@ -462,6 +464,7 @@ class SalidaUpdateRequest(BaseModel):
     active: Optional[bool] = None
     periodo: Optional[str] = None
     transport_company: Optional[str] = None
+    precio_transporte: Optional[float] = Field(default=None, ge=0)
     type_bus: Optional[str] = None
     destino: Optional[str] = None
     alcance: Optional[str] = None
@@ -697,6 +700,7 @@ class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
     transport_id: Optional[str] = None
+    salida_id: Optional[str] = None
     date: Optional[Union[PyDate, str]] = None
     detail: Optional[str] = None
     type: Optional[str] = None
@@ -711,6 +715,7 @@ class ccProvidersConsumptionPaymentsResponse(BaseModel):
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
     transport_id: Optional[str] = None
+    salida_id: Optional[str] = None
     date: Optional[Union[PyDate, str]] = None
     detail: Optional[str] = None
     type: Optional[str] = None
@@ -742,6 +747,8 @@ class GastoNoCommissionResponse(BaseModel):
 
 class LiquidacionCreateRequest(BaseModel):
     expenses_only: bool = False
+    override_total_amout: bool = False
+    override_total_commission: bool = False
     id: Optional[str] = None
     iweb_client_id: str
     booking_id: Optional[str] = None
@@ -888,6 +895,7 @@ class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
     transport_id: Optional[str] = None
+    salida_id: Optional[str] = None
     date: Optional[Union[PyDate, str]] = None
     detail: Optional[str] = None
     type: Optional[str] = None
@@ -902,6 +910,7 @@ class ccProvidersConsumptionPaymentsResponse(BaseModel):
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
     transport_id: Optional[str] = None
+    salida_id: Optional[str] = None
     date: Optional[Union[PyDate, str]] = None
     detail: Optional[str] = None
     type: Optional[str] = None
@@ -933,6 +942,8 @@ class GastoNoCommissionResponse(BaseModel):
 
 class LiquidacionCreateRequest(BaseModel):
     expenses_only: bool = False
+    override_total_amout: bool = False
+    override_total_commission: bool = False
     id: Optional[str] = None
     iweb_client_id: str
     booking_id: Optional[str] = None

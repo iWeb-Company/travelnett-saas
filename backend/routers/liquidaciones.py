@@ -17,6 +17,16 @@ from schemas.schemas import (
 router = APIRouter(prefix="/liquidaciones", tags=["Liquidaciones"])
 
 ADMIN_GASTOS_NAMES = {"Gastos administrativos", "Gastos de Reserva", "Gastos de reserva"}
+ADDITIONAL_BED_EXPENSE_NAME = "Adicional cama (no comisionable)"
+SINGLE_EXPENSE_NAME = "50% No Comisionable Habitación Single"
+
+
+def is_single_expense(name: str) -> bool:
+    return "50% No Comisionable" in name and "Single" in name
+
+
+def is_embedded_package_expense(name: str) -> bool:
+    return name == ADDITIONAL_BED_EXPENSE_NAME or is_single_expense(name)
 
 
 def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
@@ -428,43 +438,57 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
             added_gasto = True
 
         # Adicional no comisionable del paquete si no es comisionable
-        add_gasto = next((g for g in existing_gastos if g.name == "Adicional cama (no comisionable)"), None)
+        additional_bed_amount = (
+            float(liq.adicional_cama_override)
+            if liq.adicional_cama_override is not None
+            else calc["pkg_adicional"]
+        )
+        add_gasto = next((g for g in existing_gastos if g.name == ADDITIONAL_BED_EXPENSE_NAME), None)
         if add_gasto:
-            if not calc["is_comisionable"] and calc["pkg_adicional"] > 0:
-                if add_gasto.amount != calc["pkg_adicional"]:
-                    add_gasto.amount = calc["pkg_adicional"]
+            if additional_bed_amount > 0 and (
+                liq.adicional_cama_override is not None or not calc["is_comisionable"]
+            ):
+                if add_gasto.amount != additional_bed_amount:
+                    add_gasto.amount = additional_bed_amount
                     added_gasto = True
             else:
                 db.delete(add_gasto)
                 added_gasto = True
-        elif not calc["is_comisionable"] and calc["pkg_adicional"] > 0:
+        elif additional_bed_amount > 0 and (
+            liq.adicional_cama_override is not None or not calc["is_comisionable"]
+        ):
             g_add = GastosNoCommission(
                 id=str(uuid.uuid4()),
                 liquidacion_id=liq.id,
-                name="Adicional cama (no comisionable)",
-                amount=calc["pkg_adicional"],
+                name=ADDITIONAL_BED_EXPENSE_NAME,
+                amount=additional_bed_amount,
                 iweb_client_id=liq.iweb_client_id
             )
             db.add(g_add)
             added_gasto = True
 
         # 50% no comisionable por comisionable_single en habitación single
-        single_gasto = next((g for g in existing_gastos if "50% No Comisionable" in g.name), None)
+        single_amount = (
+            float(liq.single_gastos_override)
+            if liq.single_gastos_override is not None
+            else calc.get("single_no_comisionable", 0)
+        )
+        single_gasto = next((g for g in existing_gastos if is_single_expense(g.name)), None)
         if single_gasto:
-            if calc.get("single_no_comisionable", 0) > 0:
-                if single_gasto.amount != calc["single_no_comisionable"] or single_gasto.name != "50% No Comisionable Habitación Single":
-                    single_gasto.amount = calc["single_no_comisionable"]
-                    single_gasto.name = "50% No Comisionable Habitación Single"
+            if single_amount > 0:
+                if single_gasto.amount != single_amount or single_gasto.name != SINGLE_EXPENSE_NAME:
+                    single_gasto.amount = single_amount
+                    single_gasto.name = SINGLE_EXPENSE_NAME
                     added_gasto = True
             else:
                 db.delete(single_gasto)
                 added_gasto = True
-        elif calc.get("single_no_comisionable", 0) > 0:
+        elif single_amount > 0:
             g_single = GastosNoCommission(
                 id=str(uuid.uuid4()),
                 liquidacion_id=liq.id,
-                name="50% No Comisionable Habitación Single",
-                amount=calc["single_no_comisionable"],
+                name=SINGLE_EXPENSE_NAME,
+                amount=single_amount,
                 iweb_client_id=liq.iweb_client_id
             )
             db.add(g_single)
@@ -477,7 +501,8 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     all_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
     sum_extra_gastos = sum(
         float(g.amount or 0) for g in all_gastos
-        if g.name not in ["Gastos administrativos", "Gastos de Reserva", "Gastos de reserva", "Adicional cama (no comisionable)", "50% No Comisionable Habitación Single"]
+        if g.name not in ADMIN_GASTOS_NAMES
+        and not is_embedded_package_expense(g.name)
     )
 
     # Solo sincronizar automáticamente desde el paquete si la reserva TIENE un paquete con precio/tarifa > 0
@@ -485,11 +510,21 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     if has_package_price:
         admin_total = sum(float(g.amount or 0) for g in all_gastos if g.name in ADMIN_GASTOS_NAMES)
         calc_total = calc["total_bruto"] - calc["pkg_gastos"] + admin_total + sum_extra_gastos
-        calc_comm = calc["comm_amount"]
-        calc_monto_comm = calc.get("monto_comisionable", calc_total)
+        total_noncommissionable = sum(float(g.amount or 0) for g in all_gastos)
+        effective_total = (
+            float(liq.total_amout_override)
+            if liq.total_amout_override is not None
+            else calc_total
+        )
+        calc_monto_comm = (
+            float(liq.total_commission_override)
+            if liq.total_commission_override is not None
+            else max(0.0, effective_total - total_noncommissionable)
+        )
+        calc_comm = calc_monto_comm * calc["client_comm_pct"] / 100.0
 
-        if liq.total_amout != calc_total or liq.commission != calc_comm or liq.total_commission != calc_monto_comm:
-            liq.total_amout = calc_total
+        if liq.total_amout != effective_total or liq.commission != calc_comm or liq.total_commission != calc_monto_comm:
+            liq.total_amout = effective_total
             liq.commission = calc_comm
             liq.total_commission = calc_monto_comm
             db.commit()
@@ -568,13 +603,47 @@ def update_liquidacion(id: str, payload: LiquidacionCreateRequest, db: Session =
         if old_admin != new_admin or (any(g.name in ADMIN_GASTOS_NAMES for g in existing_gastos)
                                     and not any(g.name in ADMIN_GASTOS_NAMES for g in incoming)):
             liq.admin_gastos_override = new_admin
+        old_additional_bed = sum(float(g.amount or 0) for g in existing_gastos if g.name == ADDITIONAL_BED_EXPENSE_NAME)
+        new_additional_bed = sum(float(g.amount or 0) for g in incoming if g.name == ADDITIONAL_BED_EXPENSE_NAME)
+        if old_additional_bed != new_additional_bed:
+            liq.adicional_cama_override = new_additional_bed
+        old_single = sum(float(g.amount or 0) for g in existing_gastos if is_single_expense(g.name))
+        new_single = sum(float(g.amount or 0) for g in incoming if is_single_expense(g.name))
+        if old_single != new_single:
+            liq.single_gastos_override = new_single
         if payload.expenses_only:
             delta = sum(float(g.amount or 0) for g in incoming) - sum(float(g.amount or 0) for g in existing_gastos)
+            additive_delta = (
+                sum(float(g.amount or 0) for g in incoming if not is_embedded_package_expense(g.name))
+                - sum(float(g.amount or 0) for g in existing_gastos if not is_embedded_package_expense(g.name))
+            )
+            if liq.total_amout_override is not None:
+                liq.total_amout_override = float(liq.total_amout_override) + additive_delta
+            if liq.total_commission_override is not None:
+                liq.total_commission_override = max(
+                    0.0,
+                    float(liq.total_commission_override) + additive_delta - delta,
+                )
             liq.total_amout = float(liq.total_amout or 0) + delta
         else:
+            for field_name, value in (
+                ("total_amout", payload.total_amout),
+                ("total_commission", payload.total_commission),
+                ("commission", payload.commission),
+            ):
+                if value is not None and (not math.isfinite(float(value)) or value < 0):
+                    raise HTTPException(400, f"{field_name} debe ser finito y no negativo")
+            if payload.override_total_amout and payload.total_amout is None:
+                raise HTTPException(400, "total_amout es requerido para guardar el valor manual")
+            if payload.override_total_commission and payload.total_commission is None:
+                raise HTTPException(400, "total_commission es requerido para guardar el valor manual")
             liq.total_amout = payload.total_amout
             liq.total_commission = payload.total_commission
             liq.commission = payload.commission
+            if payload.override_total_amout:
+                liq.total_amout_override = payload.total_amout
+            if payload.override_total_commission:
+                liq.total_commission_override = payload.total_commission
 
         incoming_gastos_ids = set()
         updated_gastos = []

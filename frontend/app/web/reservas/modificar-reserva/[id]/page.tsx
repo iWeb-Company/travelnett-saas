@@ -17,6 +17,7 @@ import {
   filterAndSortClients,
   getClientDisplayName,
 } from "@/app/utils/clientSearch";
+import { calculateLiquidationTotalsAfterExpenseEdit } from "@/lib/liquidationCalculations";
 
 interface GastoNoComm {
   id?: string;
@@ -46,6 +47,8 @@ export default function ReservaIdPage() {
   );
   const [gastos, setGastos] = useState<GastoNoComm[]>([]);
   const [gastosDirty, setGastosDirty] = useState(false);
+  const [totalReservaDirty, setTotalReservaDirty] = useState(false);
+  const [totalComisionableDirty, setTotalComisionableDirty] = useState(false);
   const [hotels, setHotels] = useState<any[]>([]);
   const [hotelsLoading, setHotelsLoading] = useState(true);
   const [pagosRealizados, setPagosRealizados] = useState<number>(0);
@@ -253,7 +256,6 @@ export default function ReservaIdPage() {
     (acc, g) => acc + (g.amount || 0),
     0,
   );
-  // const totalComisionable = Math.max(0, totalReserva - totalNoComisionable);
   const saldoTotalNeto = totalReserva - commission;
   const saldoPendiente = saldoTotalNeto - pagosRealizados;
   const filteredClients = useMemo(
@@ -381,17 +383,30 @@ export default function ReservaIdPage() {
   };
 
   // Gastos No Comisionables helpers
-  const handleAddGasto = () => {
+  const applyGastosChange = (nextGastos: GastoNoComm[]) => {
+    const nextTotals = calculateLiquidationTotalsAfterExpenseEdit(
+      totalReserva,
+      totalComisionable,
+      gastos,
+      nextGastos,
+    );
     setGastosDirty(true);
-    setGastos((prev) => [
-      ...prev,
+    setGastos(nextGastos);
+    setTotalReserva(nextTotals.totalAmount);
+    setTotalComisionable(nextTotals.commissionableTotal);
+  };
+
+  const handleAddGasto = () => {
+    const nextGastos = [
+      ...gastos,
       { name: "Nuevo Gasto No Comisionable", amount: 0 },
-    ]);
+    ];
+    applyGastosChange(nextGastos);
   };
 
   const handleRemoveGasto = (index: number) => {
-    setGastosDirty(true);
-    setGastos((prev) => prev.filter((_, i) => i !== index));
+    const nextGastos = gastos.filter((_, i) => i !== index);
+    applyGastosChange(nextGastos);
   };
 
   const handleGastoChange = (
@@ -399,15 +414,15 @@ export default function ReservaIdPage() {
     field: "name" | "amount",
     value: any,
   ) => {
-    setGastosDirty(true);
-    setGastos((prev) => {
-      const copy = [...prev];
-      copy[index] = {
-        ...copy[index],
-        [field]: field === "amount" ? parseFloat(value) || 0 : value,
-      };
-      return copy;
-    });
+    const nextGastos = gastos.map((gasto, gastoIndex) =>
+      gastoIndex === index
+        ? {
+            ...gasto,
+            [field]: field === "amount" ? parseFloat(value) || 0 : value,
+          }
+        : gasto,
+    );
+    applyGastosChange(nextGastos);
   };
 
   const formatMonto = (num: number) =>
@@ -561,12 +576,17 @@ export default function ReservaIdPage() {
               : 0,
         }));
 
-      if (gastosDirty) {
-        if (!liquidacionId) throw new Error("No se cargó la liquidación. Recargá la reserva antes de guardar los gastos.");
+      if (gastosDirty || totalReservaDirty || totalComisionableDirty) {
+        if (!liquidacionId) throw new Error("No se cargó la liquidación. Recargá la reserva antes de guardar los importes.");
         await apiClient.updateLiquidacion(liquidacionId, {
           iweb_client_id: user.iweb_client_id,
           booking_id: id,
-          expenses_only: true,
+          expenses_only: !totalReservaDirty && !totalComisionableDirty,
+          total_amout: totalReserva,
+          total_commission: totalComisionable,
+          commission,
+          override_total_amout: totalReservaDirty,
+          override_total_commission: totalComisionableDirty,
           gastos: gastos.map(g => ({ ...g, iweb_client_id: user.iweb_client_id })),
         });
       }
@@ -619,6 +639,8 @@ export default function ReservaIdPage() {
       }
 
       setGastosDirty(false);
+      setTotalReservaDirty(false);
+      setTotalComisionableDirty(false);
       toast.success("Reserva y liquidación guardadas correctamente");
     } catch (err) {
       console.error(err);
@@ -1272,7 +1294,10 @@ export default function ReservaIdPage() {
             <input
               type="number"
               value={totalReserva}
-              onChange={(e) => setTotalReserva(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                setTotalReservaDirty(true);
+                setTotalReserva(parseFloat(e.target.value) || 0);
+              }}
               className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-base md:text-lg w-full sm:w-44 bg-white"
             />
           </div>
@@ -1281,9 +1306,10 @@ export default function ReservaIdPage() {
             <input
               type="number"
               value={totalComisionable}
-              onChange={(e) =>
-                setTotalComisionable(parseFloat(e.target.value) || 0)
-              }
+              onChange={(e) => {
+                setTotalComisionableDirty(true);
+                setTotalComisionable(parseFloat(e.target.value) || 0);
+              }}
               className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-base md:text-lg w-full sm:w-44 bg-white"
             />
           </div>

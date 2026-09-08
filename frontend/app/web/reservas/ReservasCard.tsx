@@ -9,7 +9,13 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { formatDateDDMMYY } from "@/lib/formatDate";
 
-export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva; onRefresh?: () => void }) {
+export default function ReservasCard({
+  reserva,
+  onRefresh,
+}: {
+  reserva: Reserva;
+  onRefresh?: () => void;
+}) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -24,12 +30,20 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
   const getNombreCompletoReserva = () => {
     const pasajeros = reserva.reservation_passengers?.length;
     if (pasajeros)
-      return pasajeros > 2 ? reserva.nombre_completo + " X" + pasajeros : reserva.nombre_completo;
+      return pasajeros > 2
+        ? reserva.nombre_completo + " X" + pasajeros
+        : reserva.nombre_completo;
   };
+  const reservationTitle =
+    reserva.titulo?.trim() || getNombreCompletoReserva() || reserva.nombre_completo || "Sin titular";
 
   const handleDuplicate = async () => {
     if (!user?.iweb_client_id || !reserva.id) return;
-    if (confirm(`¿Deseas duplicar la reserva ${reserva.codigo_reserva || reserva.numero}?`)) {
+    if (
+      confirm(
+        `¿Deseas duplicar la reserva ${reserva.codigo_reserva || reserva.numero}?`,
+      )
+    ) {
       try {
         await apiClient.duplicateReserva(user.iweb_client_id, reserva.id);
         toast.success("Reserva duplicada con éxito");
@@ -47,7 +61,11 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
 
   const handleDelete = async () => {
     if (!user?.iweb_client_id || !reserva.id) return;
-    if (confirm(`¿Estás seguro de eliminar la reserva ${reserva.codigo_reserva || reserva.numero}?`)) {
+    if (
+      confirm(
+        `¿Estás seguro de eliminar la reserva ${reserva.codigo_reserva || reserva.numero}?`,
+      )
+    ) {
       try {
         await apiClient.deleteReserva(user.iweb_client_id, reserva.id);
         toast.success("Reserva eliminada con éxito");
@@ -68,28 +86,45 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
     try {
       // 1. If salida_id exists, check if vouchers_online is enabled on salida
       if (reserva.salida_id) {
-        const salida = await apiClient.getSalida(user.iweb_client_id, reserva.salida_id).catch(() => null);
+        const salida = await apiClient
+          .getSalida(user.iweb_client_id, reserva.salida_id)
+          .catch(() => null);
         if (salida && salida.vouchers_online === false) {
-          toast.error("Los vouchers online aún no han sido habilitados para esta salida.");
+          toast.error(
+            "Los vouchers online aún no han sido habilitados para esta salida.",
+          );
           return;
         }
       }
 
       // 2. Check client payment method and remaining balance
       if (reserva.client_id) {
-        const clients = await apiClient.getParameters("get_clients", user.iweb_client_id).catch(() => []);
-        const clientObj = Array.isArray(clients) ? clients.find((c: any) => c.id === reserva.client_id) : null;
-        const paymentMethod = clientObj?.payment_method || (reserva as any).payment_method || "";
+        const clients = await apiClient
+          .getParameters("get_clients", user.iweb_client_id)
+          .catch(() => []);
+        const clientObj = Array.isArray(clients)
+          ? clients.find((c: any) => c.id === reserva.client_id)
+          : null;
+        const paymentMethod =
+          clientObj?.payment_method || (reserva as any).payment_method || "";
 
         if (paymentMethod === "contado") {
-          const liq = await apiClient.getLiquidacionByBooking(reserva.id).catch(() => null);
-          const pagos = await apiClient.getPagosReserva(user.iweb_client_id, reserva.id).catch(() => []);
+          const liq = await apiClient
+            .getLiquidacionByBooking(reserva.id)
+            .catch(() => null);
+          const pagos = await apiClient
+            .getPagosReserva(user.iweb_client_id, reserva.id)
+            .catch(() => []);
           const totalLiq = liq?.total_amout || 0;
-          const totalPagado = Array.isArray(pagos) ? pagos.reduce((acc: number, p: any) => acc + (p.amount || 0), 0) : 0;
+          const totalPagado = Array.isArray(pagos)
+            ? pagos.reduce((acc: number, p: any) => acc + (p.amount || 0), 0)
+            : 0;
           const saldo = totalLiq - totalPagado;
 
           if (saldo > 0) {
-            toast.error(`Para la forma de pago Contado, el voucher solo se habilita con saldo en $0. Saldo restante: $${saldo}`);
+            toast.error(
+              `Para la forma de pago Contado, el voucher solo se habilita con saldo en $0. Saldo restante: $${saldo}`,
+            );
             return;
           }
         }
@@ -106,16 +141,17 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
     <div className="flex flex-col">
       {/* ===== DESKTOP LAYOUT (md+) ===== */}
       <section className="hidden md:flex gap-3 text-white justify-between items-center">
-        <div className={`${reserva.active === false ? "bg-red-700" : "bg-primary"} justify-between items-center rounded-md px-5 py-2 flex flex-1`}>
+        <div
+          className={`${reserva.active === false ? "bg-red-700" : "bg-primary"} justify-between items-center rounded-md px-5 py-2 flex flex-1`}>
           <div className="flex gap-5 items-center">
             <p className="font-semibold">{reserva.codigo_reserva}</p>
             <div className="flex flex-col flex-1 justify-between items-start">
               <div className="flex gap-10 justify-between items-center">
                 <p>Destino: {reserva.destino}</p>
-                <p>Cliente: {reserva?.client_nombre || 'Reserva Particular'}</p>
+                <p>Cliente: {reserva?.client_nombre || "Reserva Particular"}</p>
               </div>
               <p className="font-semibold">
-                Titular de la reserva: {getNombreCompletoReserva()}
+                Titular de la reserva: {reservationTitle}
               </p>
             </div>
           </div>
@@ -138,7 +174,9 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
               </svg>
             </button>
             {/* Print */}
-            <button onClick={handleViewVoucher} title="Ver Voucher de Servicios">
+            <button
+              onClick={handleViewVoucher}
+              title="Ver Voucher de Servicios">
               <svg
                 width="25"
                 height="25"
@@ -153,7 +191,9 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 cursor-pointer" onClick={handleDuplicate}>
+            <div
+              className="flex items-center gap-1 cursor-pointer"
+              onClick={handleDuplicate}>
               <button className="flex items-center gap-1 cursor-pointer">
                 <svg
                   width="25"
@@ -173,13 +213,17 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
               </button>
               <p>Duplicar</p>
             </div>
-            <Link href={`/web/reservas/modificar-reserva/${reserva.id}`} className="flex items-center gap-1">
+            <Link
+              href={`/web/reservas/modificar-reserva/${reserva.id}`}
+              className="flex items-center gap-1">
               <div className="flex items-center gap-1">
                 <Update id={1} />
               </div>
               <p>Modificar</p>
             </Link>
-            <div className="flex items-center gap-1 cursor-pointer" onClick={handleDelete}>
+            <div
+              className="flex items-center gap-1 cursor-pointer"
+              onClick={handleDelete}>
               <button className="flex items-center gap-1 cursor-pointer">
                 <Delete id={1} />
               </button>
@@ -195,8 +239,9 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
           {/* Blue compact bar */}
           <div
             onClick={() => setIsOpen(!isOpen)}
-            className={`bg-primary text-white justify-between items-center px-3 py-2 flex flex-1 cursor-pointer select-none transition-all duration-300 text-sm ${isOpen ? "rounded-t-md" : "rounded-md"
-              }`}>
+            className={`bg-primary text-white justify-between items-center px-3 py-2 flex flex-1 cursor-pointer select-none transition-all duration-300 text-sm ${
+              isOpen ? "rounded-t-md" : "rounded-md"
+            }`}>
             <p className="font-semibold">{reserva.numero}</p>
             <p>{reserva.destino}</p>
             <p className="font-semibold">{formatDateDDMMYY(reserva.fecha)}</p>
@@ -220,7 +265,9 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
                 />
               </svg>
             </button>
-            <Link href={`/web/reservas/modificar-reserva/${reserva.id}`} title="Modificar">
+            <Link
+              href={`/web/reservas/modificar-reserva/${reserva.id}`}
+              title="Modificar">
               <Update id={1} />
             </Link>
             <button onClick={handleDelete} title="Eliminar">
@@ -239,15 +286,19 @@ export default function ReservasCard({ reserva, onRefresh }: { reserva: Reserva;
           <div className="bg-secondary shadow-lg shadow-black/30 text-white rounded-b-lg py-3 px-4 flex gap-4 items-start">
             <div className="flex flex-col gap-0.5">
               <p className="text-xs text-white/70">Cliente</p>
-              <p className="font-bold text-sm">{reserva.client_nombre?.slice(0, 8) + "..."}</p>
+              <p className="font-bold text-sm">
+                {reserva.client_nombre?.slice(0, 8) + "..."}
+              </p>
             </div>
             <div className="flex flex-col gap-0.5 flex-1">
               <p className="text-xs text-white/70">Título de reserva</p>
-              <p className="font-bold text-sm">{reserva.nombre_completo}</p>
+              <p className="font-bold text-sm">{reservationTitle}</p>
             </div>
             <div className="flex items-center gap-2 pt-2">
               {/* Print */}
-              <button onClick={handleViewVoucher} title="Ver Voucher de Servicios">
+              <button
+                onClick={handleViewVoucher}
+                title="Ver Voucher de Servicios">
                 <svg
                   width="18"
                   height="18"

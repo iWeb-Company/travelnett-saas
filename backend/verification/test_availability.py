@@ -17,12 +17,17 @@ from sqlalchemy.orm import sessionmaker
 
 from db.database import Base, engine as configured_engine
 from migrations.hotel_capacity import migrate
+from migrations.salida_transport_consumption import migrate as migrate_transport_consumption
 from models.models import (
     iWebClient, Packages, PackageHotels, PackagesDatesOfExit, PackageHotelCapacity,
     Hotels, Salidas, Reservas, ReservationPassengers, Passengers, Destinos,
-    LugaresCarga, SalidasLugaresCarga, Clients,
+    LugaresCarga, SalidasLugaresCarga, Clients, Liquidaciones, Pagos, Vouchers,
+    TransportCompany, ccProvidersConsumptionPayments,
 )
-from schemas.schemas import PackageCreateRequest, PackageUpdateRequest, PackageHotelPayload
+from schemas.schemas import (
+    PackageCreateRequest, PackageUpdateRequest, PackageHotelPayload,
+    SalidaCreateRequest,
+)
 from services.availability import (
     get_inventory_db, snapshot, validate_reservation, save_package_capacity,
     hotel_availability, resolve_selection,
@@ -35,6 +40,7 @@ from routers.reservas import (
 )
 from routers.vouchers import generate_voucher_snapshot
 from routers.liquidaciones import calculate_booking_liquidacion_totals
+from routers.salidas import create_salida, register_transport_consumption
 
 
 class AvailabilityTests(unittest.TestCase):
@@ -247,6 +253,90 @@ class AvailabilityTests(unittest.TestCase):
         self.db.rollback()
         self.assertEqual(self.db.get(ReservationPassengers, rp.id).butaca_type, "semicama")
 
+    def test_duplicate_copies_operational_and_commercial_state_without_payments_or_vouchers(self):
+        reservation = self.booking(
+            commission=17.5,
+            liberados=2,
+            type="bloqueo_grupo",
+            titulo="Grupo Primavera",
+            rooming_id="RM-11",
+            room_type='["doble_matrimonial_estandar"]',
+            venciment="2026-10-01",
+            observations="Mantener asignaciones",
+            client_id="cliente",
+            lugar_carga_id="carga",
+            regimen_id="regimen",
+            created_by_user_id="vendedor",
+        )
+        passenger = self.db.query(ReservationPassengers).filter_by(reserva_id=reservation.id).one()
+        passenger.butaca_number = 13
+        passenger.bus_number = "1"
+        passenger.room_index = 3
+        self.db.add_all([
+            Pagos(id=uuid.uuid4().hex, iweb_client_id=self.tenant, reserva_id=reservation.id, amount=100),
+            Vouchers(id=uuid.uuid4().hex, iweb_client_id=self.tenant, reserva_id=reservation.id),
+        ])
+        self.db.commit()
+
+        duplicated = asyncio.run(duplicate_reserva(reservation.id, self.tenant, self.db))
+        cloned = self.db.get(Reservas, duplicated.id)
+        self.assertNotEqual(cloned.codigo_reserva, reservation.codigo_reserva)
+        for field in (
+            "salida_id", "package_id", "client_id", "lugar_carga_id", "hotel_id", "regimen_id",
+            "rooming_id", "room_type", "venciment", "observations", "commission", "liberados",
+            "type", "titulo", "created_by_user_id",
+        ):
+            self.assertEqual(getattr(cloned, field), getattr(reservation, field), field)
+        cloned_passenger = self.db.query(ReservationPassengers).filter_by(reserva_id=cloned.id).one()
+        self.assertNotEqual(cloned_passenger.id, passenger.id)
+        self.assertEqual(cloned_passenger.pasajero_id, passenger.pasajero_id)
+        self.assertEqual(cloned_passenger.butaca_number, 13)
+        self.assertEqual(cloned_passenger.bus_number, "1")
+        self.assertEqual(cloned_passenger.room_index, 3)
+        self.assertEqual(self.db.query(Pagos).filter_by(reserva_id=cloned.id).count(), 0)
+        self.assertEqual(self.db.query(Vouchers).filter_by(reserva_id=cloned.id).count(), 0)
+        self.liquidation.assert_called_once_with(self.db, cloned.id, self.tenant)
+
+    def test_bus_departure_persists_price_and_creates_one_transport_consumption(self):
+        transport_id = uuid.uuid4().hex
+        self.db.add(TransportCompany(id=transport_id, iweb_client_id=self.tenant, name="Empresa Micro", type="bus"))
+        self.db.commit()
+
+        created = asyncio.run(create_salida(
+            SalidaCreateRequest(
+                type="bus", date_of_out="2026-10-10", destino="Destino", transport_company=transport_id,
+                precio_transporte=125000,
+            ),
+            self.tenant,
+            self.db,
+        ))
+        self.assertEqual(float(created.precio_transporte), 125000)
+        salida = self.db.get(Salidas, created.id)
+        self.assertEqual(float(salida.precio_transporte), 125000)
+        register_transport_consumption(self.db, salida)
+        movements = self.db.query(ccProvidersConsumptionPayments).filter_by(salida_id=salida.id).all()
+        self.assertEqual(len(movements), 1)
+        self.assertEqual(movements[0].provider_type, "transporte")
+        self.assertEqual(movements[0].transport_id, transport_id)
+        self.assertEqual(movements[0].type, "consumo")
+        self.assertEqual(float(movements[0].amount), 125000)
+        self.assertEqual(str(movements[0].date), "2026-10-10")
+
+    def test_non_bus_or_free_departures_do_not_create_transport_consumption(self):
+        transport_id = uuid.uuid4().hex
+        self.db.add(TransportCompany(id=transport_id, iweb_client_id=self.tenant, name="Empresa", type="bus"))
+        self.db.commit()
+        for departure_type, price in (("aereo", 1000), ("bus", 0)):
+            created = asyncio.run(create_salida(
+                SalidaCreateRequest(type=departure_type, transport_company=transport_id, precio_transporte=price),
+                self.tenant,
+                self.db,
+            ))
+            self.assertEqual(
+                self.db.query(ccProvidersConsumptionPayments).filter_by(salida_id=created.id).count(),
+                0,
+            )
+
     def test_package_partial_edit_preserves_dates_capacity(self):
         result = asyncio.run(update_package(self.pkg, PackageUpdateRequest(name_system="Interno"), self.tenant, self.db))
         self.assertEqual(result.name_system, "Interno")
@@ -290,6 +380,26 @@ class AvailabilityTests(unittest.TestCase):
         migrate(self.engine)
         migrate(self.engine)
         self.assertEqual(self.db.query(PackageHotelCapacity).filter_by(package_id=self.pkg).count(), 1)
+
+    def test_transport_consumption_migration_is_additive_and_restartable(self):
+        if self.mysql:
+            self.skipTest("Legacy schema migration is covered on isolated SQLite")
+        legacy = create_engine("sqlite://")
+        with legacy.begin() as connection:
+            connection.execute(text("CREATE TABLE salidas (id VARCHAR(36) PRIMARY KEY)"))
+            connection.execute(text(
+                "CREATE TABLE cc_providers_consumption_payments (id VARCHAR(36) PRIMARY KEY)"
+            ))
+        migrate_transport_consumption(legacy)
+        migrate_transport_consumption(legacy)
+        self.assertIn("precio_transporte", {column["name"] for column in inspect(legacy).get_columns("salidas")})
+        self.assertIn("salida_id", {
+            column["name"] for column in inspect(legacy).get_columns("cc_providers_consumption_payments")
+        })
+        self.assertIn("uq_cc_provider_consumption_salida", {
+            index["name"] for index in inspect(legacy).get_indexes("cc_providers_consumption_payments")
+        })
+        legacy.dispose()
 
     def test_migrate_old_schema_preserves_rows(self):
         if self.mysql:

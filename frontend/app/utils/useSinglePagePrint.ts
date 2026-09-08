@@ -16,11 +16,16 @@ export function useSinglePagePrint<T extends HTMLElement>() {
 
     const previousWidth = element.style.width;
     const previousMaxWidth = element.style.maxWidth;
+    const previousBoxSizing = element.style.boxSizing;
     element.style.width = `${PRINT_SOURCE_WIDTH_PIXELS}px`;
     element.style.maxWidth = "none";
+    element.style.boxSizing = "border-box";
 
-    const sourceWidth = Math.max(element.scrollWidth, element.offsetWidth);
-    const sourceHeight = Math.max(element.scrollHeight, element.offsetHeight);
+    // Reading dimensions after setting the desktop source width forces the
+    // responsive layout to settle before the print stylesheet applies zoom.
+    const bounds = element.getBoundingClientRect();
+    const sourceWidth = Math.max(element.scrollWidth, element.offsetWidth, bounds.width);
+    const sourceHeight = Math.max(element.scrollHeight, element.offsetHeight, bounds.height);
     const printableWidth = A4_PRINTABLE_WIDTH_MM * MILLIMETERS_TO_PIXELS;
     const printableHeight = A4_PRINTABLE_HEIGHT_MM * MILLIMETERS_TO_PIXELS;
     const scale = Math.min(
@@ -37,6 +42,7 @@ export function useSinglePagePrint<T extends HTMLElement>() {
       element.style.removeProperty("--print-scale");
       element.style.width = previousWidth;
       element.style.maxWidth = previousMaxWidth;
+      element.style.boxSizing = previousBoxSizing;
     };
     window.addEventListener("afterprint", cleanup, { once: true });
     window.print();

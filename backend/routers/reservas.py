@@ -1246,7 +1246,13 @@ async def duplicate_reserva(id: str, iweb_client_id: str, db: Session = Depends(
         room_type=original.room_type,
         active=True,
         venciment=original.venciment,
-        observations=original.observations
+        observations=original.observations,
+        commission=original.commission,
+        liberados=original.liberados or 0,
+        type=original.type or "tradicional",
+        titulo=original.titulo,
+        created_by_user_id=original.created_by_user_id,
+        created_at=datetime.utcnow(),
     )
     db.add(new_reserva)
     

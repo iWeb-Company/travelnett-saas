@@ -13,6 +13,10 @@ import { FormSkeleton } from "@/app/components/FormSkeleton";
 import AddVioleta from "@/app/components/icons/AddVioleta";
 import { getRoomCapacity } from "@/lib/formatRooms";
 import { formatDateDDMMYY } from "@/lib/formatDate";
+import {
+  buildReservationStep3Href,
+  resolveReservationPackageId,
+} from "@/lib/reservationCreationFlow";
 
 function Paso2Content() {
   const searchParams = useSearchParams();
@@ -80,7 +84,11 @@ function Paso2Content() {
       setClientes(clientData || []);
 
       const actualSalidaId = salidaId || (itemType === "salida" ? itemId : "");
-      const actualPaqueteId = paqueteId || (itemType === "paquete" ? itemId : "");
+      const actualPaqueteId = resolveReservationPackageId({
+        packageId: paqueteId,
+        itemId,
+        itemType,
+      });
 
       if (actualSalidaId) {
         const sal = await apiClient.getSalida(user.iweb_client_id, actualSalidaId).catch(() => null);
@@ -155,15 +163,25 @@ function Paso2Content() {
     }
 
     const actualSalidaId = salidaId || (itemType === "salida" ? itemId : "");
-    const actualPaqueteId = paqueteId || (itemType === "paquete" ? itemId : "");
-
-    const roomsParam = encodeURIComponent(JSON.stringify(rooms));
+    const actualPaqueteId = resolveReservationPackageId({
+      packageId: paqueteId,
+      itemId,
+      itemType,
+      loadedPackageId: paqueteInfo?.id,
+    });
     const requested: Record<string, number> = {};
     rooms.forEach(room => { requested[room.hotel] = (requested[room.hotel] || 0) + getRoomCapacity(room.tipoCama); });
     if (!checkHotelCapacity(requested)) return;
-    r.push(
-      `/web/reservas/crear-reserva/paso-3?destino=${destinoId}&cliente=${clienteId}&tipo=${tipoReserva}&item=${itemId}&itemType=${itemType}&salida=${selectedSalidaId}&paquete=${actualPaqueteId || paqueteInfo?.id || ""}&rooms=${roomsParam}`
-    );
+    r.push(buildReservationStep3Href({
+      destinoId,
+      clienteId,
+      tipoReserva,
+      itemId,
+      itemType,
+      salidaId: selectedSalidaId,
+      packageId: actualPaqueteId,
+      rooms,
+    }));
   };
 
   const handleBloqueoSubmit = async (e: React.FormEvent) => {

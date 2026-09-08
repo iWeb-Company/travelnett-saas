@@ -237,6 +237,7 @@ class Salidas(Base):
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
     periodo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     transport_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    precio_transporte: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
     type_bus: Mapped[str | None] = mapped_column(String(255), nullable=True)
     destino: Mapped[str | None] = mapped_column(String(255), nullable=True)
     coordinador_nombre: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -459,12 +460,14 @@ class cuentasCorrientesProviders(Base):
 
 class ccProvidersConsumptionPayments(Base):
     __tablename__ = "cc_providers_consumption_payments"
+    __table_args__ = (UniqueConstraint("salida_id", name="uq_cc_provider_consumption_salida"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     cc_provider_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     provider_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     transport_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    salida_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     date: Mapped[date | None] = mapped_column(Date, nullable=True)
     detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
     type: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -484,6 +487,10 @@ class Liquidaciones(Base):
     commission: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
     # NULL: automatic package fees. Zero: explicitly removed for this booking.
     admin_gastos_override: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    adicional_cama_override: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    single_gastos_override: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    total_amout_override: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    total_commission_override: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
 
 
 class GastosNoCommission(Base):

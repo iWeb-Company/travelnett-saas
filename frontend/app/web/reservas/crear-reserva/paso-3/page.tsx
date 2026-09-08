@@ -12,6 +12,10 @@ import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import AddVioleta from "@/app/components/icons/AddVioleta";
 import { formatDateDDMMYY } from "@/lib/formatDate";
+import {
+  resolveReservationPackageId,
+  shouldShowManualReservationPricing,
+} from "@/lib/reservationCreationFlow";
 
 interface RoomPassenger {
   dni: string;
@@ -57,6 +61,12 @@ function Paso3Content() {
   const hotelIdParam = searchParams.get("hotel") || "";
   const camaParam = searchParams.get("cama") || "";
   const habitacionParam = searchParams.get("habitacion") || "";
+  const selectedPackageId = resolveReservationPackageId({
+    packageId: paqueteIdParam,
+    itemId,
+    itemType,
+  });
+  const showManualPricing = shouldShowManualReservationPricing(selectedPackageId);
 
   // Parse rooms array from step 2
   const [roomsConfig, setRoomsConfig] = useState<RoomConfig[]>([]);
@@ -101,8 +111,7 @@ function Paso3Content() {
 
       const actualSalidaId =
         salidaIdParam || (itemType === "salida" ? itemId : "");
-      let actualPaqueteId =
-        paqueteIdParam || (itemType === "paquete" ? itemId : "");
+      const actualPaqueteId = selectedPackageId;
 
       if (actualSalidaId) {
         const sal = await apiClient
@@ -112,9 +121,10 @@ function Paso3Content() {
       }
 
       if (actualPaqueteId) {
-        const pack = await apiClient
-          .getPackage(user.iweb_client_id, actualPaqueteId)
-          .catch(() => null);
+        const pack = await apiClient.getPackage(
+          user.iweb_client_id,
+          actualPaqueteId,
+        );
         setPaqueteInfo(pack);
       }
     } catch (error) {
@@ -277,10 +287,15 @@ function Paso3Content() {
 
     const actualSalidaId =
       salidaIdParam || (itemType === "salida" ? itemId : null);
-    let actualPaqueteId =
-      paqueteIdParam || (itemType === "paquete" ? itemId : null);
-    if (!actualPaqueteId && paqueteInfo && paqueteInfo.id) {
-      actualPaqueteId = paqueteInfo.id;
+    const actualPaqueteId = resolveReservationPackageId({
+      packageId: paqueteIdParam,
+      itemId,
+      itemType,
+      loadedPackageId: paqueteInfo?.id,
+    });
+    if (actualPaqueteId && !paqueteInfo) {
+      toast.error("No se pudo cargar el paquete seleccionado. Intentá nuevamente.");
+      return;
     }
 
     // Validation for Bloqueo mode
@@ -858,7 +873,7 @@ function Paso3Content() {
           className="flex flex-col w-full gap-6 px-2">
           {/* Datos Generales (Título de Reserva & Fecha de Vencimiento) */}
 
-          {tipoReserva === "tradicional" && !paqueteInfo && (
+          {tipoReserva === "tradicional" && showManualPricing && (
             <div className="flex flex-col gap-4 p-5 rounded-xl">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold text-gray-700">
@@ -880,7 +895,7 @@ function Paso3Content() {
               </div>
 
               {/* Package price and reservation fees are hidden if a package was selected */}
-              {!paqueteInfo && (
+              {showManualPricing && (
                 <>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-bold text-gray-700">
@@ -1009,7 +1024,7 @@ function Paso3Content() {
               </div>
 
               {/* Package price and reservation fees are hidden if a package was selected */}
-              {!paqueteInfo && (
+              {showManualPricing && (
                 <>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-bold text-gray-700">

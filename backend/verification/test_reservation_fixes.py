@@ -114,6 +114,30 @@ class ReservationFixTests(unittest.TestCase):
             self.assertEqual(tuple(connection.execute(text("SELECT total_amout, admin_gastos_override FROM liquidaciones")).one()), (125, None))
         legacy.dispose()
 
+    def test_expense_override_migration_is_additive_and_restartable(self):
+        from sqlalchemy import inspect, text
+        from migrations.liquidacion_expense_overrides import migrate
+
+        legacy = create_engine("sqlite://")
+        with legacy.begin() as connection:
+            connection.execute(text(
+                "CREATE TABLE liquidaciones (id VARCHAR(36) PRIMARY KEY, total_amout NUMERIC(15,2))"
+            ))
+            connection.execute(text("INSERT INTO liquidaciones VALUES ('old', 125)"))
+        migrate(legacy)
+        migrate(legacy)
+        columns = {column["name"] for column in inspect(legacy).get_columns("liquidaciones")}
+        self.assertIn("adicional_cama_override", columns)
+        self.assertIn("single_gastos_override", columns)
+        self.assertIn("total_amout_override", columns)
+        self.assertIn("total_commission_override", columns)
+        with legacy.connect() as connection:
+            self.assertEqual(tuple(connection.execute(text(
+                "SELECT total_amout, adicional_cama_override, single_gastos_override, "
+                "total_amout_override, total_commission_override FROM liquidaciones"
+            )).one()), (125, None, None, None, None))
+        legacy.dispose()
+
     def add_second_hotel_room(self, room_type="doble_matrimonial_estandar", pax_types=("ADL", "ADL")):
         from models.models import Hotels, PackageHotels, Reservas, ReservationPassengers
         self.db.add_all([
@@ -169,6 +193,118 @@ class ReservationFixTests(unittest.TestCase):
         self.assertEqual(liq.total_commission, 350)  # 200 + half of 300
         self.assertEqual(liq.commission, 35)
         self.assertEqual(next(g.amount for g in liq.gastos if "Single" in g.name), 150)
+
+    def test_single_expense_crud_persists_and_recalculates_commissionable_total(self):
+        from models.models import PackageHotels, Reservas, ReservationPassengers
+        from routers.liquidaciones import get_liquidacion_by_booking, update_liquidacion
+        from schemas.schemas import LiquidacionCreateRequest
+
+        self.financial_booking()
+        self.add_second_hotel_room(pax_types=("ADL", "CHD"))
+        self.db.delete(self.db.get(ReservationPassengers, "second-rp1"))
+        self.db.get(Reservas, "res").room_type = '["doble_matrimonial_estandar", "single_individual_estandar"]'
+        self.db.get(PackageHotels, "ph2").comisionable_single = True
+        self.db.commit()
+
+        liq = get_liquidacion_by_booking("res", self.db)
+        without_single = [g.model_dump() for g in liq.gastos if "Single" not in g.name]
+        updated = update_liquidacion(liq.id, LiquidacionCreateRequest(
+            iweb_client_id="tenant", booking_id="res", expenses_only=True, gastos=without_single
+        ), self.db)
+        self.assertFalse(any("Single" in g.name for g in updated.gastos))
+        self.assertEqual(updated.total_amout, 530)
+        self.assertEqual(updated.total_commission, 500)
+        self.assertEqual(updated.commission, 50)
+
+        loaded = get_liquidacion_by_booking("res", self.db)
+        self.assertFalse(any("Single" in g.name for g in loaded.gastos))
+        self.assertEqual(loaded.total_commission, 500)
+
+        restored = update_liquidacion(liq.id, LiquidacionCreateRequest(
+            iweb_client_id="tenant",
+            booking_id="res",
+            expenses_only=True,
+            gastos=[g.model_dump() for g in loaded.gastos] + [
+                {"name": "50% No Comisionable Habitación Single", "amount": 75}
+            ],
+        ), self.db)
+        self.assertEqual(next(g.amount for g in restored.gastos if "Single" in g.name), 75)
+        self.assertEqual(restored.total_amout, 530)
+        self.assertEqual(restored.total_commission, 425)
+        self.assertEqual(restored.commission, 42.5)
+
+        loaded = get_liquidacion_by_booking("res", self.db)
+        self.assertEqual(next(g.amount for g in loaded.gastos if "Single" in g.name), 75)
+        self.assertEqual(loaded.total_commission, 425)
+
+    def test_additional_bed_expense_deletion_persists_and_recalculates_totals(self):
+        from models.models import Packages, ReservationPassengers
+        from routers.liquidaciones import get_liquidacion_by_booking, update_liquidacion
+        from schemas.schemas import LiquidacionCreateRequest
+
+        self.financial_booking()
+        package = self.db.get(Packages, "pkg")
+        package.adicional = 25
+        package.comisionable = False
+        self.db.get(ReservationPassengers, "rp0").butaca_type = "cama"
+        self.db.commit()
+
+        liq = get_liquidacion_by_booking("res", self.db)
+        self.assertEqual(liq.total_amout, 245)
+        self.assertEqual(liq.total_commission, 200)
+        without_bed = [g.model_dump() for g in liq.gastos if "Adicional cama" not in g.name]
+
+        updated = update_liquidacion(liq.id, LiquidacionCreateRequest(
+            iweb_client_id="tenant", booking_id="res", expenses_only=True, gastos=without_bed
+        ), self.db)
+        self.assertFalse(any("Adicional cama" in g.name for g in updated.gastos))
+        self.assertEqual(updated.total_amout, 245)
+        self.assertEqual(updated.total_commission, 225)
+        self.assertEqual(updated.commission, 22.5)
+
+        loaded = get_liquidacion_by_booking("res", self.db)
+        self.assertFalse(any("Adicional cama" in g.name for g in loaded.gastos))
+        self.assertEqual(loaded.total_commission, 225)
+
+    def test_manual_reservation_and_commissionable_totals_persist_after_repricing(self):
+        from models.models import Packages
+        from routers.liquidaciones import get_liquidacion_by_booking, update_liquidacion
+        from schemas.schemas import LiquidacionCreateRequest
+
+        liq = self.financial_booking()
+        updated = update_liquidacion(liq.id, LiquidacionCreateRequest(
+            iweb_client_id="tenant",
+            booking_id="res",
+            total_amout=999,
+            total_commission=700,
+            commission=70,
+            override_total_amout=True,
+            override_total_commission=True,
+            gastos=[g.model_dump() for g in liq.gastos],
+        ), self.db)
+        self.assertEqual(updated.total_amout, 999)
+        self.assertEqual(updated.total_commission, 700)
+        self.assertEqual(updated.commission, 70)
+
+        self.db.get(Packages, "pkg").price = 500
+        self.db.commit()
+        loaded = get_liquidacion_by_booking("res", self.db)
+        self.assertEqual(loaded.total_amout, 999)
+        self.assertEqual(loaded.total_commission, 700)
+        self.assertEqual(loaded.commission, 70)
+
+        without_admin = [g.model_dump() for g in loaded.gastos if g.name not in {
+            "Gastos administrativos", "Gastos de Reserva", "Gastos de reserva"
+        }]
+        loaded = update_liquidacion(liq.id, LiquidacionCreateRequest(
+            iweb_client_id="tenant",
+            booking_id="res",
+            expenses_only=True,
+            gastos=without_admin,
+        ), self.db)
+        self.assertEqual(loaded.total_amout, 979)
+        self.assertEqual(loaded.total_commission, 700)
+        self.assertEqual(loaded.commission, 70)
 
     def test_legacy_passengers_use_reservation_hotel(self):
         from models.models import ReservationPassengers
