@@ -378,6 +378,8 @@ export interface Pago {
 }
 
 export interface ReservationPassengerDetail {
+  hotel_id?: string | null;
+  room_index?: number | null;
   id: string;
   reserva_id: string;
   pasajero_id: string;
@@ -446,6 +448,7 @@ export interface Salida {
   active?: boolean;
   periodo?: string | null;
   transport_company?: string | null;
+  precio_transporte?: number | null;
   type_bus?: string | null;
   destino?: string | null;
   coordinador_nombre?: string | null;

@@ -17,6 +17,7 @@ import {
   filterAndSortClients,
   getClientDisplayName,
 } from "@/app/utils/clientSearch";
+import { calculateLiquidationTotalsAfterExpenseEdit } from "@/lib/liquidationCalculations";
 
 interface GastoNoComm {
   id?: string;
@@ -45,6 +46,11 @@ export default function ReservaIdPage() {
     null,
   );
   const [gastos, setGastos] = useState<GastoNoComm[]>([]);
+  const [gastosDirty, setGastosDirty] = useState(false);
+  const [totalReservaDirty, setTotalReservaDirty] = useState(false);
+  const [totalComisionableDirty, setTotalComisionableDirty] = useState(false);
+  const [hotels, setHotels] = useState<any[]>([]);
+  const [hotelsLoading, setHotelsLoading] = useState(true);
   const [pagosRealizados, setPagosRealizados] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [openRoomIdx, setOpenRoomIdx] = useState<number | null>(null);
@@ -72,6 +78,12 @@ export default function ReservaIdPage() {
 
   useEffect(() => {
     if (!id || !user?.iweb_client_id) return;
+
+    setHotelsLoading(true);
+    apiClient.getParameters("get_hotels", user.iweb_client_id)
+      .then(data => setHotels(Array.isArray(data) ? data : []))
+      .catch(() => toast.error("No se pudieron cargar los nombres de los hoteles"))
+      .finally(() => setHotelsLoading(false));
 
     // Load Clients
     apiClient
@@ -244,7 +256,6 @@ export default function ReservaIdPage() {
     (acc, g) => acc + (g.amount || 0),
     0,
   );
-  // const totalComisionable = Math.max(0, totalReserva - totalNoComisionable);
   const saldoTotalNeto = totalReserva - commission;
   const saldoPendiente = saldoTotalNeto - pagosRealizados;
   const filteredClients = useMemo(
@@ -372,15 +383,30 @@ export default function ReservaIdPage() {
   };
 
   // Gastos No Comisionables helpers
+  const applyGastosChange = (nextGastos: GastoNoComm[]) => {
+    const nextTotals = calculateLiquidationTotalsAfterExpenseEdit(
+      totalReserva,
+      totalComisionable,
+      gastos,
+      nextGastos,
+    );
+    setGastosDirty(true);
+    setGastos(nextGastos);
+    setTotalReserva(nextTotals.totalAmount);
+    setTotalComisionable(nextTotals.commissionableTotal);
+  };
+
   const handleAddGasto = () => {
-    setGastos((prev) => [
-      ...prev,
+    const nextGastos = [
+      ...gastos,
       { name: "Nuevo Gasto No Comisionable", amount: 0 },
-    ]);
+    ];
+    applyGastosChange(nextGastos);
   };
 
   const handleRemoveGasto = (index: number) => {
-    setGastos((prev) => prev.filter((_, i) => i !== index));
+    const nextGastos = gastos.filter((_, i) => i !== index);
+    applyGastosChange(nextGastos);
   };
 
   const handleGastoChange = (
@@ -388,14 +414,15 @@ export default function ReservaIdPage() {
     field: "name" | "amount",
     value: any,
   ) => {
-    setGastos((prev) => {
-      const copy = [...prev];
-      copy[index] = {
-        ...copy[index],
-        [field]: field === "amount" ? parseFloat(value) || 0 : value,
-      };
-      return copy;
-    });
+    const nextGastos = gastos.map((gasto, gastoIndex) =>
+      gastoIndex === index
+        ? {
+            ...gasto,
+            [field]: field === "amount" ? parseFloat(value) || 0 : value,
+          }
+        : gasto,
+    );
+    applyGastosChange(nextGastos);
   };
 
   const formatMonto = (num: number) =>
@@ -549,6 +576,21 @@ export default function ReservaIdPage() {
               : 0,
         }));
 
+      if (gastosDirty || totalReservaDirty || totalComisionableDirty) {
+        if (!liquidacionId) throw new Error("No se cargó la liquidación. Recargá la reserva antes de guardar los importes.");
+        await apiClient.updateLiquidacion(liquidacionId, {
+          iweb_client_id: user.iweb_client_id,
+          booking_id: id,
+          expenses_only: !totalReservaDirty && !totalComisionableDirty,
+          total_amout: totalReserva,
+          total_commission: totalComisionable,
+          commission,
+          override_total_amout: totalReservaDirty,
+          override_total_commission: totalComisionableDirty,
+          gastos: gastos.map(g => ({ ...g, iweb_client_id: user.iweb_client_id })),
+        });
+      }
+
       await apiClient.updateReserva(user.iweb_client_id, id, {
         active: reserva.active,
         venciment: reserva.venciment,
@@ -593,9 +635,12 @@ export default function ReservaIdPage() {
           }
         }
       } catch (e) {
-        console.warn("Could not reload liquidacion:", e);
+        throw new Error("La reserva se guardó, pero no se pudo recargar la liquidación. Recargá para verificar los importes.");
       }
 
+      setGastosDirty(false);
+      setTotalReservaDirty(false);
+      setTotalComisionableDirty(false);
       toast.success("Reserva y liquidación guardadas correctamente");
     } catch (err) {
       console.error(err);
@@ -793,7 +838,7 @@ export default function ReservaIdPage() {
         .map((p: any) => p.room_index)
         .filter((idx) => idx !== undefined && idx !== null),
     );
-    const isUnpartitioned = rooms.length > 1 && distinctIndexes.size <= 1;
+    const isUnpartitioned = rooms.length > 1 && (distinctIndexes.size === 0 || (distinctIndexes.size === 1 && distinctIndexes.has(0)));
 
     let roomPaxs: any[] = [];
     if (isUnpartitioned) {
@@ -968,7 +1013,13 @@ export default function ReservaIdPage() {
             {rooms.map((roomType, idx) => {
               const detail = parseRoomItem(roomType);
               const roomPassengers = getPassengersForRoom(idx);
-              console.log(roomPassengers);
+              const assignedPassengers = roomPassengers.filter((p: any) => p.pasajero_id || p.hotel_id);
+              const hotelIds = [...new Set(assignedPassengers.map((p: any) => p.hotel_id || reserva.hotel_id))];
+              if (hotelIds.length === 0) hotelIds.push(reserva.hotel_id);
+              const hotelTitle = hotelIds.map(hotelId =>
+                hotels.find(h => h.id === hotelId)?.name ||
+                (hotelId === reserva.hotel_id ? reserva.hotel_nombre : null) || "Hotel a confirmar"
+              ).join(" / ");
 
               return (
                 <div
@@ -976,9 +1027,13 @@ export default function ReservaIdPage() {
                   className="flex relative min-w-0 flex-col md:flex-row items-start md:items-center font-medium gap-4 p-2 sm:p-4">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full">
                     <div className="flex items-center gap-2">
+                      <div className="flex flex-col">
+                        {hotelsLoading ? <div className="h-5 w-40 mx-4 bg-gray-200 rounded animate-pulse" /> :
+                          <h3 className="text-black font-semibold px-4">{hotelTitle}</h3>}
                       <p className="text-black font-semibold py-2.5 px-4 rounded-lg">
                         {getCamaDistribucionKey(detail)}
                       </p>
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleToggleRoomAccordion(idx)}
@@ -1239,7 +1294,10 @@ export default function ReservaIdPage() {
             <input
               type="number"
               value={totalReserva}
-              onChange={(e) => setTotalReserva(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                setTotalReservaDirty(true);
+                setTotalReserva(parseFloat(e.target.value) || 0);
+              }}
               className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-base md:text-lg w-full sm:w-44 bg-white"
             />
           </div>
@@ -1248,9 +1306,10 @@ export default function ReservaIdPage() {
             <input
               type="number"
               value={totalComisionable}
-              onChange={(e) =>
-                setTotalComisionable(parseFloat(e.target.value) || 0)
-              }
+              onChange={(e) => {
+                setTotalComisionableDirty(true);
+                setTotalComisionable(parseFloat(e.target.value) || 0);
+              }}
               className="font-semibold text-right border border-gray-300 rounded-lg p-1.5 text-base md:text-lg w-full sm:w-44 bg-white"
             />
           </div>

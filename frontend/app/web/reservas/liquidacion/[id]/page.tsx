@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
@@ -13,9 +13,9 @@ import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Salidas from "@/app/components/icons/home/Salidas";
 import Hotel from "@/app/components/icons/salidas/Hotel";
 import { Package, Reserva, Salida } from "@/app/types";
-import { formatRoomType, formatRoomTypeDetails } from "@/lib/formatRooms";
 import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
 import { formatDateDDMMYY } from "@/lib/formatDate";
+import { reservationHotelGroups } from "@/lib/reservationHotels";
 import { useSinglePagePrint } from "@/app/utils/useSinglePagePrint";
 
 export default function VoucherPage() {
@@ -36,10 +36,6 @@ export default function VoucherPage() {
     const [transportCompanies, setTransportCompanies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const { printRef, printSinglePage } = useSinglePagePrint<HTMLDivElement>();
-
-    const roomDetails = useMemo(() => {
-        return formatRoomTypeDetails(reservaData?.room_type);
-    }, [reservaData?.room_type]);
 
     const loadReserva = async () => {
         if (!user?.iweb_client_id || !id) return;
@@ -132,13 +128,9 @@ export default function VoucherPage() {
     // Resolve hotel from reserva → first package_hotel → salida
     const packageHotelMatch = packageData?.hotels?.find((ph: any) => ph.hotel_id === reservaData?.hotel_id)
         || packageData?.hotels?.[0];
-    const resolvedHotelId = reservaData?.hotel_id || packageHotelMatch?.hotel_id || salidaData?.hotel_id;
-    const hotelObj = allHotels.find((h: any) => h.id === resolvedHotelId);
-    const resolvedHotelName = hotelObj?.name || reservaData?.hotel_nombre || "A confirmar";
-
-    const resolvedRegimenId = reservaData?.regimen_id || packageHotelMatch?.hotel_regimen_id || salidaData?.regimen_id;
-    const regimenObj = allRegimenes.find((r: any) => r.id === resolvedRegimenId);
-    const resolvedRegimenName = regimenObj?.name || reservaData?.regimen_nombre || "A confirmar";
+    const hotelGroups = reservationHotelGroups(
+        reservaData?.room_type, reservaData?.reservation_passengers || [], reservaData?.hotel_id,
+    );
 
     const transportObj = transportCompanies.find((tc: any) => tc.id === salidaData?.transport_company || tc.name === salidaData?.transport_company);
     const resolvedTransportCompany = transportObj?.name || salidaData?.transport_company || "A confirmar";
@@ -392,6 +384,15 @@ export default function VoucherPage() {
                                     </div>
                                 </div>
                             </div>
+                            {hotelGroups.map((group, index) => {
+                                const hotelPackage = packageData?.hotels?.find((ph: any) => ph.hotel_id === group.hotelId);
+                                const hotelName = allHotels.find(h => h.id === group.hotelId)?.name ||
+                                    (group.hotelId === reservaData.hotel_id ? reservaData.hotel_nombre : null) || "A confirmar";
+                                const regimenId = hotelPackage?.hotel_regimen_id ||
+                                    (group.hotelId === reservaData.hotel_id ? reservaData.regimen_id : null);
+                                const regimenName = allRegimenes.find(r => r.id === regimenId)?.name ||
+                                    (group.hotelId === reservaData.hotel_id ? reservaData.regimen_nombre : null) || "A confirmar";
+                                return <div key={group.hotelId || `hotel-${index}`}>
                             <div className="flex items-center border-t px-4 sm:px-5 py-3 border-gray-500">
                                 <Hotel />
                                 <h3 className="text-start font-semibold text-primary py-2 px-3 sm:px-5 text-lg sm:text-xl md:text-2xl">Hotel</h3>
@@ -399,32 +400,34 @@ export default function VoucherPage() {
                             <div className="flex flex-col sm:flex-row w-full justify-between gap-4 p-4 sm:p-5">
                                 <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Nombre del Hotel</p>
-                                    <p className="">{resolvedHotelName}</p>
+                                    <p className="">{hotelName}</p>
                                 </div>
                                 <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Regimen</p>
-                                    <p className="">{resolvedRegimenName}</p>
+                                    <p className="">{regimenName}</p>
                                 </div>
                             </div><div className="flex flex-col sm:flex-row w-full border-t border-gray-500 justify-between gap-4 p-4 sm:p-5">
                                 <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Fecha de ingreso</p>
-                                    <p className="">{packageHotelMatch?.hotel_fecha_in ?? 'A confirmar'}</p>
+                                    <p className="">{hotelPackage?.hotel_fecha_in ?? 'A confirmar'}</p>
                                 </div>
                                 <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Fecha de salida</p>
-                                    <p className="">{packageHotelMatch?.hotel_fecha_out ?? 'A confirmar'}</p>
+                                    <p className="">{hotelPackage?.hotel_fecha_out ?? 'A confirmar'}</p>
                                 </div>
                             </div><div className="flex flex-col sm:flex-row w-full border-t border-gray-500 justify-between gap-4 p-4 sm:p-5">
                                 <div className="flex flex-col text-base md:text-xl gap-2 max-w-md">
                                     <p className="font-semibold">Tipo de habitación</p>
-                                    <p className="font-medium text-black">{roomDetails.labelCompleto || "-"}</p>
+                                    <p className="font-medium text-black">{group.rooms.map(room => room.label).join(" + ") || "-"}</p>
 
                                 </div>
                                 <div className="flex flex-col text-base md:text-xl gap-2">
                                     <p className="font-semibold">Cantidad de noches</p>
-                                    <p className="">{packageHotelMatch?.hotel_noches ?? 'A confirmar'}</p>
+                                    <p className="">{hotelPackage?.hotel_noches ?? 'A confirmar'}</p>
                                 </div>
                             </div>
+                                </div>;
+                            })}
                         </div>
                     </section>
                     <section className="flex flex-col my-6 sm:my-8 w-auto sm:w-full sm:max-w-2/3 mx-3 sm:mx-auto border rounded-lg border-gray-500">

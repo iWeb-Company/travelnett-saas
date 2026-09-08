@@ -5,7 +5,7 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -39,6 +39,7 @@ export default function Paso1Page() {
   const [paquetes, setPaquetes] = useState<any[]>([])
   const [salidaSelected, setSalidaSelected] = useState<string | null>(null)
   const [paqueteSelected, setPaqueteSelected] = useState<string | null>(null)
+  const autoSelectedSalida = useRef<string | null>(null);
   const [tempSalidaSelected, setTempSalidaSelected] = useState<string | null>(null)
   const [tempPaqueteSelected, setTempPaqueteSelected] = useState<string | null>(null)
 
@@ -91,12 +92,8 @@ export default function Paso1Page() {
       toast.error("Por favor, completa todos los campos del paso 1");
       return;
     }
-    if (tipoReserva === "tradicional" && (!salidaSelected || !paqueteSelected)) {
-      toast.error("Por favor, selecciona tanto una salida como un paquete para la reserva tradicional");
-      return;
-    }
-    if (tipoReserva === "bloqueo" && (!salidaSelected || !paqueteSelected)) {
-      toast.error("Selecciona una salida y su paquete comercial");
+    if (!salidaSelected) {
+      toast.error("Selecciona una salida para la reserva");
       return;
     }
 
@@ -127,15 +124,21 @@ export default function Paso1Page() {
   }, [paquetes, destino, destinos, salidaSelected]);
 
   useEffect(() => {
-    if (!salidaSelected) return;
+    if (!salidaSelected) {
+      autoSelectedSalida.current = null;
+      return;
+    }
+    if (loading) return;
     const compatible = paquetes.filter((p: any) => p.dates?.includes(salidaSelected));
     if (paqueteSelected && !compatible.some((p: any) => p.id === paqueteSelected)) {
       setPaqueteSelected(null);
     }
-    if (!paqueteSelected && compatible.length === 1) {
+    const changedSalida = autoSelectedSalida.current !== salidaSelected;
+    autoSelectedSalida.current = salidaSelected;
+    if (changedSalida && (!paqueteSelected || !compatible.some((p: any) => p.id === paqueteSelected)) && compatible.length === 1) {
       setPaqueteSelected(compatible[0].id);
     }
-  }, [salidaSelected, paquetes, paqueteSelected]);
+  }, [salidaSelected, paquetes, paqueteSelected, loading]);
 
   useEffect(() => {
     if (!paqueteSelected || !salidaSelected) return;

@@ -12,6 +12,10 @@ import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import AddVioleta from "@/app/components/icons/AddVioleta";
 import { formatDateDDMMYY } from "@/lib/formatDate";
+import {
+  resolveReservationPackageId,
+  shouldShowManualReservationPricing,
+} from "@/lib/reservationCreationFlow";
 
 interface RoomPassenger {
   dni: string;
@@ -57,6 +61,12 @@ function Paso3Content() {
   const hotelIdParam = searchParams.get("hotel") || "";
   const camaParam = searchParams.get("cama") || "";
   const habitacionParam = searchParams.get("habitacion") || "";
+  const selectedPackageId = resolveReservationPackageId({
+    packageId: paqueteIdParam,
+    itemId,
+    itemType,
+  });
+  const showManualPricing = shouldShowManualReservationPricing(selectedPackageId);
 
   // Parse rooms array from step 2
   const [roomsConfig, setRoomsConfig] = useState<RoomConfig[]>([]);
@@ -101,8 +111,7 @@ function Paso3Content() {
 
       const actualSalidaId =
         salidaIdParam || (itemType === "salida" ? itemId : "");
-      let actualPaqueteId =
-        paqueteIdParam || (itemType === "paquete" ? itemId : "");
+      const actualPaqueteId = selectedPackageId;
 
       if (actualSalidaId) {
         const sal = await apiClient
@@ -111,24 +120,11 @@ function Paso3Content() {
         setSalidaInfo(sal);
       }
 
-      if (!actualPaqueteId && actualSalidaId) {
-        const pkgs = await apiClient
-          .getPackages(user.iweb_client_id)
-          .catch(() => []);
-        const matches = pkgs.filter(
-          (p: any) => p.dates && p.dates.includes(actualSalidaId),
-        );
-        if (matches.length === 1) {
-          actualPaqueteId = matches[0].id;
-        } else if (matches.length > 1) {
-          throw new Error("Esta salida tiene varios paquetes. Volvé al paso 1 y elegí uno.");
-        }
-      }
-
       if (actualPaqueteId) {
-        const pack = await apiClient
-          .getPackage(user.iweb_client_id, actualPaqueteId)
-          .catch(() => null);
+        const pack = await apiClient.getPackage(
+          user.iweb_client_id,
+          actualPaqueteId,
+        );
         setPaqueteInfo(pack);
       }
     } catch (error) {
@@ -291,10 +287,15 @@ function Paso3Content() {
 
     const actualSalidaId =
       salidaIdParam || (itemType === "salida" ? itemId : null);
-    let actualPaqueteId =
-      paqueteIdParam || (itemType === "paquete" ? itemId : null);
-    if (!actualPaqueteId && paqueteInfo && paqueteInfo.id) {
-      actualPaqueteId = paqueteInfo.id;
+    const actualPaqueteId = resolveReservationPackageId({
+      packageId: paqueteIdParam,
+      itemId,
+      itemType,
+      loadedPackageId: paqueteInfo?.id,
+    });
+    if (actualPaqueteId && !paqueteInfo) {
+      toast.error("No se pudo cargar el paquete seleccionado. Intentá nuevamente.");
+      return;
     }
 
     // Validation for Bloqueo mode
@@ -389,21 +390,23 @@ function Paso3Content() {
 
     setLoading(true);
     try {
-      if (!actualPaqueteId || !actualSalidaId) throw new Error("Seleccioná un paquete y una salida para reservar");
-      const capacities = await apiClient.getHotelAvailability(user.iweb_client_id, actualPaqueteId);
-      const requested: Record<string, number> = {};
-      if (tipoReserva === "bloqueo") {
-        requested[hotelIdParam] = (bloqueoData.cantSemicama || 0) + (bloqueoData.cantCama || 0);
-      } else {
-        roomPassengers.forEach((passengers, index) => {
-          const hotel = roomsConfig[index]?.hotel || hotelIdParam;
-          requested[hotel] = (requested[hotel] || 0) + passengers.length;
-        });
-      }
-      for (const [hotel, count] of Object.entries(requested)) {
-        const cap = capacities.find(c => c.hotel_id === hotel && c.salida_id === actualSalidaId);
-        if (cap?.capacidad == null) throw new Error("Cupo hotelero sin configurar para esta salida");
-        if (count > cap.disponible) throw new Error(`Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
+      if (!actualSalidaId) throw new Error("Seleccioná una salida para reservar");
+      if (actualPaqueteId) {
+        const capacities = await apiClient.getHotelAvailability(user.iweb_client_id, actualPaqueteId);
+        const requested: Record<string, number> = {};
+        if (tipoReserva === "bloqueo") {
+          requested[hotelIdParam] = (bloqueoData.cantSemicama || 0) + (bloqueoData.cantCama || 0);
+        } else {
+          roomPassengers.forEach((passengers, index) => {
+            const hotel = roomsConfig[index]?.hotel || hotelIdParam;
+            requested[hotel] = (requested[hotel] || 0) + passengers.length;
+          });
+        }
+        for (const [hotel, count] of Object.entries(requested)) {
+          const cap = capacities.find(c => c.hotel_id === hotel && c.salida_id === actualSalidaId);
+          if (cap?.capacidad == null) throw new Error("Cupo hotelero sin configurar para esta salida");
+          if (count > cap.disponible) throw new Error(`Cupo hotelero insuficiente. Disponibles: ${cap.disponible}`);
+        }
       }
       const passengersPayload: any[] = [];
       const allPassengersList: any[] = [];
@@ -870,6 +873,69 @@ function Paso3Content() {
           className="flex flex-col w-full gap-6 px-2">
           {/* Datos Generales (Título de Reserva & Fecha de Vencimiento) */}
 
+          {tipoReserva === "tradicional" && showManualPricing && (
+            <div className="flex flex-col gap-4 p-5 rounded-xl">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-gray-700">
+                  Cantidad de liberados (opcional)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Cantidad de liberados"
+                  value={bloqueoData.cantLiberados}
+                  onChange={(e) =>
+                    setBloqueoData({
+                      ...bloqueoData,
+                      cantLiberados: Number(e.target.value),
+                    })
+                  }
+                  className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              {/* Package price and reservation fees are hidden if a package was selected */}
+              {showManualPricing && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-gray-700">
+                      Precio paquete
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Precio paquete"
+                      value={bloqueoData.precioPaquete}
+                      onChange={(e) =>
+                        setBloqueoData({
+                          ...bloqueoData,
+                          precioPaquete: Number(e.target.value),
+                        })
+                      }
+                      className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-gray-700">
+                      Gastos de reserva (opcional)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Gastos de reserva"
+                      value={bloqueoData.gastosReserva}
+                      onChange={(e) =>
+                        setBloqueoData({
+                          ...bloqueoData,
+                          gastosReserva: Number(e.target.value),
+                        })
+                      }
+                      className="w-full border border-gray-300 bg-gray-100 rounded-lg py-2.5 px-4 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {tipoReserva === "bloqueo" ? (
             <div className="flex flex-col gap-4 p-5 rounded-xl ">
               <div className="flex flex-col gap-1">
@@ -958,7 +1024,7 @@ function Paso3Content() {
               </div>
 
               {/* Package price and reservation fees are hidden if a package was selected */}
-              {!paqueteInfo && (
+              {showManualPricing && (
                 <>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-bold text-gray-700">
@@ -1122,7 +1188,6 @@ function Paso3Content() {
                         <div className="flex flex-col gap-1">
                           <input
                             type="text"
-                            required
                             className="w-full border border-gray-300 bg-white rounded-lg py-2 px-3 text-gray-800 font-medium focus:ring-2 focus:ring-primary"
                             placeholder="Teléfono"
                             value={passenger.phone}

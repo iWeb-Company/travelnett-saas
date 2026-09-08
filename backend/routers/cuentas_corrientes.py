@@ -241,6 +241,7 @@ async def create_cc_provider_consumption_payment(payload: ccProvidersConsumption
             provider_type=clean_id(payload.provider_type),
             hotel_id=clean_id(payload.hotel_id),
             transport_id=clean_id(payload.transport_id),
+            salida_id=clean_id(payload.salida_id),
             date=parsed_date,
             detail=payload.detail,
             type=clean_id(payload.type),
@@ -297,6 +298,7 @@ def put_cc_provider_consumption_payment(id: str, payload: ccProvidersConsumption
         item.provider_type = payload.provider_type
         item.hotel_id = payload.hotel_id
         item.transport_id = payload.transport_id
+        item.salida_id = payload.salida_id
         item.date = payload.date
         item.detail = payload.detail
         item.type = payload.type

@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
 from services.availability import get_inventory_db, seat_type
-from models.models import Salidas, SalidasLugaresCarga, LugaresCarga, Reservas, ReservationPassengers
+from models.models import (
+    Salidas, SalidasLugaresCarga, LugaresCarga, Reservas, ReservationPassengers,
+    TransportCompany, ccProvidersConsumptionPayments,
+)
 from schemas.schemas import (
     SalidaResponse,
     SalidaCreateRequest,
@@ -15,6 +18,54 @@ from schemas.schemas import (
 )
 
 router = APIRouter(prefix="/salidas", tags=["Salidas CRUD"])
+
+
+def register_transport_consumption(db: Session, salida: Salidas):
+    """Create the operational transport expense once, within the salida transaction."""
+    if (salida.type or "").strip().lower() not in {"bus", "micro"}:
+        return None
+    try:
+        amount = float(salida.precio_transporte or 0)
+    except (TypeError, ValueError):
+        return None
+    transport_id = (salida.transport_company or "").strip()
+    if amount <= 0 or not transport_id:
+        return None
+
+    transport = db.query(TransportCompany).filter(
+        TransportCompany.id == transport_id,
+        TransportCompany.iweb_client_id == salida.iweb_client_id,
+    ).first()
+    if not transport:
+        return None
+
+    existing = db.query(ccProvidersConsumptionPayments).filter(
+        ccProvidersConsumptionPayments.salida_id == salida.id,
+    ).first()
+    if existing:
+        return existing
+
+    departure_date = None
+    if salida.date_of_out:
+        try:
+            from datetime import datetime
+            departure_date = datetime.strptime(str(salida.date_of_out)[:10], "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    movement = ccProvidersConsumptionPayments(
+        id=str(uuid.uuid4()),
+        provider_type="transporte",
+        transport_id=transport.id,
+        salida_id=salida.id,
+        date=departure_date,
+        detail=f"Consumo transporte - salida {salida.date_of_out or salida.id}",
+        type="consumo",
+        amount=amount,
+        iweb_client_id=salida.iweb_client_id,
+    )
+    db.add(movement)
+    return movement
 
 
 @router.get("/get_salidas", response_model=Any)
@@ -140,6 +191,7 @@ async def get_salidas(
                 active=s.active,
                 periodo=s.periodo,
                 transport_company=s.transport_company,
+                precio_transporte=s.precio_transporte,
                 type_bus=s.type_bus,
                 destino=s.destino,
                 coordinador_nombre=s.coordinador_nombre,
@@ -246,6 +298,7 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
         active=s.active,
         periodo=s.periodo,
         transport_company=s.transport_company,
+        precio_transporte=s.precio_transporte,
         type_bus=s.type_bus,
         destino=s.destino,
         coordinador_nombre=s.coordinador_nombre,
@@ -280,6 +333,7 @@ async def create_salida(
         active=body.active,
         periodo=body.periodo,
         transport_company=body.transport_company,
+        precio_transporte=body.precio_transporte,
         type_bus=body.type_bus,
         destino=body.destino,
         passengers=body.passengers,
@@ -305,6 +359,7 @@ async def create_salida(
         horarios=horarios_str
     )
     db.add(new_relation)
+    register_transport_consumption(db, new_salida)
     
     db.commit()
     db.refresh(new_salida)
@@ -336,6 +391,7 @@ async def create_salida(
         active=new_salida.active,
         periodo=new_salida.periodo,
         transport_company=new_salida.transport_company,
+        precio_transporte=new_salida.precio_transporte,
         type_bus=new_salida.type_bus,
         destino=new_salida.destino,
         coordinador_nombre=new_salida.coordinador_nombre,
@@ -385,6 +441,8 @@ async def update_salida(
         s.periodo = body.periodo
     if body.transport_company is not None:
         s.transport_company = body.transport_company
+    if body.precio_transporte is not None:
+        s.precio_transporte = body.precio_transporte
     if body.type_bus is not None:
         s.type_bus = body.type_bus
     if body.destino is not None:
@@ -469,6 +527,7 @@ async def update_salida(
         active=s.active,
         periodo=s.periodo,
         transport_company=s.transport_company,
+        precio_transporte=s.precio_transporte,
         type_bus=s.type_bus,
         destino=s.destino,
         coordinador_nombre=s.coordinador_nombre,
