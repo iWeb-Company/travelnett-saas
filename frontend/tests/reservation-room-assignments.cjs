@@ -1,5 +1,11 @@
 const assert = require("node:assert/strict");
-const { trimRoomPassengers } = require("../lib/reservationRoomAssignments.ts");
+const {
+  buildReservationRooms,
+  hasPersistablePassengerData,
+  missingRoomSlotIndexes,
+  trimRoomPassengers,
+  upsertPassengerInRoomSlot,
+} = require("../lib/reservationRoomAssignments.ts");
 
 const passengers = [
   { pasajero_id: "carlos", room_index: 0 },
@@ -12,4 +18,39 @@ assert.deepEqual(
   ["carlos", "beatriz"],
 );
 
-console.log("reservation room assignments: trims only the last passengers in the resized room");
+assert.equal(hasPersistablePassengerData({ nombre: " ", apellido: "", dni: "" }), false);
+assert.equal(hasPersistablePassengerData({ pasajero_id: "existing-passenger" }), true);
+assert.equal(hasPersistablePassengerData({ dni: "12345678" }), true);
+
+assert.deepEqual(
+  buildReservationRooms(
+    ["doble_matrimonial_estandar", "single_individual_estandar"],
+    ["hotel-1", "hotel-2"],
+    "fallback-hotel",
+  ),
+  [
+    { position: 0, room_type: "doble_matrimonial_estandar", hotel_id: "hotel-1" },
+    { position: 1, room_type: "single_individual_estandar", hotel_id: "hotel-2" },
+  ],
+);
+
+let duplicatedRoomPassengers = [];
+const emptyFirstSlot = { globalIndex: -1, room_index: 0, room_slot_index: 0, dni: "" };
+duplicatedRoomPassengers = upsertPassengerInRoomSlot(
+  duplicatedRoomPassengers,
+  emptyFirstSlot,
+  { dni: "1" },
+);
+duplicatedRoomPassengers = upsertPassengerInRoomSlot(
+  duplicatedRoomPassengers,
+  { ...emptyFirstSlot, dni: "1" },
+  { dni: "12" },
+);
+assert.equal(duplicatedRoomPassengers.length, 1);
+assert.equal(duplicatedRoomPassengers[0].dni, "12");
+assert.deepEqual(
+  missingRoomSlotIndexes([{ room_index: 0, room_slot_index: 1 }], 2),
+  [0],
+);
+
+console.log("reservation room assignments: occupancy and room persistence rules pass");

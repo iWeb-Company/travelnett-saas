@@ -357,11 +357,26 @@ class Reservas(Base):
     created_by_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
 
+class ReservationRooms(Base):
+    __tablename__ = "reservation_rooms"
+    __table_args__ = (
+        UniqueConstraint("reserva_id", "position", name="uq_reservation_room_position"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    reserva_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    room_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+
 class ReservationPassengers(Base):
     __tablename__ = "reservation_passengers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     reserva_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    reservation_room_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     pasajero_id: Mapped[str] = mapped_column(String(36), nullable=False)
     pasajero_type: Mapped[str] = mapped_column(String(36), nullable=False)
     hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)

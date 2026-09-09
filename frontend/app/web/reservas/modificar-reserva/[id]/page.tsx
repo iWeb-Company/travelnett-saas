@@ -18,7 +18,13 @@ import {
   getClientDisplayName,
 } from "@/app/utils/clientSearch";
 import { calculateLiquidationTotalsAfterExpenseEdit } from "@/lib/liquidationCalculations";
-import { trimRoomPassengers } from "@/lib/reservationRoomAssignments";
+import {
+  buildReservationRooms,
+  hasPersistablePassengerData,
+  missingRoomSlotIndexes,
+  trimRoomPassengers,
+  upsertPassengerInRoomSlot,
+} from "@/lib/reservationRoomAssignments";
 import { isSameDestination } from "@/lib/destinationMatching";
 
 interface GastoNoComm {
@@ -38,6 +44,7 @@ export default function ReservaIdPage() {
     { id: string; name: string }[]
   >([]);
   const [rooms, setRooms] = useState<string[]>(["DBL_MAT"]);
+  const [roomHotelIds, setRoomHotelIds] = useState<(string | null)[]>([]);
 
   // Liquidacion state
   const [liquidacionId, setLiquidacionId] = useState<string | null>(null);
@@ -122,7 +129,16 @@ export default function ReservaIdPage() {
             : null,
         );
         let parsedRooms: string[] = [];
-        if (data.room_type) {
+        if (Array.isArray(data.rooms) && data.rooms.length > 0) {
+          const persistedRooms = [...data.rooms].sort(
+            (left: any, right: any) => left.position - right.position,
+          );
+          parsedRooms = persistedRooms.map((room: any) => room.room_type);
+          setRooms(parsedRooms);
+          setRoomHotelIds(
+            persistedRooms.map((room: any) => room.hotel_id || data.hotel_id || null),
+          );
+        } else if (data.room_type) {
           try {
             parsedRooms =
               typeof data.room_type === "string" &&
@@ -136,6 +152,7 @@ export default function ReservaIdPage() {
             parsedRooms = [data.room_type];
             setRooms(parsedRooms);
           }
+          setRoomHotelIds(parsedRooms.map(() => data.hotel_id || null));
         }
 
         if (
@@ -442,6 +459,7 @@ export default function ReservaIdPage() {
 
     setPassengersList([...currentSource, ...emptyPassengers]);
     setRooms((prev) => [...prev, newRoomCode]);
+    setRoomHotelIds((prev) => [...prev, reserva?.hotel_id || null]);
     setOpenAddRoomModal(false);
   };
 
@@ -451,6 +469,18 @@ export default function ReservaIdPage() {
       return;
     }
     setRooms((prev) => prev.filter((_, i) => i !== index));
+    setRoomHotelIds((prev) => prev.filter((_, i) => i !== index));
+    setPassengersList((previous) =>
+      previous
+        .filter((passenger) => (passenger.room_index ?? 0) !== index)
+        .map((passenger) => ({
+          ...passenger,
+          room_index:
+            (passenger.room_index ?? 0) > index
+              ? (passenger.room_index ?? 0) - 1
+              : (passenger.room_index ?? 0),
+        })),
+    );
   };
 
   const handleRoomChange = (index: number, val: string) => {
@@ -536,6 +566,7 @@ export default function ReservaIdPage() {
         passengersList.length > 0
           ? passengersList
           : reserva.reservation_passengers || [];
+      const passengersToSave = paxSource.filter(hasPersistablePassengerData);
 
       // Validate seating capacity if salida exists
       if (reserva.salida_id) {
@@ -545,10 +576,10 @@ export default function ReservaIdPage() {
             reserva.salida_id,
           );
           if (salidaInfo) {
-            const camaReq = paxSource.filter(
+            const camaReq = passengersToSave.filter(
               (p: any) => (p.butaca_type || "").toLowerCase() === "cama",
             ).length;
-            const semicamaReq = paxSource.filter(
+            const semicamaReq = passengersToSave.filter(
               (p: any) => (p.butaca_type || "").toLowerCase() === "semicama",
             ).length;
 
@@ -589,7 +620,7 @@ export default function ReservaIdPage() {
       }
 
       // 1. Update/Create Passengers in backend
-      for (const pax of paxSource) {
+      for (const pax of passengersToSave) {
         const phoneVal =
           pax.telefono !== undefined &&
           pax.telefono !== null &&
@@ -639,7 +670,7 @@ export default function ReservaIdPage() {
 
       // 2. Update Reserva with updated passengers list including room_index
       const roomTypePayload = JSON.stringify(rooms);
-      const passengersPayload = paxSource
+      const passengersPayload = passengersToSave
         .filter((rp: any) => rp.pasajero_id)
         .map((rp: any) => ({
           pasajero_id: rp.pasajero_id,
@@ -683,6 +714,7 @@ export default function ReservaIdPage() {
         client_id: reserva.client_id,
         commission: clientCommissionPct,
         room_type: roomTypePayload,
+        rooms: buildReservationRooms(rooms, roomHotelIds, reserva.hotel_id),
         passengers: passengersPayload,
         titulo: reserva.titulo !== undefined ? reserva.titulo : null,
       });
@@ -885,6 +917,11 @@ export default function ReservaIdPage() {
   };
 
   const handleRoomHotelChange = (roomIndex: number, hotelId: string) => {
+    setRoomHotelIds((previous) => {
+      const copy = [...previous];
+      copy[roomIndex] = hotelId || null;
+      return copy;
+    });
     setPassengersList((previous) =>
       previous.map((passenger) =>
         (passenger.room_index ?? 0) === roomIndex
@@ -900,36 +937,18 @@ export default function ReservaIdPage() {
     value: any,
   ) => {
     setPassengersList((prev) => {
-      const copy = [...prev];
-      const gIdx = targetPax.globalIndex;
-      if (gIdx >= 0 && copy[gIdx]) {
-        const updated = { ...copy[gIdx], [field]: value };
-        if (field === "nombre" || field === "apellido") {
-          const n = field === "nombre" ? value : copy[gIdx].nombre || "";
-          const a = field === "apellido" ? value : copy[gIdx].apellido || "";
-          updated.nombre_completo = `${n} ${a}`.trim();
-        }
-        if (field === "telefono") {
-          updated.phone = value;
-        } else if (field === "phone") {
-          updated.telefono = value;
-        }
-        copy[gIdx] = updated;
-        return copy;
-      }
-
-      const updatedPax = { ...targetPax, [field]: value };
+      const changes: Record<string, any> = { [field]: value };
       if (field === "nombre" || field === "apellido") {
         const n = field === "nombre" ? value : targetPax.nombre || "";
         const a = field === "apellido" ? value : targetPax.apellido || "";
-        updatedPax.nombre_completo = `${n} ${a}`.trim();
+        changes.nombre_completo = `${n} ${a}`.trim();
       }
       if (field === "telefono") {
-        updatedPax.phone = value;
+        changes.phone = value;
       } else if (field === "phone") {
-        updatedPax.telefono = value;
+        changes.telefono = value;
       }
-      return [...copy, updatedPax];
+      return upsertPassengerInRoomSlot(prev, targetPax, changes);
     });
   };
 
@@ -963,20 +982,25 @@ export default function ReservaIdPage() {
           ...p,
           globalIndex: startIndex + offset,
           room_index: roomIdx,
+          room_slot_index: offset,
         }));
     } else {
       roomPaxs = source
         .map((p: any, idx: number) => ({ ...p, globalIndex: idx }))
-        .filter((p: any) => p.room_index === roomIdx);
+        .filter((p: any) => p.room_index === roomIdx)
+        .map((p: any, slotIndex: number) => ({
+          ...p,
+          room_slot_index: p.room_slot_index ?? slotIndex,
+        }));
     }
 
     if (roomPaxs.length < cap) {
-      const missingCount = cap - roomPaxs.length;
-      for (let k = 0; k < missingCount; k++) {
+      for (const roomSlotIndex of missingRoomSlotIndexes(roomPaxs, cap)) {
         roomPaxs.push({
           id: null,
           pasajero_id: null,
           room_index: roomIdx,
+          room_slot_index: roomSlotIndex,
           dni: "",
           nombre: "",
           apellido: "",
@@ -992,7 +1016,9 @@ export default function ReservaIdPage() {
       }
     }
 
-    return roomPaxs;
+    return roomPaxs.sort(
+      (left, right) => left.room_slot_index - right.room_slot_index,
+    );
   };
 
   return (
@@ -1147,7 +1173,9 @@ export default function ReservaIdPage() {
                 ),
               ];
               if (hotelIds.length === 0) hotelIds.push(reserva.hotel_id);
-              const selectedHotelId = String(hotelIds[0] || "");
+              const selectedHotelId = String(
+                roomHotelIds[idx] || hotelIds[0] || reserva.hotel_id || "",
+              );
               const roomHotels = hotels.filter(
                 (hotel) =>
                   eligibleHotelIds.has(hotel.id) ||
@@ -1255,7 +1283,9 @@ export default function ReservaIdPage() {
                           {roomPassengers.map((p: any) => {
                             const gIdx = p.globalIndex;
                             return (
-                              <tr key={gIdx} className="hover:bg-gray-50/50">
+                              <tr
+                                key={`${idx}-${p.room_slot_index ?? gIdx}`}
+                                className="hover:bg-gray-50/50">
                                 <td className="px-2 py-2">
                                   <input
                                     type="text"

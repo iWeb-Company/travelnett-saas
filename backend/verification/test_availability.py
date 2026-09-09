@@ -20,7 +20,7 @@ from migrations.hotel_capacity import migrate
 from migrations.salida_transport_consumption import migrate as migrate_transport_consumption
 from models.models import (
     iWebClient, Packages, PackageHotels, PackagesDatesOfExit, PackageHotelCapacity,
-    Hotels, Salidas, Reservas, ReservationPassengers, Passengers, Destinos,
+    Hotels, Salidas, Reservas, ReservationPassengers, ReservationRooms, Passengers, Destinos,
     LugaresCarga, SalidasLugaresCarga, Clients, Liquidaciones, Pagos, Vouchers,
     TransportCompany, ccProvidersConsumptionPayments,
 )
@@ -87,7 +87,7 @@ class AvailabilityTests(unittest.TestCase):
         ])
         self.db.commit()
         self.liquidation = patch("routers.liquidaciones.create_or_update_booking_liquidacion")
-        self.liquidation.start()
+        self.liquidation_mock = self.liquidation.start()
 
     def tearDown(self):
         self.db.close()
@@ -241,11 +241,13 @@ class AvailabilityTests(unittest.TestCase):
         self.db.rollback()
         self.assertFalse(self.db.get(Reservas, r.id).active)
 
-    def test_duplicate_and_passenger_patch_cannot_bypass_seats(self):
+    def test_empty_duplicate_does_not_consume_seats_and_passenger_patch_cannot_bypass_them(self):
         r = self.booking(kind="cama")
-        with self.assertRaisesRegex(HTTPException, "Butacas CAMA"):
-            asyncio.run(duplicate_reserva(r.id, self.tenant, self.db))
-        self.db.rollback()
+        duplicated = asyncio.run(duplicate_reserva(r.id, self.tenant, self.db))
+        self.assertEqual(
+            self.db.query(ReservationPassengers).filter_by(reserva_id=duplicated.id).count(),
+            0,
+        )
         second = self.booking()
         rp = self.db.query(ReservationPassengers).filter_by(reserva_id=second.id).one()
         with self.assertRaisesRegex(HTTPException, "Butacas CAMA"):
@@ -253,7 +255,22 @@ class AvailabilityTests(unittest.TestCase):
         self.db.rollback()
         self.assertEqual(self.db.get(ReservationPassengers, rp.id).butaca_type, "semicama")
 
-    def test_duplicate_copies_operational_and_commercial_state_without_payments_or_vouchers(self):
+    def test_liquidation_failure_rolls_back_reservation_update(self):
+        reservation = self.booking(observations="Original")
+        self.liquidation_mock.side_effect = RuntimeError("No se pudo recalcular")
+
+        with self.assertRaisesRegex(RuntimeError, "No se pudo recalcular"):
+            asyncio.run(update_reserva(
+                reservation.id,
+                ReservaUpdatePayload(observations="Modificada"),
+                self.tenant,
+                self.db,
+            ))
+
+        self.db.expire_all()
+        self.assertEqual(self.db.get(Reservas, reservation.id).observations, "Original")
+
+    def test_duplicate_copies_rooms_without_passengers_payments_or_vouchers(self):
         reservation = self.booking(
             commission=17.5,
             liberados=2,
@@ -271,7 +288,7 @@ class AvailabilityTests(unittest.TestCase):
         passenger = self.db.query(ReservationPassengers).filter_by(reserva_id=reservation.id).one()
         passenger.butaca_number = 13
         passenger.bus_number = "1"
-        passenger.room_index = 3
+        passenger.room_index = 0
         self.db.add_all([
             Pagos(id=uuid.uuid4().hex, iweb_client_id=self.tenant, reserva_id=reservation.id, amount=100),
             Vouchers(id=uuid.uuid4().hex, iweb_client_id=self.tenant, reserva_id=reservation.id),
@@ -287,15 +304,20 @@ class AvailabilityTests(unittest.TestCase):
             "type", "titulo", "created_by_user_id",
         ):
             self.assertEqual(getattr(cloned, field), getattr(reservation, field), field)
-        cloned_passenger = self.db.query(ReservationPassengers).filter_by(reserva_id=cloned.id).one()
-        self.assertNotEqual(cloned_passenger.id, passenger.id)
-        self.assertEqual(cloned_passenger.pasajero_id, passenger.pasajero_id)
-        self.assertEqual(cloned_passenger.butaca_number, 13)
-        self.assertEqual(cloned_passenger.bus_number, "1")
-        self.assertEqual(cloned_passenger.room_index, 3)
+        self.assertEqual(
+            self.db.query(ReservationPassengers).filter_by(reserva_id=cloned.id).count(),
+            0,
+        )
+        source_rooms = self.db.query(ReservationRooms).filter_by(reserva_id=reservation.id).all()
+        cloned_rooms = self.db.query(ReservationRooms).filter_by(reserva_id=cloned.id).all()
+        self.assertEqual([room.room_type for room in cloned_rooms], [room.room_type for room in source_rooms])
+        self.assertEqual([room.hotel_id for room in cloned_rooms], [room.hotel_id for room in source_rooms])
+        self.assertTrue(set(room.id for room in source_rooms).isdisjoint(room.id for room in cloned_rooms))
         self.assertEqual(self.db.query(Pagos).filter_by(reserva_id=cloned.id).count(), 0)
         self.assertEqual(self.db.query(Vouchers).filter_by(reserva_id=cloned.id).count(), 0)
-        self.liquidation.assert_called_once_with(self.db, cloned.id, self.tenant)
+        liquidation = self.db.query(Liquidaciones).filter_by(booking_id=cloned.id).one()
+        self.assertEqual(float(liquidation.total_amout), 0)
+        self.assertEqual(float(liquidation.total_commission), 0)
 
     def test_bus_departure_persists_price_and_creates_one_transport_consumption(self):
         transport_id = uuid.uuid4().hex
@@ -580,6 +602,7 @@ class AvailabilityTests(unittest.TestCase):
             iweb_client_id=self.tenant,
             salida_id=self.salida,
             hotel_id="legacy-hotel",
+            room_type='["doble_matrimonial_estandar"]',
             active=True,
         )
         self.db.add(legacy)
@@ -592,6 +615,7 @@ class AvailabilityTests(unittest.TestCase):
         ))
         self.assertEqual(result.hotel_id, "operational-hotel")
         self.assertIsNone(result.package_id)
+        self.assertEqual(result.rooms[0].hotel_id, "operational-hotel")
 
     def test_voucher_uses_departure_date_and_matching_boarding_time(self):
         load_ids = [uuid.uuid4().hex for _ in range(3)]

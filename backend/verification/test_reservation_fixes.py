@@ -138,6 +138,112 @@ class ReservationFixTests(unittest.TestCase):
             )).one()), (125, None, None, None, None))
         legacy.dispose()
 
+    def test_room_migration_backfills_legacy_assignments_and_is_restartable(self):
+        from models.models import Reservas, ReservationPassengers, ReservationRooms
+        from migrations.reservation_rooms import migrate
+
+        legacy = create_engine("sqlite://")
+        Base.metadata.create_all(legacy)
+        with Session(legacy) as session:
+            session.add(Reservas(
+                id="legacy-res",
+                iweb_client_id="tenant",
+                hotel_id="hotel-1",
+                room_type='["doble_matrimonial_estandar"]',
+            ))
+            session.add(ReservationPassengers(
+                id="legacy-rp",
+                reserva_id="legacy-res",
+                pasajero_id="legacy-pax",
+                pasajero_type="ADL",
+                room_index=0,
+            ))
+            session.commit()
+        ReservationRooms.__table__.drop(legacy)
+
+        migrate(legacy)
+        migrate(legacy)
+
+        with Session(legacy) as session:
+            rooms = session.query(ReservationRooms).all()
+            assignment = session.get(ReservationPassengers, "legacy-rp")
+            self.assertEqual(len(rooms), 1)
+            self.assertEqual(rooms[0].hotel_id, "hotel-1")
+            self.assertEqual(assignment.reservation_room_id, rooms[0].id)
+        legacy.dispose()
+
+    def test_empty_reservation_has_own_zero_liquidation_without_automatic_expenses(self):
+        from models.models import Packages, PackageHotels, Reservas, ReservationRooms, Hotels
+        from routers.liquidaciones import get_liquidacion_by_booking
+
+        self.db.add_all([
+            Hotels(id="empty-hotel", iweb_client_id="tenant", name="Hotel vacío"),
+            Packages(id="empty-pkg", iweb_client_id="tenant", price=100, gastos=10),
+            PackageHotels(
+                id="empty-ph",
+                package_id="empty-pkg",
+                hotel_id="empty-hotel",
+                iweb_client_id="tenant",
+                tarifa_doble=100,
+                pricing_type="persona",
+            ),
+            Reservas(
+                id="empty-res",
+                iweb_client_id="tenant",
+                package_id="empty-pkg",
+                hotel_id="empty-hotel",
+                room_type='["doble_matrimonial_estandar"]',
+                commission=10,
+            ),
+            ReservationRooms(
+                id="empty-room",
+                iweb_client_id="tenant",
+                reserva_id="empty-res",
+                position=0,
+                room_type="doble_matrimonial_estandar",
+                hotel_id="empty-hotel",
+            ),
+        ])
+        self.db.commit()
+
+        liquidacion = get_liquidacion_by_booking("empty-res", self.db)
+
+        self.assertEqual(liquidacion.total_amout, 0)
+        self.assertEqual(liquidacion.total_commission, 0)
+        self.assertEqual(liquidacion.commission, 0)
+        self.assertEqual(liquidacion.gastos, [])
+
+    def test_persisted_room_hotel_is_the_repricing_authority(self):
+        from models.models import Hotels, PackageHotels
+        from routers.liquidaciones import get_liquidacion_by_booking
+        from services.reservation_rooms import sync_reservation_rooms
+        from models.models import Reservas
+
+        self.financial_booking()
+        self.db.add_all([
+            Hotels(id="room-hotel", iweb_client_id="tenant", name="Hotel habitación"),
+            PackageHotels(
+                id="room-ph",
+                package_id="pkg",
+                hotel_id="room-hotel",
+                iweb_client_id="tenant",
+                tarifa_doble=200,
+                pricing_type="persona",
+            ),
+        ])
+        sync_reservation_rooms(self.db, self.db.get(Reservas, "res"), [{
+            "position": 0,
+            "room_type": "doble_matrimonial_estandar",
+            "hotel_id": "room-hotel",
+        }])
+        self.db.commit()
+
+        liquidacion = get_liquidacion_by_booking("res", self.db)
+
+        self.assertEqual(liquidacion.total_amout, 420)
+        self.assertEqual(liquidacion.total_commission, 400)
+        self.assertEqual(liquidacion.commission, 40)
+
     def add_second_hotel_room(self, room_type="doble_matrimonial_estandar", pax_types=("ADL", "ADL")):
         from models.models import Hotels, PackageHotels, Reservas, ReservationPassengers
         self.db.add_all([
