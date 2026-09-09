@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from db.database import get_db
 from services.reservation_rooms import hotel_room_groups
-from models.models import Liquidaciones, GastosNoCommission, Reservas, Packages, PackageHotels, Clients, ReservationPassengers
+from models.models import Liquidaciones, GastosNoCommission, Reservas, Packages, PackageHotels, Clients, ReservationPassengers, ReservationRooms
 from schemas.schemas import (
     LiquidacionCreateRequest,
     LiquidacionResponse,
@@ -39,6 +39,9 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
 
     # Pasajeros de la reserva
     rps = db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id == res_obj.id).all()
+    persisted_rooms = db.query(ReservationRooms).filter_by(reserva_id=res_obj.id).order_by(
+        ReservationRooms.position.asc()
+    ).all()
 
     # Paquete si existe
     pkg = None
@@ -50,8 +53,8 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
     pkg_adicional = float(pkg.adicional or 0) if pkg else 0.0
     is_comisionable = bool(pkg.comisionable) if pkg else False
 
-    rooms_list = []
-    if res_obj.room_type:
+    rooms_list = [room.room_type for room in persisted_rooms]
+    if not rooms_list and res_obj.room_type:
         import json
         try:
             rooms_list = json.loads(res_obj.room_type) if isinstance(res_obj.room_type, str) and res_obj.room_type.startswith("[") else ([res_obj.room_type] if isinstance(res_obj.room_type, str) else res_obj.room_type)
@@ -68,7 +71,9 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
         ).all()
         hotels_by_id = {ph.hotel_id: ph for ph in package_hotels}
         if isinstance(rooms_list, list) and rooms_list:
-            for room_idx, rm_str, hotel_id, room_paxs, billable_capacity in hotel_room_groups(rooms_list, rps, res_obj.hotel_id):
+            for room_idx, rm_str, hotel_id, room_paxs, billable_capacity in hotel_room_groups(
+                rooms_list, rps, res_obj.hotel_id, persisted_rooms
+            ):
                 matching_ph = hotels_by_id.get(hotel_id)
                 if not hotel_id and len(package_hotels) == 1:
                     matching_ph = package_hotels[0]
@@ -178,6 +183,22 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
     if client_comm_pct is None:
         client_comm_pct = 0.0
 
+    if not rps:
+        return {
+            "res_obj": res_obj,
+            "pkg_price": pkg_price,
+            "pax_total": 0.0,
+            "pkg_gastos": 0.0,
+            "pkg_adicional": 0.0,
+            "is_comisionable": is_comisionable,
+            "monto_comisionable": 0.0,
+            "single_no_comisionable": 0.0,
+            "client_comm_pct": client_comm_pct,
+            "comm_amount": 0.0,
+            "total_bruto": 0.0,
+            "has_passengers": False,
+        }
+
     comm_amount = (monto_comisionable * client_comm_pct) / 100.0
 
     # 4. Total Bruto (pax_total + total_gastos + total_adicional_cama)
@@ -194,7 +215,8 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
         "single_no_comisionable": single_no_comisionable,
         "client_comm_pct": client_comm_pct,
         "comm_amount": comm_amount,
-        "total_bruto": total_bruto
+        "total_bruto": total_bruto,
+        "has_passengers": True,
     }
 
 
@@ -372,7 +394,13 @@ def get_liquidacion(id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_client_id: Optional[str] = None):
+def create_or_update_booking_liquidacion(
+    db: Session,
+    booking_id: str,
+    iweb_client_id: Optional[str] = None,
+    *,
+    commit: bool = True,
+):
     clean_b_id = booking_id.strip().lower()
     
     liq = db.query(Liquidaciones).filter(func.lower(Liquidaciones.booking_id) == clean_b_id).first()
@@ -400,11 +428,27 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
             commission=calc["comm_amount"]
         )
         db.add(liq)
-        db.commit()
-        db.refresh(liq)
+        db.flush()
 
     # Registrar o sincronizar GastosNoCommission derivados del paquete
     existing_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
+
+    # Una reserva sin ocupantes conserva su liquidación independiente, pero no
+    # genera tarifa ni gastos automáticos. Los gastos manuales se conservan
+    # para no destruir decisiones administrativas previas.
+    if not calc.get("has_passengers"):
+        for gasto in existing_gastos:
+            if gasto.name in ADMIN_GASTOS_NAMES or is_embedded_package_expense(gasto.name):
+                db.delete(gasto)
+        liq.total_amout = 0
+        liq.total_commission = 0
+        liq.commission = 0
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(liq)
+        return liq
+
     added_gasto = False
 
     # Gastos de reserva / administrativos del paquete: eliminar duplicados si existieren
@@ -495,7 +539,7 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
             added_gasto = True
 
     if added_gasto:
-        db.commit()
+        db.flush()
 
     # Recalcular total acumulado incluyendo gastos no comisionables extra
     all_gastos = db.query(GastosNoCommission).filter(GastosNoCommission.liquidacion_id == liq.id).all()
@@ -506,7 +550,12 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
     )
 
     # Solo sincronizar automáticamente desde el paquete si la reserva TIENE un paquete con precio/tarifa > 0
-    has_package_price = bool(calc and res_obj and res_obj.package_id and (calc.get("pkg_price", 0) > 0 or calc.get("pax_total", 0) > 0))
+    has_package_price = bool(
+        calc.get("has_passengers")
+        and res_obj
+        and res_obj.package_id
+        and (calc.get("pkg_price", 0) > 0 or calc.get("pax_total", 0) > 0)
+    )
     if has_package_price:
         admin_total = sum(float(g.amount or 0) for g in all_gastos if g.name in ADMIN_GASTOS_NAMES)
         calc_total = calc["total_bruto"] - calc["pkg_gastos"] + admin_total + sum_extra_gastos
@@ -527,13 +576,15 @@ def create_or_update_booking_liquidacion(db: Session, booking_id: str, iweb_clie
             liq.total_amout = effective_total
             liq.commission = calc_comm
             liq.total_commission = calc_monto_comm
-            db.commit()
-            db.refresh(liq)
+            db.flush()
     elif liq.total_amout is None or float(liq.total_amout) == 0.0:
         if sum_extra_gastos > 0:
             liq.total_amout = sum_extra_gastos
-            db.commit()
-            db.refresh(liq)
+            db.flush()
+
+    if commit:
+        db.commit()
+        db.refresh(liq)
 
     return liq
 

@@ -380,6 +380,7 @@ export interface Pago {
 export interface ReservationPassengerDetail {
   hotel_id?: string | null;
   room_index?: number | null;
+  reservation_room_id?: string | null;
   id: string;
   reserva_id: string;
   pasajero_id: string;
@@ -393,6 +394,13 @@ export interface ReservationPassengerDetail {
   fecha_nacimiento?: string | null;
   sex?: string | null;
   telefono?: string | null;
+}
+
+export interface ReservationRoomDetail {
+  id: string;
+  position: number;
+  room_type: string;
+  hotel_id?: string | null;
 }
 
 export interface Reserva {
@@ -413,6 +421,7 @@ export interface Reserva {
   regimen_nombre?: string | null;
   rooming_id?: string | null;
   room_type?: string | null;
+  rooms?: ReservationRoomDetail[];
   active?: boolean;
   venciment?: string | null;
   observations?: string | null;

@@ -7,12 +7,25 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
 from services.availability import get_inventory_db, resolve_selection, validate_reservation, snapshot
-from services.reservation_rooms import trim_passengers_to_room_capacity
-from models.models import Reservas, Passengers, Salidas, Packages, LugaresCarga, Hotels, Regimenes, Clients, ReservationPassengers, Destinos, Liquidaciones, GastosNoCommission, Pagos, Vouchers, cuentasCorrientsClients, User
+from services.reservation_rooms import (
+    clone_reservation_rooms,
+    parse_room_types,
+    room_details,
+    sync_reservation_rooms,
+    trim_passengers_to_room_capacity,
+)
+from models.models import Reservas, Passengers, Salidas, Packages, LugaresCarga, Hotels, Regimenes, Clients, ReservationPassengers, ReservationRooms, Destinos, Liquidaciones, GastosNoCommission, Pagos, Vouchers, cuentasCorrientsClients, User
 from pydantic import BaseModel
 from typing import List, Optional
 
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
+
+
+def reservation_room_for_passenger(rooms, passenger):
+    if passenger.reservation_room_id:
+        return next((room for room in rooms if room.id == passenger.reservation_room_id), None)
+    position = passenger.room_index if passenger.room_index is not None else 0
+    return next((room for room in rooms if room.position == position), None)
 
 
 def commercial_destination(db: Session, tenant: str, package_id: Optional[str], salida: Optional[Salidas]):
@@ -45,6 +58,7 @@ class ReservationPassengerDetail(BaseModel):
     lugar_carga_id: Optional[str] = None
     lugar_carga_nombre: Optional[str] = None
     room_index: Optional[int] = 0
+    reservation_room_id: Optional[str] = None
     
     # Cruzados desde la tabla passengers
     nombre_completo: Optional[str] = None
@@ -69,6 +83,17 @@ class ReservaPassengerCreateInput(BaseModel):
     bus_number: Optional[str] = None
     lugar_carga_id: Optional[str] = None
     room_index: Optional[int] = 0
+    reservation_room_id: Optional[str] = None
+
+
+class ReservationRoomInput(BaseModel):
+    position: int
+    room_type: str
+    hotel_id: Optional[str] = None
+
+
+class ReservationRoomDetail(ReservationRoomInput):
+    id: str
 
 
 class ReservaCreatePayload(BaseModel):
@@ -91,6 +116,7 @@ class ReservaCreatePayload(BaseModel):
     
     # Nuevo campo
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
+    rooms: Optional[List[ReservationRoomInput]] = None
     
     # Retrocompatibilidad
     passenger_id: Optional[str] = None
@@ -119,6 +145,7 @@ class ReservaUpdatePayload(BaseModel):
     
     # Nuevo campo para actualizar pasajeros
     passengers: Optional[List[ReservaPassengerCreateInput]] = None
+    rooms: Optional[List[ReservationRoomInput]] = None
     
     # Retrocompatibilidad
     edad_categoria: Optional[str] = None
@@ -167,6 +194,7 @@ class ReservaDetailedResponse(BaseModel):
     
     # Tabla intermedia
     reservation_passengers: List[ReservationPassengerDetail] = []
+    rooms: List[ReservationRoomDetail] = []
     
     # Datos de salida para el listado de reservas
     destino: Optional[str] = None
@@ -370,7 +398,8 @@ async def get_reservas(
                     lugar_carga_id=pax_lc_id,
                     lugar_carga_nombre=pax_lc_nombre,
                     room_index=getattr(rp, 'room_index', 0) or 0,
-                hotel_id=rp.hotel_id,
+                    reservation_room_id=rp.reservation_room_id,
+                    hotel_id=rp.hotel_id,
                     nombre_completo=nombre_completo_pax,
                     name=p_name or None,
                     last_name=p_last or None,
@@ -550,13 +579,34 @@ async def create_reserva(
         created_at=datetime.utcnow(),
     )
     db.add(new_res)
+    db.flush()
+    room_payload = body.rooms
+    if room_payload is None:
+        room_payload = []
+        for position, room_type in enumerate(parse_room_types(body.room_type)):
+            assigned = next(
+                (
+                    passenger for passenger in (body.passengers or [])
+                    if (passenger.room_index or 0) == position and passenger.hotel_id
+                ),
+                None,
+            )
+            room_payload.append(ReservationRoomInput(
+                position=position,
+                room_type=room_type,
+                hotel_id=assigned.hotel_id if assigned else resolved_hotel_id,
+            ))
+    try:
+        persisted_rooms = sync_reservation_rooms(db, new_res, room_payload)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     
     # Procesar pasajeros de la intermedia
     rp_to_create = []
     
     if body.passengers:
         try:
-            resolved_passengers = trim_passengers_to_room_capacity(body.room_type, body.passengers)
+            resolved_passengers = trim_passengers_to_room_capacity(new_res.room_type, body.passengers)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error))
         for p_in, room_index in resolved_passengers:
@@ -568,11 +618,15 @@ async def create_reserva(
             if not p_chk:
                 raise HTTPException(status_code=404, detail=f"Pasajero {p_in.pasajero_id} no encontrado")
                 
+            room = reservation_room_for_passenger(persisted_rooms, p_in)
+            if persisted_rooms and room is None:
+                raise HTTPException(status_code=400, detail="La habitación asignada no pertenece a la reserva")
             new_rp = ReservationPassengers(
                 id=str(uuid.uuid4()),
                 reserva_id=res_id,
                 pasajero_id=p_in.pasajero_id,
-                hotel_id=p_in.hotel_id,
+                reservation_room_id=room.id if room else None,
+                hotel_id=(room.hotel_id if room else p_in.hotel_id),
                 pasajero_type=p_in.pasajero_type or "ADL",
                 butaca_number=p_in.butaca_number,
                 butaca_type=p_in.butaca_type,
@@ -602,6 +656,8 @@ async def create_reserva(
             id=str(uuid.uuid4()),
             reserva_id=res_id,
             pasajero_id=body.passenger_id,
+            reservation_room_id=persisted_rooms[0].id if persisted_rooms else None,
+            hotel_id=persisted_rooms[0].hotel_id if persisted_rooms else resolved_hotel_id,
             pasajero_type=body.edad_categoria or "ADL",
             butaca_number=b_num,
             butaca_type=body.tipo_butaca
@@ -611,15 +667,14 @@ async def create_reserva(
     # Si no vienen pasajeros (ej. reserva tipo bloqueo/grupo), permitimos crear la reserva sin arrojar error 400
         
     validate_reservation(db, new_res)
-    db.commit()
-    db.refresh(new_res)
-
-    # Auto-crear y sincronizar Liquidacion inicial con gastos no comisionables para la nueva reserva
+    from routers.liquidaciones import create_or_update_booking_liquidacion
     try:
-        from routers.liquidaciones import create_or_update_booking_liquidacion
-        create_or_update_booking_liquidacion(db, new_res.id, iweb_client_id)
-    except Exception as err:
-        print(f"Warning: could not auto-create liquidacion for new res {new_res.id}: {err}")
+        create_or_update_booking_liquidacion(db, new_res.id, iweb_client_id, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(new_res)
     
     # Recuperar datos completos para la respuesta
     passengers_details = []
@@ -643,6 +698,7 @@ async def create_reserva(
                 butaca_type=rp.butaca_type,
                 bus_number=rp.bus_number,
                 room_index=getattr(rp, 'room_index', 0) or 0,
+                reservation_room_id=rp.reservation_room_id,
                 hotel_id=rp.hotel_id,
                 nombre_completo=nombre_completo_pax,
                 name=p_chk.name if p_chk else None,
@@ -717,6 +773,7 @@ async def create_reserva(
         regimen_nombre=r_name,
         rooming_id=new_res.rooming_id,
         room_type=new_res.room_type,
+        rooms=room_details(persisted_rooms),
         active=True,
         venciment=new_res.venciment,
         observations=new_res.observations,
@@ -750,6 +807,7 @@ async def update_reserva(
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
         
     previous = snapshot(db, r)
+    previous_hotel_id = r.hotel_id
     if body.salida_id is not None:
         r.salida_id = body.salida_id
     if body.package_id is not None:
@@ -787,6 +845,57 @@ async def update_reserva(
         r.type = body.type
     if body.titulo is not None:
         r.titulo = body.titulo
+
+    try:
+        if body.rooms is not None:
+            persisted_rooms = sync_reservation_rooms(db, r, body.rooms)
+        elif body.passengers is not None:
+            current_rooms = sync_reservation_rooms(db, r)
+            room_types = parse_room_types(r.room_type)
+            persisted_rooms = sync_reservation_rooms(db, r, [
+                {
+                    "position": position,
+                    "room_type": room_type,
+                    "hotel_id": next(
+                        (
+                            passenger.hotel_id for passenger in body.passengers
+                            if (passenger.room_index or 0) == position
+                            and "hotel_id" in passenger.model_fields_set
+                            and passenger.hotel_id
+                        ),
+                        next((room.hotel_id for room in current_rooms if room.position == position), r.hotel_id),
+                    ),
+                }
+                for position, room_type in enumerate(room_types)
+            ])
+        elif body.room_type is not None:
+            current_rooms = sync_reservation_rooms(db, r)
+            hotels_by_position = {room.position: room.hotel_id for room in current_rooms}
+            persisted_rooms = sync_reservation_rooms(db, r, [
+                {
+                    "position": position,
+                    "room_type": room_type,
+                    "hotel_id": hotels_by_position.get(position, r.hotel_id),
+                }
+                for position, room_type in enumerate(parse_room_types(body.room_type))
+            ])
+        else:
+            persisted_rooms = sync_reservation_rooms(db, r)
+            if body.hotel_id is not None and body.hotel_id != previous_hotel_id:
+                persisted_rooms = sync_reservation_rooms(db, r, [
+                    {
+                        "position": room.position,
+                        "room_type": room.room_type,
+                        "hotel_id": (
+                            body.hotel_id
+                            if not room.hotel_id or room.hotel_id == previous_hotel_id
+                            else room.hotel_id
+                        ),
+                    }
+                    for room in persisted_rooms
+                ])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
         
     # Si viene passengers, actualizamos la intermedia
     if body.passengers is not None:
@@ -799,11 +908,15 @@ async def update_reserva(
         db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id == id).delete()
         # Agregar nuevos
         for p_in, room_index in resolved_passengers:
+            room = reservation_room_for_passenger(persisted_rooms, p_in)
+            if persisted_rooms and room is None:
+                raise HTTPException(status_code=400, detail="La habitación asignada no pertenece a la reserva")
             new_rp = ReservationPassengers(
                 id=str(uuid.uuid4()),
                 reserva_id=id,
                 pasajero_id=p_in.pasajero_id,
-                hotel_id=(p_in.hotel_id if "hotel_id" in p_in.model_fields_set else previous_hotels.get((p_in.pasajero_id, room_index))),
+                reservation_room_id=room.id if room else None,
+                hotel_id=(room.hotel_id if room else (p_in.hotel_id if "hotel_id" in p_in.model_fields_set else previous_hotels.get((p_in.pasajero_id, room_index)))),
                 pasajero_type=p_in.pasajero_type or "ADL",
                 butaca_number=p_in.butaca_number,
                 butaca_type=p_in.butaca_type,
@@ -814,15 +927,14 @@ async def update_reserva(
             db.add(new_rp)
             
     validate_reservation(db, r, previous)
-    db.commit()
-    db.refresh(r)
-
-    # Auto-actualizar Liquidacion para la reserva modificada
+    from routers.liquidaciones import create_or_update_booking_liquidacion
     try:
-        from routers.liquidaciones import create_or_update_booking_liquidacion
-        create_or_update_booking_liquidacion(db, r.id, iweb_client_id)
-    except Exception as err:
-        print(f"Warning: could not auto-update liquidacion for updated res {r.id}: {err}")
+        create_or_update_booking_liquidacion(db, r.id, iweb_client_id, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(r)
     
     # Recuperar datos completos para la respuesta
     rp_list = db.query(ReservationPassengers).filter(
@@ -860,6 +972,7 @@ async def update_reserva(
                 lugar_carga_id=pax_lc_id,
                 lugar_carga_nombre=pax_lc_nombre,
                 room_index=getattr(rp, 'room_index', 0) or 0,
+                reservation_room_id=rp.reservation_room_id,
                 hotel_id=rp.hotel_id,
                 nombre_completo=nombre_completo_pax,
                 name=p.name if p else None,
@@ -951,6 +1064,7 @@ async def update_reserva(
         regimen_nombre=r_name,
         rooming_id=r.rooming_id,
         room_type=r.room_type,
+        rooms=room_details(persisted_rooms),
         active=bool(r.active if r.active is not None else True),
         venciment=r.venciment,
         observations=r.observations,
@@ -1039,6 +1153,7 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
                 lugar_carga_id=pax_lc_id,
                 lugar_carga_nombre=pax_lc_nombre,
                 room_index=getattr(rp, 'room_index', 0) or 0,
+                reservation_room_id=rp.reservation_room_id,
                 hotel_id=rp.hotel_id,
                 nombre_completo=nombre_completo_pax,
                 name=p.name if p else None,
@@ -1118,6 +1233,10 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
             seller_name = f"{u_seller.name or ''} {u_seller.last_name or ''}".strip()
             vendedor_val = seller_name or u_seller.username or "General"
 
+    persisted_rooms = db.query(ReservationRooms).filter_by(reserva_id=r.id).order_by(
+        ReservationRooms.position.asc()
+    ).all()
+
     return ReservaDetailedResponse(
         id=r.id,
         iweb_client_id=r.iweb_client_id,
@@ -1135,6 +1254,7 @@ async def get_reserva(id: str, iweb_client_id: str, db: Session = Depends(get_db
         regimen_nombre=r_name,
         rooming_id=r.rooming_id,
         room_type=r.room_type,
+        rooms=room_details(persisted_rooms),
         active=bool(r.active if r.active is not None else True),
         venciment=r.venciment,
         observations=r.observations,
@@ -1204,7 +1324,10 @@ async def delete_reserva(id: str, iweb_client_id: str, db: Session = Depends(get
     # 7. Eliminar cuentas corrientes clientes
     db.query(cuentasCorrientsClients).filter(cuentasCorrientsClients.booking_id == res_id).delete(synchronize_session=False)
 
-    # 8. Eliminar la reserva principal
+    # 8. Eliminar habitaciones propias de la reserva
+    db.query(ReservationRooms).filter(ReservationRooms.reserva_id == res_id).delete(synchronize_session=False)
+
+    # 9. Eliminar la reserva principal
     db.delete(r)
     db.commit()
 
@@ -1264,33 +1387,23 @@ async def duplicate_reserva(id: str, iweb_client_id: str, db: Session = Depends(
         created_at=datetime.utcnow(),
     )
     db.add(new_reserva)
-    
-    # Duplicate passengers
-    orig_passengers = db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id == id).all()
-    for op in orig_passengers:
-        new_rp = ReservationPassengers(
-            id=str(uuid.uuid4()),
-            reserva_id=new_reserva_id,
-            pasajero_id=op.pasajero_id,
-            pasajero_type=op.pasajero_type,
-            butaca_number=op.butaca_number,
-            butaca_type=op.butaca_type,
-            bus_number=op.bus_number,
-            hotel_id=op.hotel_id,
-            room_index=op.room_index,
-            lugar_carga_id=op.lugar_carga_id
-        )
-        db.add(new_rp)
-        
-    validate_reservation(db, new_reserva)
-    db.commit()
-    
-    # Auto-crear y sincronizar Liquidacion inicial para la reserva duplicada
+    db.flush()
+    clone_reservation_rooms(db, original, new_reserva)
+    db.add(Liquidaciones(
+        id=str(uuid.uuid4()),
+        iweb_client_id=iweb_client_id,
+        booking_id=new_reserva_id,
+        total_amout=0,
+        total_commission=0,
+        commission=0,
+    ))
+
     try:
-        from routers.liquidaciones import create_or_update_booking_liquidacion
-        create_or_update_booking_liquidacion(db, new_reserva_id, iweb_client_id)
-    except Exception as err:
-        print(f"Warning: could not auto-create liquidacion for duplicated res {new_reserva_id}: {err}")
+        validate_reservation(db, new_reserva)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return await get_reserva(new_reserva_id, iweb_client_id, db)
 
@@ -1349,6 +1462,12 @@ async def update_reservation_passenger(
         rp.room_index = body.room_index
         
     validate_reservation(db, res_obj, previous)
-    db.commit()
+    from routers.liquidaciones import create_or_update_booking_liquidacion
+    try:
+        create_or_update_booking_liquidacion(db, res_obj.id, res_obj.iweb_client_id, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(rp)
     return {"message": "Pasajero de reserva actualizado con éxito", "bus_number": rp.bus_number, "lugar_carga_id": rp.lugar_carga_id}
