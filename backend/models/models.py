@@ -469,7 +469,7 @@ class ccProvidersConsumptionPayments(Base):
     transport_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     salida_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     transf_account: Mapped[str | None] = mapped_column(String(255), nullable=True)
     amount: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)

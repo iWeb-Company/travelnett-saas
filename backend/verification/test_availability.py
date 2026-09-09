@@ -26,7 +26,7 @@ from models.models import (
 )
 from schemas.schemas import (
     PackageCreateRequest, PackageUpdateRequest, PackageHotelPayload,
-    SalidaCreateRequest,
+    SalidaCreateRequest, SalidaUpdateRequest,
 )
 from services.availability import (
     get_inventory_db, snapshot, validate_reservation, save_package_capacity,
@@ -40,7 +40,7 @@ from routers.reservas import (
 )
 from routers.vouchers import generate_voucher_snapshot
 from routers.liquidaciones import calculate_booking_liquidacion_totals
-from routers.salidas import create_salida, register_transport_consumption
+from routers.salidas import create_salida, register_transport_consumption, update_salida
 
 
 class AvailabilityTests(unittest.TestCase):
@@ -336,6 +336,76 @@ class AvailabilityTests(unittest.TestCase):
                 self.db.query(ccProvidersConsumptionPayments).filter_by(salida_id=created.id).count(),
                 0,
             )
+
+    def test_reducing_room_capacity_removes_last_passengers_from_that_room(self):
+        reservation = self.booking(2, room_type='["doble_matrimonial_estandar"]')
+        passengers = self.db.query(ReservationPassengers).filter_by(
+            reserva_id=reservation.id
+        ).order_by(ReservationPassengers.id).all()
+
+        result = asyncio.run(update_reserva(
+            reservation.id,
+            ReservaUpdatePayload(
+                room_type='["single_individual_estandar"]',
+                passengers=[
+                    dict(pasajero_id=passengers[0].pasajero_id, pasajero_type="ADL", butaca_type="semicama", hotel_id=self.hotel, room_index=0),
+                    dict(pasajero_id=passengers[1].pasajero_id, pasajero_type="ADL", butaca_type="semicama", hotel_id=self.hotel, room_index=0),
+                ],
+            ),
+            self.tenant,
+            self.db,
+        ))
+
+        self.assertEqual(
+            [p.pasajero_id for p in result.reservation_passengers],
+            [passengers[0].pasajero_id],
+        )
+        self.assertEqual(self.db.get(Passengers, passengers[1].pasajero_id).id, passengers[1].pasajero_id)
+
+    def test_transport_price_update_reuses_existing_consumption_and_appends_audit(self):
+        from models.models import User
+
+        transport_id = uuid.uuid4().hex
+        salida = Salidas(
+            id=uuid.uuid4().hex,
+            iweb_client_id=self.tenant,
+            type="micro",
+            date_of_out="2026-10-10",
+            transport_company=transport_id,
+            precio_transporte=100,
+        )
+        movement = ccProvidersConsumptionPayments(
+            id=uuid.uuid4().hex,
+            iweb_client_id=self.tenant,
+            salida_id=salida.id,
+            provider_type="transporte",
+            transport_id=transport_id,
+            type="consumo",
+            amount=100,
+            detail="Consumo transporte - salida 2026-10-10",
+        )
+        actor = User(id=uuid.uuid4().hex, iweb_client_id=self.tenant, name="Ana", last_name="Pérez", username="ana")
+        self.db.add_all([
+            TransportCompany(id=transport_id, iweb_client_id=self.tenant, name="Empresa", type="bus"),
+            salida,
+            movement,
+            actor,
+        ])
+        self.db.commit()
+
+        asyncio.run(update_salida(
+            salida.id,
+            SalidaUpdateRequest(precio_transporte=150),
+            self.tenant,
+            self.db,
+            actor,
+        ))
+
+        movements = self.db.query(ccProvidersConsumptionPayments).filter_by(salida_id=salida.id).all()
+        self.assertEqual(len(movements), 1)
+        self.assertEqual(float(movements[0].amount), 150)
+        self.assertIn("Última actualización", movements[0].detail)
+        self.assertIn("Ana Pérez", movements[0].detail)
 
     def test_package_partial_edit_preserves_dates_capacity(self):
         result = asyncio.run(update_package(self.pkg, PackageUpdateRequest(name_system="Interno"), self.tenant, self.db))

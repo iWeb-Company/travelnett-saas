@@ -18,6 +18,8 @@ import {
   getClientDisplayName,
 } from "@/app/utils/clientSearch";
 import { calculateLiquidationTotalsAfterExpenseEdit } from "@/lib/liquidationCalculations";
+import { trimRoomPassengers } from "@/lib/reservationRoomAssignments";
+import { isSameDestination } from "@/lib/destinationMatching";
 
 interface GastoNoComm {
   id?: string;
@@ -51,6 +53,10 @@ export default function ReservaIdPage() {
   const [totalComisionableDirty, setTotalComisionableDirty] = useState(false);
   const [hotels, setHotels] = useState<any[]>([]);
   const [hotelsLoading, setHotelsLoading] = useState(true);
+  const [eligibleHotelIds, setEligibleHotelIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [eligibleHotelsLoading, setEligibleHotelsLoading] = useState(true);
   const [pagosRealizados, setPagosRealizados] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [openRoomIdx, setOpenRoomIdx] = useState<number | null>(null);
@@ -80,10 +86,22 @@ export default function ReservaIdPage() {
     if (!id || !user?.iweb_client_id) return;
 
     setHotelsLoading(true);
-    apiClient.getParameters("get_hotels", user.iweb_client_id)
-      .then(data => setHotels(Array.isArray(data) ? data : []))
-      .catch(() => toast.error("No se pudieron cargar los nombres de los hoteles"))
+    const hotelsRequest = apiClient
+      .getParameters("get_hotels", user.iweb_client_id)
+      .then((data) => {
+        const hotelList = Array.isArray(data) ? data : [];
+        setHotels(hotelList);
+        return hotelList;
+      })
+      .catch(() => {
+        toast.error("No se pudieron cargar los nombres de los hoteles");
+        return [];
+      })
       .finally(() => setHotelsLoading(false));
+    const destinationsRequest = apiClient
+      .getParameters("get_destinos", user.iweb_client_id)
+      .then((data) => (Array.isArray(data) ? data : []))
+      .catch(() => []);
 
     // Load Clients
     apiClient
@@ -96,7 +114,7 @@ export default function ReservaIdPage() {
     // Load Reserva and Clients
     apiClient
       .getReservaById(user.iweb_client_id, id)
-      .then((data) => {
+      .then(async (data) => {
         setReserva(data);
         setClientCommissionPct(
           data.commission !== null && data.commission !== undefined
@@ -179,6 +197,65 @@ export default function ReservaIdPage() {
           );
           setPassengersList(mapped);
         }
+
+        setEligibleHotelsLoading(true);
+        try {
+          const [tenantHotels, destinations] = await Promise.all([
+            hotelsRequest,
+            destinationsRequest,
+          ]);
+          const eligibleIds = new Set<string>();
+
+          if (data.package_id) {
+            const [packageData, availability] = await Promise.all([
+              apiClient.getPackage(user.iweb_client_id, data.package_id),
+              apiClient.getHotelAvailability(
+                user.iweb_client_id,
+                data.package_id,
+              ),
+            ]);
+            const configuredForDeparture = new Set<string>(
+              (packageData.hotels || [])
+                .filter((hotel: any) =>
+                  (hotel.cupos || []).some(
+                    (cupo: any) => cupo.salida_id === data.salida_id,
+                  ),
+                )
+                .map((hotel: any) => String(hotel.hotel_id))
+                .filter(Boolean),
+            );
+            availability
+              .filter((hotel: any) => hotel.salida_id === data.salida_id)
+              .forEach((hotel: any) =>
+                configuredForDeparture.add(String(hotel.hotel_id)),
+              );
+            configuredForDeparture.forEach((hotelId) =>
+              eligibleIds.add(hotelId),
+            );
+          } else {
+            const salida = data.salida_id
+              ? await apiClient.getSalida(user.iweb_client_id, data.salida_id)
+              : null;
+            if (salida?.hotel_id) eligibleIds.add(salida.hotel_id);
+            const destino = salida?.destino || data.destino;
+            tenantHotels
+              .filter(
+                (hotel: any) =>
+                  hotel.destino &&
+                  isSameDestination(destino, hotel.destino, destinations),
+              )
+              .forEach((hotel: any) => eligibleIds.add(hotel.id));
+          }
+
+          setEligibleHotelIds(eligibleIds);
+        } catch {
+          toast.error(
+            "No se pudieron cargar los hoteles disponibles para esta reserva",
+          );
+          setEligibleHotelIds(new Set());
+        } finally {
+          setEligibleHotelsLoading(false);
+        }
       })
       .catch(() => toast.error("Error al cargar la reserva"));
 
@@ -238,14 +315,16 @@ export default function ReservaIdPage() {
   useEffect(() => {
     if (
       !reserva ||
-      reserva.commission !== null && reserva.commission !== undefined ||
+      (reserva.commission !== null && reserva.commission !== undefined) ||
       !reserva.client_id ||
       clientesList.length === 0
     ) {
       return;
     }
 
-    const client = clientesList.find((item: any) => item.id === reserva.client_id);
+    const client = clientesList.find(
+      (item: any) => item.id === reserva.client_id,
+    );
     if (client?.commission !== null && client?.commission !== undefined) {
       setClientCommissionPct(Number(client.commission));
     }
@@ -577,7 +656,10 @@ export default function ReservaIdPage() {
         }));
 
       if (gastosDirty || totalReservaDirty || totalComisionableDirty) {
-        if (!liquidacionId) throw new Error("No se cargó la liquidación. Recargá la reserva antes de guardar los importes.");
+        if (!liquidacionId)
+          throw new Error(
+            "No se cargó la liquidación. Recargá la reserva antes de guardar los importes.",
+          );
         await apiClient.updateLiquidacion(liquidacionId, {
           iweb_client_id: user.iweb_client_id,
           booking_id: id,
@@ -587,7 +669,10 @@ export default function ReservaIdPage() {
           commission,
           override_total_amout: totalReservaDirty,
           override_total_commission: totalComisionableDirty,
-          gastos: gastos.map(g => ({ ...g, iweb_client_id: user.iweb_client_id })),
+          gastos: gastos.map((g) => ({
+            ...g,
+            iweb_client_id: user.iweb_client_id,
+          })),
         });
       }
 
@@ -635,7 +720,9 @@ export default function ReservaIdPage() {
           }
         }
       } catch (e) {
-        throw new Error("La reserva se guardó, pero no se pudo recargar la liquidación. Recargá para verificar los importes.");
+        throw new Error(
+          "La reserva se guardó, pero no se pudo recargar la liquidación. Recargá para verificar los importes.",
+        );
       }
 
       setGastosDirty(false);
@@ -644,7 +731,11 @@ export default function ReservaIdPage() {
       toast.success("Reserva y liquidación guardadas correctamente");
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "Error al guardar los cambios de la reserva");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Error al guardar los cambios de la reserva",
+      );
     } finally {
       setSaving(false);
     }
@@ -705,6 +796,13 @@ export default function ReservaIdPage() {
         copy[targetRoomIdx] = newFullCode;
         return copy;
       });
+      setPassengersList((previous) =>
+        trimRoomPassengers(
+          previous,
+          targetRoomIdx,
+          getRoomCapacity(newFullCode),
+        ),
+      );
     }
     setOpenSetRoomType(false);
   };
@@ -786,6 +884,16 @@ export default function ReservaIdPage() {
     });
   };
 
+  const handleRoomHotelChange = (roomIndex: number, hotelId: string) => {
+    setPassengersList((previous) =>
+      previous.map((passenger) =>
+        (passenger.room_index ?? 0) === roomIndex
+          ? { ...passenger, hotel_id: hotelId || null }
+          : passenger,
+      ),
+    );
+  };
+
   const handlePassengerFieldChange = (
     targetPax: any,
     field: string,
@@ -838,7 +946,10 @@ export default function ReservaIdPage() {
         .map((p: any) => p.room_index)
         .filter((idx) => idx !== undefined && idx !== null),
     );
-    const isUnpartitioned = rooms.length > 1 && (distinctIndexes.size === 0 || (distinctIndexes.size === 1 && distinctIndexes.has(0)));
+    const isUnpartitioned =
+      rooms.length > 1 &&
+      (distinctIndexes.size === 0 ||
+        (distinctIndexes.size === 1 && distinctIndexes.has(0)));
 
     let roomPaxs: any[] = [];
     if (isUnpartitioned) {
@@ -899,7 +1010,9 @@ export default function ReservaIdPage() {
       <div className="flex flex-col w-full max-w-6xl mt-6 md:mt-10 mx-auto text-black text-base md:text-lg items-center gap-3">
         <p className="font-semibold text-center">Modificar reserva</p>
         <div className="relative flex w-full flex-col items-center justify-center gap-2 md:block">
-          <p className="font-bold text-center text-lg md:text-xl">Datos de la reserva</p>
+          <p className="font-bold text-center text-lg md:text-xl">
+            Datos de la reserva
+          </p>
           <Link
             href={`/web/reservas/liquidacion/${id}`}
             className="self-end underline font-bold italic text-end md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2">
@@ -912,7 +1025,9 @@ export default function ReservaIdPage() {
         {/* SECCIÓN 1: DATOS GENERALES */}
         <section className="w-full bg-white px-4 sm:px-6 md:px-10 border-gray-900 rounded-xl shadow-md py-6 md:py-10 shadow-gray-500 flex flex-col gap-5">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
-            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">Número de reserva</p>
+            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">
+              Número de reserva
+            </p>
             <input
               type="text"
               value={reserva?.codigo_reserva || ""}
@@ -921,7 +1036,9 @@ export default function ReservaIdPage() {
             />
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
-            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">Título de reserva</p>
+            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">
+              Título de reserva
+            </p>
             <input
               type="text"
               placeholder={getNombreCompletoReserva() || "Título de la reserva"}
@@ -933,7 +1050,9 @@ export default function ReservaIdPage() {
             />
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
-            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">Estado</p>
+            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">
+              Estado
+            </p>
             <select
               value={reserva?.active ? 1 : 0}
               onChange={(e) =>
@@ -945,7 +1064,9 @@ export default function ReservaIdPage() {
             </select>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
-            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">Cliente</p>
+            <p className="font-medium w-full sm:w-1/3 text-base md:text-lg">
+              Cliente
+            </p>
             <div className="flex-1 w-full flex flex-col gap-2">
               <select
                 value={reserva?.client_id || ""}
@@ -980,7 +1101,9 @@ export default function ReservaIdPage() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full">
-            <p className="font-medium w-full sm:w-1/2 text-base md:text-lg">Vencimiento</p>
+            <p className="font-medium w-full sm:w-1/2 text-base md:text-lg">
+              Vencimiento
+            </p>
             <DateInput
               placeholder=""
               value={reserva?.venciment || ""}
@@ -1013,265 +1136,300 @@ export default function ReservaIdPage() {
             {rooms.map((roomType, idx) => {
               const detail = parseRoomItem(roomType);
               const roomPassengers = getPassengersForRoom(idx);
-              const assignedPassengers = roomPassengers.filter((p: any) => p.pasajero_id || p.hotel_id);
-              const hotelIds = [...new Set(assignedPassengers.map((p: any) => p.hotel_id || reserva.hotel_id))];
+              const assignedPassengers = roomPassengers.filter(
+                (p: any) => p.pasajero_id || p.hotel_id,
+              );
+              const hotelIds = [
+                ...new Set(
+                  assignedPassengers.map(
+                    (p: any) => p.hotel_id || reserva.hotel_id,
+                  ),
+                ),
+              ];
               if (hotelIds.length === 0) hotelIds.push(reserva.hotel_id);
-              const hotelTitle = hotelIds.map(hotelId =>
-                hotels.find(h => h.id === hotelId)?.name ||
-                (hotelId === reserva.hotel_id ? reserva.hotel_nombre : null) || "Hotel a confirmar"
-              ).join(" / ");
+              const selectedHotelId = String(hotelIds[0] || "");
+              const roomHotels = hotels.filter(
+                (hotel) =>
+                  eligibleHotelIds.has(hotel.id) ||
+                  hotel.id === selectedHotelId,
+              );
 
               return (
                 <div
                   key={idx}
-                  className="flex relative min-w-0 flex-col md:flex-row items-start md:items-center font-medium gap-4 p-2 sm:p-4">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full">
-                    <div className="flex items-center gap-2">
-                      <div className="flex flex-col">
-                        {hotelsLoading ? <div className="h-5 w-40 mx-4 bg-gray-200 rounded animate-pulse" /> :
-                          <h3 className="text-black font-semibold px-4">{hotelTitle}</h3>}
-                      <p className="text-black font-semibold py-2.5 px-4 rounded-lg">
+                  className="relative flex min-w-0 flex-col gap-3 p-2 font-medium sm:p-4">
+                  <div className="flex w-full justify-center">
+                    {hotelsLoading || eligibleHotelsLoading ? (
+                      <div
+                        className="h-8 w-full bg-gray-200 rounded animate-pulse"
+                        aria-busy="true"
+                        aria-label="Cargando hoteles"
+                      />
+                    ) : (
+                      <select
+                        aria-label={`Hotel de la habitación ${idx + 1}`}
+                        value={selectedHotelId}
+                        onChange={(event) =>
+                          handleRoomHotelChange(idx, event.target.value)
+                        }
+                        className="w-full cursor-pointer shadow-md shadow-gray-400 rounded-sm bg-transparent px-4 py-2 text-center text-lg font-bold text-black">
+                        <option value="">Hotel a confirmar</option>
+                        {roomHotels.map((hotel) => (
+                          <option key={hotel.id} value={hotel.id}>
+                            {hotel.name || "Hotel sin nombre"}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="flex w-full items-center justify-between gap-3">
+                    <button
+                      onClick={() => handleToggleRoomAccordion(idx)}
+                      className="flex cursor-pointer underline text-start">
+                      <p className="text-black font-semibold w-60 py-2.5 px-4 rounded-lg whitespace-nowrap">
                         {getCamaDistribucionKey(detail)}
                       </p>
-                      </div>
                       <button
                         type="button"
-                        onClick={() => handleToggleRoomAccordion(idx)}
-                        className={`transform transition-transform cursor-pointer ${openRoomIdx === idx ? "rotate-90" : "-rotate-90"}`}>
+                        className={`transform transition-transform cursor-pointer ${openRoomIdx === idx ? "rotate-90" : "-rotate-90"}`}
+                        aria-label={`${openRoomIdx === idx ? "Ocultar" : "Ver"} pasajeros de la habitación ${idx + 1}`}>
                         <ArrowLeft color="#000" />
                       </button>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label={`Categoría de la habitación ${idx + 1}`}
+                        value={getTipoHabitacionKey(detail)}
+                        onChange={(e) =>
+                          handleTipoHabitacionChange(idx, e.target.value)
+                        }
+                        className="rounded-lg p-2 font-semibold cursor-pointer">
+                        <option value="estandar">Estándar</option>
+                        <option value="superior">Superior</option>
+                        <option value="suite">Suite</option>
+                      </select>
                     </div>
-                    <select
-                      value={getTipoHabitacionKey(detail)}
-                      onChange={(e) =>
-                        handleTipoHabitacionChange(idx, e.target.value)
-                      }
-                      className="flex flex-wrap gap-2 rounded-lg p-2 font-semibold cursor-pointer">
-                      <option value="estandar">Estándar</option>
-                      <option value="superior">Superior</option>
-                      <option value="suite">Suite</option>
-                    </select>
-                    {openRoomIdx === idx && (
-                      <div className="border border-gray-200 z-20 absolute top-16 left-0 right-0 w-full max-h-[70dvh] overflow-auto divide-gray-300 rounded-xl shadow-md shadow-gray-400 p-2 sm:p-4 bg-white">
-                        <table className="w-full min-w-[900px]">
-                          <thead className="border-b">
-                            <tr className="">
-                              <th className="p-3 text-center font-medium w-30 text-black">
-                                DNI
-                              </th>
-                              <th className="p-3 text-center font-medium w-40 text-black">
-                                Nombre
-                              </th>
-                              <th className="p-3 text-center font-medium w-40 text-black">
-                                Apellido
-                              </th>
-                              <th className="p-3 text-center font-medium w-40 text-black">
-                                Fecha nac.
-                              </th>
-                              <th className="p-3 text-center font-medium w-40 text-black">
-                                Telefono
-                              </th>
-                              <th className="p-3 text-center font-medium w-40 text-black">
-                                Ascenso
-                              </th>
-                              <th className="p-3 text-center font-medium w-40 text-black">
-                                Butaca
-                              </th>
-                              <th className="p-3 text-center font-medium w-40 text-black">
-                                Sexo
-                              </th>
-                              <th className="p-3 text-center font-medium w-40 text-black">
-                                Tipo
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="">
-                            {roomPassengers.map((p: any) => {
-                              const gIdx = p.globalIndex;
-                              return (
-                                <tr key={gIdx} className="hover:bg-gray-50/50">
-                                  <td className="px-2 py-2">
-                                    <input
-                                      type="text"
-                                      value={p.dni || ""}
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "dni",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
-                                      placeholder="DNI"
-                                    />
-                                  </td>
-                                  <td className="px-2 py-2">
-                                    <input
-                                      type="text"
-                                      value={p.nombre || ""}
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "nombre",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 uppercase bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
-                                      placeholder="Nombre"
-                                    />
-                                  </td>
-                                  <td className="px-2 py-2">
-                                    <input
-                                      type="text"
-                                      value={p.apellido || ""}
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "apellido",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 uppercase bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
-                                      placeholder="Apellido"
-                                    />
-                                  </td>
-                                  <td className="px-2 py-2">
-                                    <input
-                                      type="date"
-                                      value={
-                                        p.fecha_nacimiento || p.birthday || ""
-                                      }
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "fecha_nacimiento",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary"
-                                    />
-                                  </td>
-                                  <td className="px-2 py-2">
-                                    <input
-                                      type="text"
-                                      value={p.telefono || p.phone || ""}
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "telefono",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
-                                      placeholder="Teléfono"
-                                    />
-                                  </td>
-                                  <td className="px-2 py-2">
-                                    <select
-                                      value={p.lugar_carga_id || ""}
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "lugar_carga_id",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary">
-                                      <option value="">
-                                        Seleccionar Ascenso
-                                      </option>
-                                      {lugaresCarga.map((lc: any) => (
-                                        <option key={lc.id} value={lc.id}>
-                                          {lc.name || lc.nombre || lc.locality}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </td>
-                                  <td className="px-2 py-2">
-                                    <select
-                                      value={p.butaca_type || ""}
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "butaca_type",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary">
-                                      <option value="">
-                                        Seleccionar tipo de Butaca
-                                      </option>
-                                      <option value="semicama">Semicama</option>
-                                      <option value="cama">Cama</option>
-                                    </select>
-                                  </td>
-                                  <td className="px-2 py-2">
-                                    <select
-                                      value={p.sexo || p.sex || "M"}
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "sexo",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary">
-                                      <option value="M">M</option>
-                                      <option value="F">F</option>
-                                      <option value="X">X</option>
-                                    </select>
-                                  </td>
-                                  <td className="px-2 py-2">
-                                    <select
-                                      value={
-                                        p.pasajero_type || p.tipoPax || "ADL"
-                                      }
-                                      onChange={(e) =>
-                                        handlePassengerFieldChange(
-                                          p,
-                                          "pasajero_type",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary">
-                                      <option value="ADL">ADL</option>
-                                      <option value="CHD">CHD</option>
-                                      <option value="INF">INF</option>
-                                    </select>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                            {roomPassengers.length === 0 && (
-                              <tr>
-                                <td
-                                  colSpan={8}
-                                  className="px-6 text-center py-4 text-gray-500 font-medium">
-                                  No hay pasajeros registrados para esta
-                                  habitación.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                        <div className="flex justify-end py-2 px-5 items-end w-full">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenSetRoomTypeModal(idx)}
-                            className="w-full text-nowrap font-semibold cursor-pointer hover:underline text-primary text-right">
-                            Modificar Tipo de habitación
-                          </button>
-                        </div>
-                      </div>
-                    )}
                     <button
                       type="button"
                       onClick={() => handleRemoveRoom(idx)}
-                      className="text-black hover:text-red-700 p-2 rounded-lg transition-colors self-end md:self-auto cursor-pointer"
+                      className="text-black hover:text-red-700 p-2 rounded-lg transition-colors cursor-pointer"
                       title="Eliminar habitación">
                       <Trash size={20} />
                     </button>
                   </div>
+                  {openRoomIdx === idx && (
+                    <div className="border border-gray-200 z-20 absolute top-full left-0 right-0 mt-2 w-full max-h-[70dvh] overflow-auto divide-gray-300 rounded-xl shadow-md shadow-gray-400 p-2 sm:p-4 bg-white">
+                      <table className="w-full min-w-[900px]">
+                        <thead className="border-b">
+                          <tr className="">
+                            <th className="p-3 text-center font-medium w-30 text-black">
+                              DNI
+                            </th>
+                            <th className="p-3 text-center font-medium w-40 text-black">
+                              Nombre
+                            </th>
+                            <th className="p-3 text-center font-medium w-40 text-black">
+                              Apellido
+                            </th>
+                            <th className="p-3 text-center font-medium w-40 text-black">
+                              Fecha nac.
+                            </th>
+                            <th className="p-3 text-center font-medium w-40 text-black">
+                              Telefono
+                            </th>
+                            <th className="p-3 text-center font-medium w-40 text-black">
+                              Ascenso
+                            </th>
+                            <th className="p-3 text-center font-medium w-40 text-black">
+                              Butaca
+                            </th>
+                            <th className="p-3 text-center font-medium w-40 text-black">
+                              Sexo
+                            </th>
+                            <th className="p-3 text-center font-medium w-40 text-black">
+                              Tipo
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="">
+                          {roomPassengers.map((p: any) => {
+                            const gIdx = p.globalIndex;
+                            return (
+                              <tr key={gIdx} className="hover:bg-gray-50/50">
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="text"
+                                    value={p.dni || ""}
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "dni",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
+                                    placeholder="DNI"
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="text"
+                                    value={p.nombre || ""}
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "nombre",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 uppercase bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
+                                    placeholder="Nombre"
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="text"
+                                    value={p.apellido || ""}
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "apellido",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 uppercase bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
+                                    placeholder="Apellido"
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="date"
+                                    value={
+                                      p.fecha_nacimiento || p.birthday || ""
+                                    }
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "fecha_nacimiento",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary"
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="text"
+                                    value={p.telefono || p.phone || ""}
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "telefono",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary focus:border-primary"
+                                    placeholder="Teléfono"
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <select
+                                    value={p.lugar_carga_id || ""}
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "lugar_carga_id",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary">
+                                    <option value="">
+                                      Seleccionar Ascenso
+                                    </option>
+                                    {lugaresCarga.map((lc: any) => (
+                                      <option key={lc.id} value={lc.id}>
+                                        {lc.name || lc.nombre || lc.locality}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="px-2 py-2">
+                                  <select
+                                    value={p.butaca_type || ""}
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "butaca_type",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary">
+                                    <option value="">
+                                      Seleccionar tipo de Butaca
+                                    </option>
+                                    <option value="semicama">Semicama</option>
+                                    <option value="cama">Cama</option>
+                                  </select>
+                                </td>
+                                <td className="px-2 py-2">
+                                  <select
+                                    value={p.sexo || p.sex || "M"}
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "sexo",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary">
+                                    <option value="M">M</option>
+                                    <option value="F">F</option>
+                                    <option value="X">X</option>
+                                  </select>
+                                </td>
+                                <td className="px-2 py-2">
+                                  <select
+                                    value={
+                                      p.pasajero_type || p.tipoPax || "ADL"
+                                    }
+                                    onChange={(e) =>
+                                      handlePassengerFieldChange(
+                                        p,
+                                        "pasajero_type",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="w-full border border-gray-300 bg-white rounded-lg py-1 px-2 text-center text-xs font-medium text-gray-800 focus:ring-2 focus:ring-primary">
+                                    <option value="ADL">ADL</option>
+                                    <option value="CHD">CHD</option>
+                                    <option value="INF">INF</option>
+                                  </select>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {roomPassengers.length === 0 && (
+                            <tr>
+                              <td
+                                colSpan={8}
+                                className="px-6 text-center py-4 text-gray-500 font-medium">
+                                No hay pasajeros registrados para esta
+                                habitación.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                      <div className="flex justify-end py-2 px-5 items-end w-full">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSetRoomTypeModal(idx)}
+                          className="w-full text-nowrap font-semibold cursor-pointer hover:underline text-primary text-right">
+                          Modificar Tipo de habitación
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -1,14 +1,16 @@
 import uuid
 import math
+from datetime import datetime
 from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
 from services.availability import get_inventory_db, seat_type
+from auth.login import get_current_user
 from models.models import (
     Salidas, SalidasLugaresCarga, LugaresCarga, Reservas, ReservationPassengers,
-    TransportCompany, ccProvidersConsumptionPayments,
+    TransportCompany, ccProvidersConsumptionPayments, User,
 )
 from schemas.schemas import (
     SalidaResponse,
@@ -20,8 +22,32 @@ from schemas.schemas import (
 router = APIRouter(prefix="/salidas", tags=["Salidas CRUD"])
 
 
-def register_transport_consumption(db: Session, salida: Salidas):
-    """Create the operational transport expense once, within the salida transaction."""
+def _audit_actor_name(user: User) -> str:
+    full_name = f"{user.name or ''} {user.last_name or ''}".strip()
+    return full_name or user.username or "Usuario del sistema"
+
+
+def register_transport_consumption(
+    db: Session,
+    salida: Salidas,
+    *,
+    price_changed: bool = False,
+    updated_by: Optional[User] = None,
+):
+    """Create or synchronize the single operational transport expense for a departure."""
+    existing = db.query(ccProvidersConsumptionPayments).filter(
+        ccProvidersConsumptionPayments.salida_id == salida.id,
+        ccProvidersConsumptionPayments.iweb_client_id == salida.iweb_client_id,
+    ).first()
+
+    if existing:
+        if price_changed:
+            existing.amount = float(salida.precio_transporte or 0)
+            detail = existing.detail or f"Consumo transporte - salida {salida.date_of_out or salida.id}"
+            audit = f"Última actualización {datetime.now().strftime('%d/%m/%Y')} hecha por {_audit_actor_name(updated_by) if updated_by else 'Usuario del sistema'}"
+            existing.detail = f"{detail} | {audit}"
+        return existing
+
     if (salida.type or "").strip().lower() not in {"bus", "micro"}:
         return None
     try:
@@ -39,16 +65,9 @@ def register_transport_consumption(db: Session, salida: Salidas):
     if not transport:
         return None
 
-    existing = db.query(ccProvidersConsumptionPayments).filter(
-        ccProvidersConsumptionPayments.salida_id == salida.id,
-    ).first()
-    if existing:
-        return existing
-
     departure_date = None
     if salida.date_of_out:
         try:
-            from datetime import datetime
             departure_date = datetime.strptime(str(salida.date_of_out)[:10], "%Y-%m-%d").date()
         except ValueError:
             pass
@@ -231,7 +250,7 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
     
     if not s:
         raise HTTPException(status_code=404, detail="Salida no encontrada")
-        
+
     rel = db.query(SalidasLugaresCarga).filter(
         SalidasLugaresCarga.iweb_client_id == iweb_client_id,
         SalidasLugaresCarga.salida_id == s.id
@@ -412,8 +431,12 @@ async def update_salida(
     id: str,
     body: SalidaUpdateRequest,
     iweb_client_id: str,
-    db: Session = Depends(get_inventory_db)
+    db: Session = Depends(get_inventory_db),
+    current_user: User = Depends(get_current_user),
 ):
+    if current_user.iweb_client_id not in {iweb_client_id, "GLOBAL"}:
+        raise HTTPException(status_code=403, detail="No tenés permisos para modificar salidas de otra agencia")
+
     s = db.query(Salidas).filter(
         Salidas.id == id,
         Salidas.iweb_client_id == iweb_client_id
@@ -421,7 +444,9 @@ async def update_salida(
     
     if not s:
         raise HTTPException(status_code=404, detail="Salida no encontrada")
-        
+
+    previous_transport_price = float(s.precio_transporte or 0)
+
     if body.semicama is not None or body.cama is not None:
         occupied = db.query(ReservationPassengers.butaca_type).join(Reservas, Reservas.id == ReservationPassengers.reserva_id).filter(
             Reservas.iweb_client_id == iweb_client_id, Reservas.salida_id == id, Reservas.active.is_not(False)
@@ -465,6 +490,14 @@ async def update_salida(
         s.alcance = body.alcance
     if body.vouchers_online is not None:
         s.vouchers_online = body.vouchers_online
+
+    if body.precio_transporte is not None and float(s.precio_transporte or 0) != previous_transport_price:
+        register_transport_consumption(
+            db,
+            s,
+            price_changed=True,
+            updated_by=current_user,
+        )
         
     # Actualizar o crear la relación de lugares de carga
     rel = db.query(SalidasLugaresCarga).filter(
