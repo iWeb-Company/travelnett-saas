@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
 from services.availability import get_inventory_db, resolve_selection, validate_reservation, snapshot
+from services.reservation_rooms import trim_passengers_to_room_capacity
 from models.models import Reservas, Passengers, Salidas, Packages, LugaresCarga, Hotels, Regimenes, Clients, ReservationPassengers, Destinos, Liquidaciones, GastosNoCommission, Pagos, Vouchers, cuentasCorrientsClients, User
 from pydantic import BaseModel
 from typing import List, Optional
@@ -554,7 +555,11 @@ async def create_reserva(
     rp_to_create = []
     
     if body.passengers:
-        for p_in in body.passengers:
+        try:
+            resolved_passengers = trim_passengers_to_room_capacity(body.room_type, body.passengers)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+        for p_in, room_index in resolved_passengers:
             # Verificar si existe el pasajero
             p_chk = db.query(Passengers).filter(
                 Passengers.id == p_in.pasajero_id,
@@ -573,7 +578,7 @@ async def create_reserva(
                 butaca_type=p_in.butaca_type,
                 bus_number=p_in.bus_number,
                 lugar_carga_id=p_in.lugar_carga_id or body.lugar_carga_id,
-                room_index=p_in.room_index if p_in.room_index is not None else 0
+                room_index=room_index,
             )
             db.add(new_rp)
             rp_to_create.append(new_rp)
@@ -786,21 +791,25 @@ async def update_reserva(
     # Si viene passengers, actualizamos la intermedia
     if body.passengers is not None:
         previous_hotels = {(p.pasajero_id, p.room_index or 0): p.hotel_id for p in db.query(ReservationPassengers).filter_by(reserva_id=id).all()}
+        try:
+            resolved_passengers = trim_passengers_to_room_capacity(r.room_type, body.passengers)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
         # Borrar antiguos
         db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id == id).delete()
         # Agregar nuevos
-        for p_in in body.passengers:
+        for p_in, room_index in resolved_passengers:
             new_rp = ReservationPassengers(
                 id=str(uuid.uuid4()),
                 reserva_id=id,
                 pasajero_id=p_in.pasajero_id,
-                hotel_id=(p_in.hotel_id if "hotel_id" in p_in.model_fields_set else previous_hotels.get((p_in.pasajero_id, p_in.room_index or 0))),
+                hotel_id=(p_in.hotel_id if "hotel_id" in p_in.model_fields_set else previous_hotels.get((p_in.pasajero_id, room_index))),
                 pasajero_type=p_in.pasajero_type or "ADL",
                 butaca_number=p_in.butaca_number,
                 butaca_type=p_in.butaca_type,
                 bus_number=p_in.bus_number,
                 lugar_carga_id=p_in.lugar_carga_id or body.lugar_carga_id,
-                room_index=p_in.room_index if p_in.room_index is not None else 0
+                room_index=room_index,
             )
             db.add(new_rp)
             

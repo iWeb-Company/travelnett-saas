@@ -24,6 +24,9 @@
 
 # .md
 *.md
+AGENTS.md
+tasks/
+tasks/*.md
 
 
 # debug
