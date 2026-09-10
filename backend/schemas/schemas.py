@@ -406,7 +406,11 @@ class LugarCargaPayload(BaseModel):
         from_attributes = True
 
 
+from schemas.transport_units import TransportUnitResponse
+
+
 class SalidaResponse(BaseModel):
+    transport_units: list[TransportUnitResponse] = []
     id: str
     iweb_client_id: str
     date_of_out: Optional[str] = None

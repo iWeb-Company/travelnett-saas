@@ -248,6 +248,29 @@ class Salidas(Base):
     vouchers_online: Mapped[bool] = mapped_column(BOOLEAN, default=False, nullable=False, server_default="0")
 
 
+class SalidaTransportUnit(Base):
+    __tablename__ = "salida_transport_units"
+    __table_args__ = (
+        UniqueConstraint("salida_id", "number", name="uq_salida_transport_unit_number"),
+        CheckConstraint("semicama >= 0 AND cama >= 0 AND price >= 0", name="ck_transport_unit_capacity_price"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    salida_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    transport_company: Mapped[str] = mapped_column(String(36), nullable=False)
+    price: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False)
+    type_bus: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    semicama: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cama: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    layout_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    coordinador_nombre: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    coordinador_telefono: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    active: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class SalidasLugaresCarga(Base):
     __tablename__ = "salidas_lugares_carga"
 
@@ -383,6 +406,7 @@ class ReservationPassengers(Base):
     butaca_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     butaca_type: Mapped[str | None] = mapped_column(String(36), nullable=True)
     bus_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    salida_transport_unit_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     lugar_carga_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     room_index: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
@@ -475,10 +499,11 @@ class cuentasCorrientesProviders(Base):
 
 class ccProvidersConsumptionPayments(Base):
     __tablename__ = "cc_providers_consumption_payments"
-    __table_args__ = (UniqueConstraint("salida_id", name="uq_cc_provider_consumption_salida"),)
+    __table_args__ = (UniqueConstraint("salida_transport_unit_id", name="uq_cc_provider_consumption_unit"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     cc_provider_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    salida_transport_unit_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     provider_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     transport_id: Mapped[str | None] = mapped_column(String(36), nullable=True)

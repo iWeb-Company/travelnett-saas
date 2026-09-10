@@ -116,6 +116,10 @@ def validate_reservation(db, reserva, previous=None):
             raise HTTPException(400, "Hay pasajeros que no pertenecen a esta agencia")
     if reserva.active is False:
         return
+    from services.transport_units import validate_inventory
+    transport_salida = db.query(Salidas).filter_by(id=reserva.salida_id, iweb_client_id=reserva.iweb_client_id).first()
+    if transport_salida:
+        validate_inventory(db, transport_salida)
     tenant = reserva.iweb_client_id
     hotel_ids = {p.hotel_id or reserva.hotel_id for p in rows} - {None, ""}
     if reserva.hotel_id:

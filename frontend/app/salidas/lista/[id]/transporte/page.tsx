@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import TransportUnits from '@/app/components/TransportUnits';
 
 export default function TransportePage() {
     const router = useRouter();
@@ -34,7 +35,7 @@ export default function TransportePage() {
         setLoading(true);
         try {
             const [salidaData, companiesData, busTypesData] = await Promise.all([
-                apiClient.getSalida(user.iweb_client_id, id).catch(() => null),
+                apiClient.getSalida(user.iweb_client_id, id),
                 apiClient.getParameters("get_transport_companies", user.iweb_client_id).catch(() => []),
                 apiClient.getParameters("get_bus_types", user.iweb_client_id).catch(() => []),
             ]);
@@ -108,7 +109,9 @@ export default function TransportePage() {
                     <h1 className="font-semibold text-secondary md:text-lg">Volver a la Lista</h1>
                 </Link>
             </section>
-            <h1 className="text-center text-xl my-3 text-black font-semibold">Modificar empresa de transporte</h1>
+            <h1 className="text-center text-xl my-3 text-black font-semibold">{['bus', 'micro'].includes(salida?.type || '') ? 'Micros de la salida' : 'Modificar empresa de transporte'}</h1>
+            {['bus', 'micro'].includes(salida?.type || '') && user?.iweb_client_id ?
+              <TransportUnits tenant={user.iweb_client_id} salidaId={id} initialUnits={salida?.transport_units || []} companies={transportCompanies} /> :
             <section className="flex justify-center gap-5 items-center mx-auto max-w-2xl flex-col w-full">
                 <select
                     value={selectedBus}
@@ -147,6 +150,7 @@ export default function TransportePage() {
                     {isSaving ? "Modificando..." : "Modificar"}
                 </button>
             </section>
+            }
         </Container>
     );
 }

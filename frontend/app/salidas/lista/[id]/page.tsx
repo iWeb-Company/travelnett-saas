@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 import { exportListaToExcel, PasajeroListaData, LugarCargaListaData } from "@/app/utils/exportLista";
 import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
 import { formatDateDDMMYY } from "@/lib/formatDate";
+import type { SalidaTransportUnit } from '@/app/types';
 
 export default function SalidasIDPage() {
   const params = useParams();
@@ -37,6 +38,9 @@ export default function SalidasIDPage() {
   // Modal States
   const [salida, setSalida] = useState<any>(null);
   const [destinos, setDestinos] = useState<any[]>([]);
+  const [selectedMicroId, setSelectedMicroId] = useState('');
+  const units: SalidaTransportUnit[] = (salida?.transport_units || []).filter((unit: SalidaTransportUnit) => unit.active);
+  const selectedMicro = units.find(unit => unit.id === selectedMicroId) || (units.length === 1 ? units[0] : null);
 
   // Hotel modal states
   const [selectedHotel, setSelectedHotel] = useState("");
@@ -162,8 +166,7 @@ export default function SalidasIDPage() {
       const horarios = cargasIds.map((cargaId) => tempHorarios[cargaId] || "");
 
       await apiClient.updateSalida(user.iweb_client_id, id, {
-        ...(tempCoordinadorNombre !== undefined ? { coordinador_nombre: tempCoordinadorNombre } : {}),
-        ...(tempCoordinadorTelefono !== undefined ? { coordinador_telefono: tempCoordinadorTelefono } : {}),
+        ...(!salida?.transport_units?.length ? { coordinador_nombre: tempCoordinadorNombre, coordinador_telefono: tempCoordinadorTelefono } : {}),
         ...(cargasIds.length > 0 ? { cargas_ids: cargasIds, horarios } : {}),
       });
       toast.success("Horarios y Coordinador actualizados");
@@ -428,6 +431,7 @@ export default function SalidasIDPage() {
   });
 
   const handleExportExcel = async () => {
+    if (units.length > 1 && !selectedMicro) { toast.error('Seleccioná el micro para exportar'); return; }
     try {
       toast.loading("Generando Excel de lista...", { id: "export-lista" });
 
@@ -440,8 +444,19 @@ export default function SalidasIDPage() {
         horario: lc.horario || "",
       }));
 
-      const pasajerosData: PasajeroListaData[] = mappedPasajeros.map((p) => ({
-        numero: p.numero,
+      const assignedIds = new Set(reservas.filter(r => r.active !== false).flatMap(r => (r.reservation_passengers || []).filter((p: any) => p.salida_transport_unit_id === selectedMicro?.id).map((p: any) => p.id)));
+      const exportRows = selectedMicro ? reservas.filter(r => r.active !== false).flatMap(r => (r.reservation_passengers || []).filter((p: any) => assignedIds.has(p.id)).map((p: any) => {
+        const mapped = mappedPasajeros.find(row => row.id === p.id && !row.isGroup);
+        if (mapped) return mapped;
+        return { apellido: p.last_name || '-', nombres: p.name || '-', dni: p.dni, fecha_nacimiento: p.fecha_nacimiento,
+          telefono: p.telefono || p.phone, edad: p.pasajero_type, bus_number: String(selectedMicro.number),
+          hotel: hoteles.find(h => h.id === (p.hotel_id || r.hotel_id))?.name,
+          servicio: p.butaca_type === 'cama' ? 'Bus Cama' : 'Bus Semicama',
+          ascenso: p.lugar_carga_nombre || r.lugar_carga_nombre, reserva: r.codigo_reserva,
+          cliente: r.client_nombre, observations: r.observations };
+      })) : mappedPasajeros;
+      const pasajerosData: PasajeroListaData[] = exportRows.map((p, index) => ({
+        numero: index + 1,
         bus_number: p.bus_number || "-",
         apellido: p.apellido || "-",
         nombres: p.nombres || "-",
@@ -458,6 +473,9 @@ export default function SalidasIDPage() {
       }));
 
       await exportListaToExcel({
+        microNumber: selectedMicro?.number,
+        transportCompany: selectedMicro ? (await apiClient.getParameters('get_transport_companies', user!.iweb_client_id!)).find((company: any) => company.id === selectedMicro.transport_company)?.name : undefined,
+        coordinator: selectedMicro ? [selectedMicro.coordinador_nombre, selectedMicro.coordinador_telefono].filter(Boolean).join(' / ') : undefined,
         destinoName: destName,
         salidaDate: salida?.date_of_out ? String(salida.date_of_out).split(" ")[0] : "",
         pasajeros: pasajerosData,
@@ -514,6 +532,12 @@ export default function SalidasIDPage() {
       </section>
 
       {/* Iconos de acción */}
+      {units.length > 1 && <label className="flex justify-end gap-2 mx-5">Micro
+        <select aria-label="Micro para taquilla y exportación" className="border rounded p-1" value={selectedMicroId} onChange={event => setSelectedMicroId(event.target.value)}>
+          <option value="">Seleccionar micro</option>
+          {units.map(unit => <option key={unit.id} value={unit.id}>Micro {unit.number}</option>)}
+        </select>
+      </label>}
       <section className="flex items-center justify-end gap-2 mx-5 mb-2 md:mt-[-20px] mt-2">
         <Link
           href={`/salidas/lista/${id}/transporte`}
@@ -525,7 +549,7 @@ export default function SalidasIDPage() {
         </Link>
         {/* Taquilla */}
         <Link
-          href={`/salidas/lista/${id}/butacas`}
+          href={`/salidas/lista/${id}/butacas${selectedMicro ? `?micro=${selectedMicro.id}` : ''}`}
           className="p-1.5 flex items-center gap-2 font-semibold"
           title="Butacas"
         >
@@ -618,6 +642,7 @@ export default function SalidasIDPage() {
 
               return mappedPasajeros.map((p, idx) => (
                 <PasajeroRow
+                  transportManaged={Boolean(salida?.transport_units?.length)}
                   key={idx}
                   salidaId={id}
                   pasajero={p}
@@ -758,6 +783,7 @@ export default function SalidasIDPage() {
               </div>
 
               {/* Formulario Coordinación */}
+              {!salida?.transport_units?.length &&
               <div className="px-2 sm:px-6 py-2 max-h-[25dvh] overflow-auto mt-2">
                 <table className="w-full text-xs text-center border-collapse">
                   <thead className="sticky top-0 bg-gray-700">
@@ -791,6 +817,7 @@ export default function SalidasIDPage() {
                 </table>
               </div>
 
+              }
               {/* Botones */}
               <div className="flex justify-center gap-3 sm:gap-4 px-3 sm:px-4 py-4 sm:py-5">
                 <button

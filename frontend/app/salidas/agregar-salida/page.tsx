@@ -21,6 +21,8 @@ function AgregarSalidaContent() {
 
   const id = searchParams.get("id");
   const typeParam = searchParams.get("type") || "bus";
+  const terrestrial = ['bus', 'micro'].includes(typeParam);
+  const [hasUnits, setHasUnits] = useState(false);
   const [loadingParams, setLoadingParams] = useState(true);
 
   // Dynamic parameters from DB
@@ -115,6 +117,7 @@ function AgregarSalidaContent() {
               : [],
           );
           setActive(sal.active ?? true);
+          setHasUnits(Boolean(sal.transport_units?.length));
         }
       }
     } catch (error) {
@@ -152,12 +155,9 @@ function AgregarSalidaContent() {
       active: active,
       periodo: periodo,
       alcance: alcance,
-      transport_company: empresa,
-      precio_transporte: parseFloat(precioTransporte) || 0,
+      ...(!terrestrial || (id && !hasUnits) ? { transport_company: empresa, precio_transporte: parseFloat(precioTransporte) || 0 } : {}),
       destino: destino,
-      passengers: parseInt(pasajerosTotales) || 0,
-      semicama: parseInt(economy) || 0,
-      cama: parseInt(business) || 0,
+      ...(!terrestrial || (id && !hasUnits) ? { passengers: parseInt(pasajerosTotales) || 0, semicama: parseInt(economy) || 0, cama: parseInt(business) || 0 } : {}),
       cargas_ids: selectedCargas,
     };
 
@@ -177,9 +177,9 @@ function AgregarSalidaContent() {
     } else {
       apiClient
         .createSalida(user.iweb_client_id, apiPayload)
-        .then(() => {
+        .then((created) => {
           toast.success("Salida agregada con éxito");
-          r.push(`/salidas/result?tipo=${typeParam}`);
+          r.push(terrestrial ? `/salidas/lista/${created.id}/transporte` : `/salidas/result?tipo=${typeParam}`);
         })
         .catch((err) => {
           console.error(err);
@@ -232,6 +232,7 @@ function AgregarSalidaContent() {
         </select>
 
         {/* Empresa de Transporte con animación para el Precio */}
+        {(!terrestrial || (id && !hasUnits)) &&
         <div className="w-full flex flex-col gap-3">
           <select
             className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary z-10 relative"
@@ -281,6 +282,8 @@ function AgregarSalidaContent() {
           </div>
         </div>
 
+        }
+        {terrestrial && (!id || hasUnits) && <p className="text-sm text-gray-600">Configurá los micros, sus empresas y cupos desde Transporte.</p>}
         {/* Fecha de salida */}
         <DateInput
           value={fecha}
@@ -342,6 +345,7 @@ function AgregarSalidaContent() {
           placeholder="Cantidad de pasajeros totales"
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={pasajerosTotales}
+          disabled={terrestrial && (!id || hasUnits)}
           onChange={(e) => setPasajerosTotales(e.target.value)}
           required
         />
@@ -352,6 +356,7 @@ function AgregarSalidaContent() {
           placeholder="Semicama"
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={economy}
+          disabled={terrestrial && (!id || hasUnits)}
           onChange={(e) => setEconomy(e.target.value)}
         />
 
@@ -361,6 +366,7 @@ function AgregarSalidaContent() {
           placeholder="Cama"
           className="text-zinc-500 bg-[#f1f1f1] font-medium w-full border border-gray-300 py-2.5 px-4 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
           value={business}
+          disabled={terrestrial && (!id || hasUnits)}
           onChange={(e) => setBusiness(e.target.value)}
         />
 

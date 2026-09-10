@@ -31,12 +31,14 @@ export default function PasajeroRow({
   salidaCargasNames = [],
   salidaId,
   onUpdated,
+  transportManaged = false,
 }: {
   pasajero: PasajeroRowProps;
   salidaCargasIds?: string[];
   salidaCargasNames?: string[];
   salidaId: string;
   onUpdated?: () => void;
+  transportManaged?: boolean;
 }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -121,6 +123,8 @@ export default function PasajeroRow({
         <input
           type="text"
           value={busVal}
+          readOnly={transportManaged}
+          title={transportManaged ? 'Asigná el micro desde Taquilla' : 'Micro'}
           onChange={(e) => setBusVal(e.target.value)}
           onBlur={handleBusBlur}
           className="w-14 h-9 bg-[#D9DFF5]/70 border border-[#3DADFF] rounded-md flex items-center justify-center text-center text-xs font-semibold text-black cursor-pointer hover:bg-blue-100 transition-colors focus:outline-none"
