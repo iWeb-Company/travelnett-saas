@@ -43,6 +43,13 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
         ReservationRooms.position.asc()
     ).all()
 
+    # Liberados son pasajeros sin cargo: ocupan lugar, pero no participan de
+    # tarifas, gastos ni adicionales.
+    real_pax_count = len([r for r in rps if (r.pasajero_type or "ADL").upper() != "INF"]) if rps else 0
+    liberated_count = min(max(int(res_obj.liberados or 0), 0), real_pax_count)
+    chargeable_pax_count = max(real_pax_count - liberated_count, 0)
+    chargeable_ratio = chargeable_pax_count / real_pax_count if real_pax_count else 0.0
+
     # Paquete si existe
     pkg = None
     if res_obj.package_id:
@@ -158,12 +165,17 @@ def calculate_booking_liquidacion_totals(db: Session, booking_id: str):
             else:
                 total_room_capacity += 2
 
-    real_pax_count = len([r for r in rps if (r.pasajero_type or "ADL").upper() != "INF"]) if rps else 0
-    num_pax = real_pax_count if real_pax_count > 0 else (total_room_capacity or 1)
+    num_pax = chargeable_pax_count if real_pax_count > 0 else (total_room_capacity or 1)
     num_cama = len([r for r in rps if (r.butaca_type or "").lower() == "cama"]) if rps else 0
+    chargeable_cama = max(num_cama - liberated_count, 0)
 
     total_gastos = pkg_gastos * num_pax
-    total_adicional_cama = pkg_adicional * num_cama
+    total_adicional_cama = pkg_adicional * chargeable_cama
+
+    # En tarifas por habitación se prorratea la parte de los liberados para
+    # que la reserva se liquide como su cantidad real de pasajeros cobrables.
+    pax_total *= chargeable_ratio if real_pax_count else 1.0
+    single_no_comisionable *= chargeable_ratio if real_pax_count else 1.0
 
     # Base Comisionable: pax_total + (total_adicional_cama si es_comisionable) − parte no comisionable del single
     monto_comisionable = pax_total - single_no_comisionable

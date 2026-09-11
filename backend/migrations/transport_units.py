@@ -19,7 +19,7 @@ def _tables(bind):
     )}
 
 
-def diagnose(bind):
+def diagnose(bind, tenant_id=None):
     tables = _tables(bind)
     with bind.connect() as db:
         rows = {name: list(db.execute(select(table)).mappings()) for name, table in tables.items()}
@@ -28,6 +28,8 @@ def diagnose(bind):
             migrated = set(db.execute(text("SELECT salida_id FROM salida_transport_units")).scalars())
     reports = []
     for salida in rows["salidas"]:
+        if tenant_id and salida["iweb_client_id"] != tenant_id:
+            continue
         if (salida["type"] or "").lower().strip() not in {"bus", "micro"} or salida["id"] in migrated:
             continue
         conflicts = []
@@ -67,10 +69,10 @@ def diagnose(bind):
     return reports
 
 
-def migrate(bind):
+def migrate(bind, repair_legacy=False, tenant_id=None):
     from models.models import SalidaTransportUnit
 
-    report = diagnose(bind)
+    report = diagnose(bind, tenant_id=tenant_id)
     SalidaTransportUnit.__table__.create(bind, checkfirst=True)
     for name in ("reservation_passengers", "cc_providers_consumption_payments"):
         if "salida_transport_unit_id" not in {c["name"] for c in inspect(bind).get_columns(name)}:
@@ -78,15 +80,36 @@ def migrate(bind):
                 db.execute(text(f"ALTER TABLE {name} ADD COLUMN salida_transport_unit_id VARCHAR(36) NULL"))
     tables = _tables(bind)
     for item in report:
-        if item["conflicts"]:
+        structural = {"invalid_booking_tenant", "ambiguous_bus_number", "duplicate_seat", "over_capacity", "invalid_seat_number"}
+        if item["conflicts"] and (not repair_legacy or structural.intersection(item["conflicts"])):
             continue
         with bind.begin() as db:
             s = db.execute(select(tables["salidas"]).where(tables["salidas"].c.id == item["salida_id"])).mappings().one()
             unit_id = str(uuid.uuid4())
             template = db.execute(select(tables["bus_types"]).where(tables["bus_types"].c.id == s["type_bus"])).mappings().first()
+            company_id = s["transport_company"]
+            company = db.execute(select(tables["transport_companies"]).where(
+                tables["transport_companies"].c.id == company_id,
+                tables["transport_companies"].c.iweb_client_id == s["iweb_client_id"],
+            )).mappings().first()
+            if not company:
+                company = db.execute(select(tables["transport_companies"]).where(
+                    tables["transport_companies"].c.name == str(company_id),
+                    tables["transport_companies"].c.iweb_client_id == s["iweb_client_id"],
+                )).mappings().first()
+            if not company and repair_legacy and company_id:
+                company_id = str(uuid.uuid4())
+                db.execute(tables["transport_companies"].insert().values(
+                    id=company_id, iweb_client_id=s["iweb_client_id"], name=str(s["transport_company"]), type="Bus"
+                ))
+            elif company:
+                company_id = company["id"]
+            price = s["precio_transporte"]
+            if price is None and repair_legacy:
+                price = 0
             db.execute(SalidaTransportUnit.__table__.insert().values(
                 id=unit_id, iweb_client_id=s["iweb_client_id"], salida_id=s["id"], number=1,
-                transport_company=s["transport_company"], price=s["precio_transporte"], type_bus=s["type_bus"],
+                transport_company=company_id, price=price or 0, type_bus=s["type_bus"],
                 semicama=s["semicama"] or 0, cama=s["cama"] or 0,
                 layout_snapshot={"semicama_quantity": s["semicama"] or 0, "cama_quantity": s["cama"] or 0,
                                  "panoramicos_quantity": (template["panoramicos_quantity"] or 0) if template else 0,
@@ -112,5 +135,7 @@ if __name__ == "__main__":
     from db.database import engine
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--repair-legacy", action="store_true", help="repair non-structural legacy values while migrating")
+    parser.add_argument("--tenant-id", help="limit diagnosis/migration to one iWeb tenant")
     args = parser.parse_args()
-    print(json.dumps(migrate(engine) if args.apply else diagnose(engine), indent=2))
+    print(json.dumps(migrate(engine, repair_legacy=args.repair_legacy, tenant_id=args.tenant_id) if args.apply else diagnose(engine, tenant_id=args.tenant_id), indent=2))

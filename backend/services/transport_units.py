@@ -7,15 +7,63 @@ from collections import Counter
 from datetime import date, datetime, timezone
 
 from fastapi import HTTPException
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from models.models import (SalidaTransportUnit, TransportCompany, BusTypes,
                            Reservas, ReservationPassengers, ccProvidersConsumptionPayments)
 
 
+def _is_missing_transport_units_table(error):
+    message = str(error).lower()
+    return "salida_transport_units" in message and (
+        "no such table" in message or "doesn't exist" in message or "does not exist" in message
+    )
+
+
+def _legacy_schema_or_raise(error):
+    if _is_missing_transport_units_table(error):
+        return True
+    raise error
+
+
 def units_for(db, salida):
-    return db.query(SalidaTransportUnit).filter_by(
-        salida_id=salida.id, iweb_client_id=salida.iweb_client_id,
-    ).order_by(SalidaTransportUnit.number).all()
+    """Return no units while a legacy database awaits the additive migration.
+
+    Read paths must remain available during the staged rollout. Writers call
+    ``require_transport_units_schema`` before attempting a multi-micro change.
+    """
+    try:
+        return db.query(SalidaTransportUnit).filter_by(
+            salida_id=salida.id, iweb_client_id=salida.iweb_client_id,
+        ).order_by(SalidaTransportUnit.number).all()
+    except (OperationalError, ProgrammingError) as error:
+        if _legacy_schema_or_raise(error):
+            return []
+
+
+def units_for_departures(db, iweb_client_id, salida_ids):
+    if not salida_ids:
+        return {}
+    try:
+        units = db.query(SalidaTransportUnit).filter(
+            SalidaTransportUnit.iweb_client_id == iweb_client_id,
+            SalidaTransportUnit.salida_id.in_(salida_ids),
+        ).order_by(SalidaTransportUnit.number).all()
+    except (OperationalError, ProgrammingError) as error:
+        if _legacy_schema_or_raise(error):
+            return {}
+    grouped = {}
+    for unit in units:
+        grouped.setdefault(unit.salida_id, []).append(unit)
+    return grouped
+
+
+def require_transport_units_schema(db):
+    try:
+        db.query(SalidaTransportUnit.id).limit(1).all()
+    except (OperationalError, ProgrammingError) as error:
+        if _legacy_schema_or_raise(error):
+            raise HTTPException(409, "La base todavía no tiene micros. Ejecutá la migración de transporte antes de modificar micros.")
 
 
 def passenger_rows(db, salida, *, active_only=True):
@@ -24,6 +72,29 @@ def passenger_rows(db, salida, *, active_only=True):
     if active_only:
         q = q.filter(Reservas.active.is_not(False))
     return q.all()
+
+
+def assign_passenger_to_unit_number(db, salida, passenger, bus_number):
+    """Link a passenger to the active micro selected from the departure list."""
+    value = (bus_number or "").strip()
+    if not value:
+        passenger.bus_number = None
+        passenger.salida_transport_unit_id = None
+        passenger.butaca_number = None
+        return None
+    if not value.isdecimal() or int(value) < 1:
+        raise HTTPException(422, "El número de micro debe ser un entero positivo")
+
+    number = int(value)
+    unit = next((item for item in units_for(db, salida) if item.active and item.number == number), None)
+    if not unit:
+        raise HTTPException(422, f"El Micro {number} no está activo en esta salida")
+
+    if passenger.salida_transport_unit_id != unit.id:
+        passenger.butaca_number = None
+    passenger.bus_number = str(unit.number)
+    passenger.salida_transport_unit_id = unit.id
+    return unit
 
 
 def validate_inventory(db, salida):
@@ -36,10 +107,15 @@ def validate_inventory(db, salida):
     by_id = {u.id: u for u in units if u.active}
     rows = passenger_rows(db, salida)
     demand = Counter((p.butaca_type or "semicama").strip().lower() for p in rows)
+    # The commercial inventory belongs to the departure itself. Micros are
+    # only the physical distribution of that inventory; requiring their
+    # configured bus types here made a valid departure fail before passengers
+    # could be distributed between micros.
     for kind in ("semicama", "cama"):
-        if demand[kind] > sum(getattr(u, kind) for u in by_id.values()):
+        departure_capacity = getattr(salida, kind, 0) or 0
+        if demand[kind] > departure_capacity:
             raise HTTPException(409, f"La capacidad {kind} es inferior a la demanda reservada")
-    occupied, assigned = set(), Counter()
+    occupied = set()
     for p in rows:
         if not p.salida_transport_unit_id:
             if p.butaca_number is not None or p.bus_number:
@@ -53,9 +129,6 @@ def validate_inventory(db, salida):
         kind = (p.butaca_type or "semicama").strip().lower()
         if kind not in {"semicama", "cama"}:
             raise HTTPException(409, "Categoría de butaca inválida")
-        assigned[unit.id, kind] += 1
-        if assigned[unit.id, kind] > getattr(unit, kind):
-            raise HTTPException(409, "El micro no tiene capacidad para sus pasajeros asignados")
         if p.butaca_number is not None:
             if not 1 <= p.butaca_number <= getattr(unit, kind):
                 raise HTTPException(409, "La butaca no existe en el micro")
@@ -66,6 +139,7 @@ def validate_inventory(db, salida):
 
 
 def project_legacy(db, salida):
+    """Project Micro 1 metadata without changing the departure's sale limits."""
     units = units_for(db, salida)
     if not units:
         return
@@ -75,9 +149,6 @@ def project_legacy(db, salida):
     salida.type_bus = first.type_bus
     salida.coordinador_nombre = first.coordinador_nombre
     salida.coordinador_telefono = first.coordinador_telefono
-    salida.semicama = sum(u.semicama for u in units if u.active)
-    salida.cama = sum(u.cama for u in units if u.active)
-    salida.passengers = salida.semicama + salida.cama
 
 
 def set_template(db, salida, unit, template_id):
@@ -125,7 +196,11 @@ def create_unit(db, salida, payload, actor):
     if (salida.type or "").strip().lower() not in {"bus", "micro"}:
         raise HTTPException(400, "Los micros requieren una salida terrestre")
     units = units_for(db, salida)
-    if not units and (salida.transport_company or salida.type_bus or salida.semicama or salida.cama or passenger_rows(db, salida, active_only=False)):
+    legacy_expense = db.query(ccProvidersConsumptionPayments).filter(
+        ccProvidersConsumptionPayments.salida_id == salida.id,
+        ccProvidersConsumptionPayments.salida_transport_unit_id.is_(None),
+    ).first()
+    if not units and (legacy_expense or passenger_rows(db, salida, active_only=False)):
         raise HTTPException(409, "La salida requiere resolver el diagnóstico y migrar Micro 1")
     validate_company(db, salida, payload.transport_company)
     unit = SalidaTransportUnit(id=str(uuid.uuid4()), iweb_client_id=salida.iweb_client_id,
@@ -187,15 +262,21 @@ def save_assignments(db, salida, unit, payload):
             raise HTTPException(409, "El pasajero ya no está activo en esta salida; recargá la taquilla")
         if passenger.salida_transport_unit_id not in {None, unit.id}:
             raise HTTPException(409, "Desasigná primero al pasajero del otro micro")
-    for passenger in passengers.values():
-        if passenger.id in requested:
-            passenger.salida_transport_unit_id = unit.id
-            passenger.bus_number = str(unit.number)
-            passenger.butaca_number = requested[passenger.id].butaca_number
-        elif passenger.salida_transport_unit_id == unit.id:
-            passenger.salida_transport_unit_id = None
-            passenger.bus_number = None
+    # Seat saves are patch operations. Passengers omitted from the payload can
+    # still be assigned to this micro without a seat; never clear them merely
+    # because the current screen did not include them.
+    for passenger_id, assignment in requested.items():
+        passenger = passengers[passenger_id]
+        if assignment.butaca_number is None:
+            # Explicitly removing a seat keeps the passenger on the micro.
+            if passenger.salida_transport_unit_id != unit.id:
+                raise HTTPException(409, "El pasajero no estÃ¡ asignado a este micro")
             passenger.butaca_number = None
+            passenger.bus_number = str(unit.number)
+            continue
+        passenger.salida_transport_unit_id = unit.id
+        passenger.bus_number = str(unit.number)
+        passenger.butaca_number = assignment.butaca_number
     validate_inventory(db, salida)
     unit.revision += 1
     return unit
@@ -206,8 +287,8 @@ def apply_legacy_update(db, salida, payload, actor):
     units = units_for(db, salida)
     if not units:
         return False
-    fields = {"transport_company", "precio_transporte", "type_bus", "semicama", "cama",
-              "passengers", "coordinador_nombre", "coordinador_telefono", "type"}
+    fields = {"transport_company", "precio_transporte", "type_bus",
+              "coordinador_nombre", "coordinador_telefono", "type"}
     data = payload.model_dump(exclude_unset=True)
     changed = {key: value for key, value in data.items() if key in fields and value is not None and value != getattr(salida, key)}
     if not changed:

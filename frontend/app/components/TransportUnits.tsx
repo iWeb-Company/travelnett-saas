@@ -37,6 +37,7 @@ export default function TransportUnits({ tenant, salidaId, initialUnits, compani
   const [units, setUnits] = useState(initialUnits);
   const [busy, setBusy] = useState(false);
   const [newFormKey, setNewFormKey] = useState(0);
+  const [openUnitId, setOpenUnitId] = useState<string | null>(null);
   async function save(body: TransportUnitInput, unit?: SalidaTransportUnit) {
     setBusy(true);
     try {
@@ -50,9 +51,21 @@ export default function TransportUnits({ tenant, salidaId, initialUnits, compani
     finally { setBusy(false); }
   }
   return <section className="flex justify-center gap-5 items-center mx-auto max-w-2xl flex-col w-full">
-    {units.map(unit => <section key={unit.id} className="flex flex-col gap-3 w-full">
-      <h2 className="font-semibold">Micro {unit.number}{unit.active ? '' : ' — Anulado'}</h2>
-      {unit.active && <>
+    {units.map(unit => <section key={unit.id} className="flex flex-col gap-3 w-full border-b border-gray-300 pb-3">
+      <button type="button" disabled={!unit.active} aria-expanded={unit.active && openUnitId === unit.id}
+        aria-controls={`micro-${unit.id}`} className="flex w-full items-center justify-between text-left font-semibold disabled:cursor-default"
+        onClick={() => setOpenUnitId(current => current === unit.id ? null : unit.id)}>
+        <span>Micro {unit.number}{unit.active ? '' : ' — Anulado'}</span>
+        {unit.active && <span aria-hidden="true">{openUnitId === unit.id ? '−' : '+'}</span>}
+      </button>
+      {unit.active && <div id={`micro-${unit.id}`} aria-hidden={openUnitId !== unit.id}
+        className={`grid w-full transition-[grid-template-rows,opacity,transform] duration-300 ease-out ${
+          openUnitId === unit.id
+            ? 'grid-rows-[1fr] translate-y-0 opacity-100'
+            : 'pointer-events-none grid-rows-[0fr] -translate-y-1 opacity-0'
+        }`}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="flex flex-col gap-3 w-full">
         <UnitForm unit={unit} companies={companies} busy={busy} onSave={body => save(body, unit)} />
         <p>Cupos: {unit.semicama} Semicama / {unit.cama} Cama</p>
         <Link className="text-secondary font-semibold" href={`/salidas/lista/${salidaId}/butacas?micro=${unit.id}`}>Taquilla y tipo de bus</Link>
@@ -66,7 +79,9 @@ export default function TransportUnits({ tenant, salidaId, initialUnits, compani
           } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo anular'); }
           finally { setBusy(false); }
         }}>Anular micro</button>
-      </>}
+          </div>
+        </div>
+      </div>}
     </section>)}
     <section className="flex flex-col gap-3 w-full">
       <h2 className="font-semibold">Nuevo micro</h2>

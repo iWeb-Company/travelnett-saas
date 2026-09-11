@@ -47,6 +47,33 @@ class ReservationFixTests(unittest.TestCase):
         from routers.liquidaciones import get_liquidacion_by_booking
         return get_liquidacion_by_booking("res", self.db)
 
+    def test_liberated_passengers_are_free_in_liquidation(self):
+        from models.models import Packages, PackageHotels, Reservas, ReservationPassengers, Hotels
+        from routers.liquidaciones import get_liquidacion_by_booking
+
+        self.db.add_all([
+            Hotels(id="free-hotel", iweb_client_id="tenant", name="Hotel Liberados"),
+            Packages(id="free-pkg", iweb_client_id="tenant", price=100, gastos=10),
+            PackageHotels(id="free-ph", package_id="free-pkg", hotel_id="free-hotel",
+                          iweb_client_id="tenant", pricing_type="persona"),
+            Reservas(id="free-res", iweb_client_id="tenant", package_id="free-pkg",
+                     hotel_id="free-hotel", commission=10, liberados=2),
+        ])
+        for i in range(10):
+            self.db.add_all([
+                Passengers(id=f"free-p{i}", iweb_client_id="tenant"),
+                ReservationPassengers(id=f"free-rp{i}", reserva_id="free-res",
+                                      pasajero_id=f"free-p{i}", pasajero_type="ADL",
+                                      hotel_id="free-hotel"),
+            ])
+        self.db.commit()
+
+        liq = get_liquidacion_by_booking("free-res", self.db)
+
+        self.assertEqual(liq.total_amout, 880)
+        self.assertEqual(liq.total_commission, 800)
+        self.assertEqual(liq.commission, 80)
+
     def test_deleted_admin_stays_deleted_after_reload_and_repricing(self):
         from models.models import Packages, Liquidaciones
         from routers.liquidaciones import update_liquidacion, get_liquidacion_by_booking

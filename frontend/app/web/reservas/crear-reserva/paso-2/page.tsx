@@ -314,8 +314,18 @@ function Paso2Content() {
         let precioPaquete = 0;
         let gastosReserva = 0;
         let montoComisionable = 0;
-        const totalNonInfantPax = passengersPayload.length || 1;
-        const totalCamaPax = (bloqueoData.cantCama || 0);
+        const nonInfantCount = passengersPayload.filter(
+          (p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF",
+        ).length;
+        const liberatedCount = Math.min(
+          Math.max(Number(bloqueoData.cantLiberados) || 0, 0),
+          nonInfantCount,
+        );
+        const totalNonInfantPax = Math.max(nonInfantCount - liberatedCount, 0);
+        const totalCamaPax = Math.max(
+          (bloqueoData.cantCama || 0) - liberatedCount,
+          0,
+        );
 
         if (paqueteInfo) {
           const unitGastos = Number(paqueteInfo.gastos) || 0;

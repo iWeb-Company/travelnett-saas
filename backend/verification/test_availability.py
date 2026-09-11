@@ -40,7 +40,7 @@ from routers.reservas import (
 )
 from routers.vouchers import generate_voucher_snapshot
 from routers.liquidaciones import calculate_booking_liquidacion_totals
-from routers.salidas import create_salida, register_transport_consumption, update_salida
+from routers.salidas import create_salida, register_transport_consumption, update_salida, get_salida
 
 
 class AvailabilityTests(unittest.TestCase):
@@ -428,6 +428,23 @@ class AvailabilityTests(unittest.TestCase):
         self.assertEqual(float(movements[0].amount), 150)
         self.assertIn("Última actualización", movements[0].detail)
         self.assertIn("Ana Pérez", movements[0].detail)
+
+    def test_departure_capacity_can_be_edited(self):
+        from models.models import User
+
+        actor = User(id=uuid.uuid4().hex, iweb_client_id=self.tenant, username="qa", active=True)
+        asyncio.run(update_salida(self.salida, SalidaUpdateRequest(passengers=12, semicama=11, cama=2), self.tenant, self.db, actor))
+        updated = self.db.get(Salidas, self.salida)
+        self.assertEqual((updated.passengers, updated.semicama, updated.cama), (12, 11, 2))
+
+    def test_departure_response_reports_capacity_when_no_reservations_exist(self):
+        from models.models import Salidas
+        salida = Salidas(id=uuid.uuid4().hex, iweb_client_id=self.tenant, type="bus", passengers=24, semicama=16, cama=8)
+        self.db.add(salida)
+        self.db.commit()
+        response = asyncio.run(get_salida(salida.id, self.tenant, self.db))
+        self.assertEqual((response.passengers, response.semicama, response.cama), (24, 16, 8))
+        self.assertEqual((response.semicama_reservadas, response.cama_reservadas), (0, 0))
 
     def test_package_partial_edit_preserves_dates_capacity(self):
         result = asyncio.run(update_package(self.pkg, PackageUpdateRequest(name_system="Interno"), self.tenant, self.db))

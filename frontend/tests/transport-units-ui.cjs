@@ -39,8 +39,15 @@ const backend = process.env.BACKEND_TEST_URL || 'http://127.0.0.1:8019';
       const saved = page.waitForResponse(response => response.url().includes('/transport-units?') && response.request().method() === 'POST');
       await (await form.$('button[type="submit"], button')).click();
       assert.equal((await saved).status(), 201);
-      await page.waitForFunction(expected => document.querySelectorAll('form').length === expected, {}, forms.length + 1);
+      await page.waitForFunction(expected => document.querySelectorAll('button[aria-controls^="micro-"]').length === expected, {},
+        company === 'company-a' ? 2 : 3);
     }
+    const accordionButtons = await page.$$('button[aria-controls^="micro-"]');
+    await accordionButtons[0].click();
+    assert.equal(await accordionButtons[0].evaluate(element => element.getAttribute('aria-expanded')), 'true');
+    await accordionButtons[1].click();
+    assert.equal(await accordionButtons[0].evaluate(element => element.getAttribute('aria-expanded')), 'false');
+    assert.equal(await accordionButtons[1].evaluate(element => element.getAttribute('aria-expanded')), 'true');
     let units = await read('/salidas/multi/transport-units');
     assert.deepEqual(units.map(u => u.number), [1, 2, 3]);
     assert.deepEqual(units.map(u => u.coordinador_nombre), ['Ana', 'Beatriz', 'Carlos']);

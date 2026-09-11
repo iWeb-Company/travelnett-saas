@@ -8,7 +8,8 @@ from db.database import get_db
 from models.models import Salidas, User, Permission
 from schemas.transport_units import TransportUnitCreate, TransportUnitUpdate, TransportUnitResponse, SeatAssignments
 from services.availability import get_inventory_db
-from services.transport_units import units_for, create_unit, update_unit, cancel_unit, save_assignments
+from services.transport_units import (units_for, create_unit, update_unit, cancel_unit,
+                                      save_assignments, require_transport_units_schema)
 
 router = APIRouter(prefix="/salidas/{salida_id}/transport-units", tags=["Micros de salida"])
 
@@ -59,6 +60,7 @@ def list_units(salida_id: str, iweb_client_id: str, user: User = Depends(authori
 @router.post("", response_model=TransportUnitResponse, status_code=201)
 def add_unit(salida_id: str, iweb_client_id: str, body: TransportUnitCreate,
              db: Session = Depends(get_inventory_db), user: User = Depends(authorize)):
+    require_transport_units_schema(db)
     salida = departure(db, salida_id, iweb_client_id)
     return finish(db, lambda: create_unit(db, salida, body, user.username or user.id))
 
@@ -66,6 +68,7 @@ def add_unit(salida_id: str, iweb_client_id: str, body: TransportUnitCreate,
 @router.patch("/{unit_id}", response_model=TransportUnitResponse)
 def edit_unit(salida_id: str, unit_id: str, iweb_client_id: str, body: TransportUnitUpdate,
               db: Session = Depends(get_inventory_db), user: User = Depends(authorize)):
+    require_transport_units_schema(db)
     salida = departure(db, salida_id, iweb_client_id)
     unit = unit_by_id(db, salida, unit_id)
     return finish(db, lambda: update_unit(db, salida, unit, body, user.username or user.id))
@@ -74,6 +77,7 @@ def edit_unit(salida_id: str, unit_id: str, iweb_client_id: str, body: Transport
 @router.delete("/{unit_id}", response_model=TransportUnitResponse)
 def remove_unit(salida_id: str, unit_id: str, iweb_client_id: str,
                 db: Session = Depends(get_inventory_db), user: User = Depends(authorize)):
+    require_transport_units_schema(db)
     salida = departure(db, salida_id, iweb_client_id)
     unit = unit_by_id(db, salida, unit_id)
     return finish(db, lambda: cancel_unit(db, salida, unit, user.username or user.id))
@@ -82,6 +86,7 @@ def remove_unit(salida_id: str, unit_id: str, iweb_client_id: str,
 @router.put("/{unit_id}/seat-assignments", response_model=TransportUnitResponse)
 def assign_seats(salida_id: str, unit_id: str, iweb_client_id: str, body: SeatAssignments,
                  db: Session = Depends(get_inventory_db), user: User = Depends(authorize)):
+    require_transport_units_schema(db)
     salida = departure(db, salida_id, iweb_client_id)
     unit = unit_by_id(db, salida, unit_id)
     return finish(db, lambda: save_assignments(db, salida, unit, body))

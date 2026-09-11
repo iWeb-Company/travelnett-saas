@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
-from services.availability import get_inventory_db, seat_type
-from services.transport_units import units_for, apply_legacy_update, project_legacy, cancel_unit
+from services.availability import get_inventory_db
+from services.transport_units import units_for, units_for_departures, apply_legacy_update, project_legacy, cancel_unit, create_unit
 from auth.login import get_current_user
 from models.models import (
     Salidas, SalidasLugaresCarga, LugaresCarga, Reservas, ReservationPassengers,
-    TransportCompany, ccProvidersConsumptionPayments, User, SalidaTransportUnit,
+    TransportCompany, ccProvidersConsumptionPayments, User,
 )
 from schemas.schemas import (
     SalidaResponse,
@@ -118,12 +118,7 @@ async def get_salidas(
         return []
 
     salida_ids_lower = [s.id.strip().lower() for s in salidas if s.id]
-    transport_units_map = {}
-    for unit in db.query(SalidaTransportUnit).filter(
-        SalidaTransportUnit.iweb_client_id == iweb_client_id,
-        SalidaTransportUnit.salida_id.in_([s.id for s in salidas]),
-    ).order_by(SalidaTransportUnit.number).all():
-        transport_units_map.setdefault(unit.salida_id, []).append(unit)
+    transport_units_map = units_for_departures(db, iweb_client_id, [s.id for s in salidas])
 
     # Batch 1: All SalidasLugaresCarga
     all_slc = db.query(SalidasLugaresCarga).filter(
@@ -232,7 +227,7 @@ async def get_salidas(
                 regimen_id=s.regimen_id,
                 alcance=s.alcance or "argentina",
                 vouchers_online=bool(s.vouchers_online),
-                passengers=total_passengers,
+                passengers=s.passengers,
                 semicama=s.semicama or 0,
                 cama=s.cama or 0,
                 semicama_disponibles=dispo_semicama,
@@ -340,7 +335,7 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
         regimen_id=s.regimen_id,
         alcance=s.alcance or "argentina",
         vouchers_online=bool(s.vouchers_online),
-        passengers=total_passengers,
+        passengers=s.passengers,
         semicama=s.semicama,
         cama=s.cama,
         cargas=cargas_resolved,
@@ -380,6 +375,7 @@ async def create_salida(
         vouchers_online=body.vouchers_online if body.vouchers_online is not None else False
     )
     db.add(new_salida)
+    db.flush()
     
     # Crear relación de lugares de carga
     cargas_str = ", ".join(body.cargas_ids) if body.cargas_ids else None
@@ -392,7 +388,17 @@ async def create_salida(
         horarios=horarios_str
     )
     db.add(new_relation)
-    register_transport_consumption(db, new_salida)
+    if (body.type or "").strip().lower() in {"bus", "micro"} and body.transport_company and body.precio_transporte is not None and body.precio_transporte > 0:
+        from schemas.transport_units import TransportUnitCreate
+        create_unit(db, new_salida, TransportUnitCreate(
+            transport_company=body.transport_company,
+            price=body.precio_transporte,
+            type_bus=body.type_bus,
+            coordinador_nombre=body.coordinador_nombre,
+            coordinador_telefono=body.coordinador_telefono,
+        ), "Sistema")
+    else:
+        register_transport_consumption(db, new_salida)
     
     db.commit()
     db.refresh(new_salida)
@@ -462,15 +468,6 @@ async def update_salida(
 
     previous_transport_price = float(s.precio_transporte or 0)
     has_units = apply_legacy_update(db, s, body, _audit_actor_name(current_user))
-
-    if body.semicama is not None or body.cama is not None:
-        occupied = db.query(ReservationPassengers.butaca_type).join(Reservas, Reservas.id == ReservationPassengers.reserva_id).filter(
-            Reservas.iweb_client_id == iweb_client_id, Reservas.salida_id == id, Reservas.active.is_not(False)
-        ).all()
-        for kind in ("cama", "semicama"):
-            capacity = getattr(body, kind)
-            if capacity is not None and capacity < sum(seat_type(t) == kind for (t,) in occupied):
-                raise HTTPException(400, f"El cupo de {kind} no puede ser menor a las butacas reservadas")
     # Actualizar los campos que se envíen
     if body.date_of_out is not None:
         s.date_of_out = body.date_of_out

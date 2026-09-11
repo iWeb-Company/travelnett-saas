@@ -652,8 +652,15 @@ export const apiClient = {
     return response.json();
   },
 
-  async getVoucher(iwebClientId: string, reservaId: string): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/vouchers/get_voucher/${reservaId}?iweb_client_id=${iwebClientId}`, {
+  async getVoucher(
+    iwebClientId: string,
+    reservaId: string,
+    passengerId?: string,
+  ): Promise<any> {
+    const passengerQuery = passengerId
+      ? `&passenger_id=${encodeURIComponent(passengerId)}`
+      : "";
+    const response = await fetch(`${API_BASE_URL}/vouchers/get_voucher/${reservaId}?iweb_client_id=${iwebClientId}${passengerQuery}`, {
       credentials: 'include',
     });
     if (response.status === 401) {

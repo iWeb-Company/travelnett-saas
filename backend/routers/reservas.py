@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
 from services.availability import get_inventory_db, resolve_selection, validate_reservation, snapshot
+from services.transport_units import assign_passenger_to_unit_number
 from services.reservation_rooms import (
     clone_reservation_rooms,
     parse_room_types,
@@ -635,6 +636,7 @@ async def create_reserva(
                 butaca_number=p_in.butaca_number,
                 butaca_type=p_in.butaca_type,
                 bus_number=p_in.bus_number,
+                salida_transport_unit_id=p_in.salida_transport_unit_id,
                 lugar_carga_id=p_in.lugar_carga_id or body.lugar_carga_id,
                 room_index=room_index,
             )
@@ -1467,7 +1469,14 @@ async def update_reservation_passenger(
     
     previous = snapshot(db, res_obj)
     if body.bus_number is not None:
-        rp.bus_number = body.bus_number
+        salida = db.query(Salidas).filter(
+            Salidas.id == res_obj.salida_id,
+            Salidas.iweb_client_id == res_obj.iweb_client_id,
+        ).first()
+        if salida:
+            assign_passenger_to_unit_number(db, salida, rp, body.bus_number)
+        else:
+            rp.bus_number = body.bus_number.strip() or None
     if body.butaca_number is not None:
         rp.butaca_number = body.butaca_number
     if body.butaca_type is not None:
@@ -1488,4 +1497,5 @@ async def update_reservation_passenger(
         db.rollback()
         raise
     db.refresh(rp)
-    return {"message": "Pasajero de reserva actualizado con éxito", "bus_number": rp.bus_number, "lugar_carga_id": rp.lugar_carga_id}
+    return {"message": "Pasajero de reserva actualizado con éxito", "bus_number": rp.bus_number,
+            "salida_transport_unit_id": rp.salida_transport_unit_id, "lugar_carga_id": rp.lugar_carga_id}

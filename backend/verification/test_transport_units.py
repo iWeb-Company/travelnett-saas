@@ -54,6 +54,16 @@ class TransportMigrationTests(unittest.TestCase):
             self.assertEqual(db.execute(text("SELECT COUNT(*) FROM salida_transport_units")).scalar(), 0)
             self.assertEqual(db.execute(text("SELECT COUNT(*) FROM reservation_passengers")).scalar(), 2)
 
+    def test_reads_remain_available_before_the_additive_migration(self):
+        from types import SimpleNamespace
+        from sqlalchemy.orm import Session
+        from services.transport_units import units_for, units_for_departures
+        db = Session(self.engine)
+        salida = SimpleNamespace(id="departure", iweb_client_id="tenant")
+        self.assertEqual(units_for(db, salida), [])
+        self.assertEqual(units_for_departures(db, "tenant", ["departure"]), {})
+        db.close()
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -67,7 +77,7 @@ class TransportServiceTests(unittest.TestCase):
         self.engine = create_engine("sqlite://")
         Base.metadata.create_all(self.engine)
         self.db = Session(self.engine)
-        self.salida = Salidas(id="s", iweb_client_id="t", type="bus", semicama=0, cama=0, active=True)
+        self.salida = Salidas(id="s", iweb_client_id="t", type="bus", semicama=3, cama=2, active=True)
         self.db.add_all([self.salida,
             TransportCompany(id="a", iweb_client_id="t"), TransportCompany(id="b", iweb_client_id="t"),
             BusTypes(id="mix", iweb_client_id="t", name="Mix", semicama_quantity=3, cama_quantity=2, panoramicos_quantity=4)])
@@ -87,12 +97,26 @@ class TransportServiceTests(unittest.TestCase):
         units = [self.create(), self.create(), self.create("b")]
         self.db.commit()
         self.assertEqual([u.number for u in units], [1, 2, 3])
-        self.assertEqual((self.salida.semicama, self.salida.cama), (9, 6))
+        self.assertEqual((self.salida.semicama, self.salida.cama), (3, 2))
         expenses = self.db.query(ccProvidersConsumptionPayments).all()
         self.assertEqual(sorted(e.transport_id for e in expenses), ["a", "a", "b"])
         self.db.get(BusTypes, "mix").semicama_quantity = 20
         self.db.commit()
         self.assertEqual(units[0].layout_snapshot["semicama_quantity"], 3)
+
+    def test_transport_changes_do_not_increase_departure_commercial_capacity(self):
+        from services.transport_units import update_unit, cancel_unit
+        from schemas.transport_units import TransportUnitUpdate
+
+        first = self.create()
+        self.salida.semicama = 4
+        self.salida.cama = 2
+        self.salida.passengers = 6
+        second = self.create()
+        update_unit(self.db, self.salida, second, TransportUnitUpdate(type_bus="mix"), "operator")
+        cancel_unit(self.db, self.salida, second, "operator")
+
+        self.assertEqual((self.salida.semicama, self.salida.cama, self.salida.passengers), (4, 2, 6))
 
     def test_cancel_preserves_number_and_expense_history(self):
         from services.transport_units import cancel_unit
@@ -126,6 +150,63 @@ class TransportServiceTests(unittest.TestCase):
         with self.assertRaises(HTTPException):
             save_assignments(self.db, self.salida, second, payload(second.revision))
 
+    def test_seat_save_does_not_clear_other_passengers_without_seat(self):
+        from models.models import Reservas, ReservationPassengers
+        from services.transport_units import save_assignments
+        from schemas.transport_units import SeatAssignments
+
+        unit = self.create()
+        self.db.add(Reservas(id="r-partial", iweb_client_id="t", salida_id="s", active=True))
+        seated = ReservationPassengers(
+            id="p-seated", reserva_id="r-partial", pasajero_id="person-seated",
+            pasajero_type="ADL", butaca_type="cama",
+            salida_transport_unit_id=unit.id, bus_number=str(unit.number),
+        )
+        waiting = ReservationPassengers(
+            id="p-waiting", reserva_id="r-partial", pasajero_id="person-waiting",
+            pasajero_type="ADL", butaca_type="cama",
+            salida_transport_unit_id=unit.id, bus_number=str(unit.number),
+        )
+        self.db.add_all([seated, waiting])
+        self.db.commit()
+
+        save_assignments(
+            self.db,
+            self.salida,
+            unit,
+            SeatAssignments(revision=unit.revision, assignments=[
+                {"reservation_passenger_id": seated.id, "butaca_number": 1},
+            ]),
+        )
+        self.assertEqual((seated.butaca_number, waiting.salida_transport_unit_id, waiting.bus_number),
+                         (1, unit.id, str(unit.number)))
+
+    def test_seat_save_can_explicitly_remove_a_seat_without_removing_micro(self):
+        from models.models import Reservas, ReservationPassengers
+        from services.transport_units import save_assignments
+        from schemas.transport_units import SeatAssignments
+
+        unit = self.create()
+        self.db.add(Reservas(id="r-clear-seat", iweb_client_id="t", salida_id="s", active=True))
+        passenger = ReservationPassengers(
+            id="p-clear-seat", reserva_id="r-clear-seat", pasajero_id="person-clear-seat",
+            pasajero_type="ADL", butaca_type="cama", butaca_number=1,
+            salida_transport_unit_id=unit.id, bus_number=str(unit.number),
+        )
+        self.db.add(passenger)
+        self.db.commit()
+
+        save_assignments(
+            self.db,
+            self.salida,
+            unit,
+            SeatAssignments(revision=unit.revision, assignments=[
+                {"reservation_passenger_id": passenger.id, "butaca_number": None},
+            ]),
+        )
+        self.assertEqual((passenger.butaca_number, passenger.salida_transport_unit_id, passenger.bus_number),
+                         (None, unit.id, str(unit.number)))
+
     def test_duplicate_seat_rolls_back_entire_assignment(self):
         from fastapi import HTTPException
         from models.models import Reservas, ReservationPassengers
@@ -143,20 +224,37 @@ class TransportServiceTests(unittest.TestCase):
         self.assertTrue(all(p.salida_transport_unit_id is None for p in self.db.query(ReservationPassengers)))
         self.assertEqual(unit.revision, 0)
 
-    def test_reduction_respects_unassigned_demand(self):
-        from fastapi import HTTPException
+    def test_cancel_does_not_reduce_departure_commercial_capacity(self):
         from models.models import Reservas, ReservationPassengers
         from services.transport_units import cancel_unit
-        from routers.transport_units import finish
         unit = self.create()
         self.db.add(Reservas(id="r", iweb_client_id="t", salida_id="s", active=True))
         self.db.add(ReservationPassengers(id="p", reserva_id="r", pasajero_id="p", pasajero_type="ADL", butaca_type="cama"))
         self.db.commit()
-        with self.assertRaises(HTTPException):
-            finish(self.db, lambda: cancel_unit(self.db, self.salida, unit, "operator"))
-        self.assertTrue(unit.active)
+        cancel_unit(self.db, self.salida, unit, "operator")
+        self.assertFalse(unit.active)
+        self.assertEqual((self.salida.semicama, self.salida.cama), (3, 2))
 
-    def test_foreign_company_and_legacy_multibus_write_are_rejected(self):
+    def test_assignment_uses_departure_capacity_not_micro_capacity(self):
+        from models.models import Reservas, ReservationPassengers
+        from services.transport_units import assign_passenger_to_unit_number, validate_inventory
+
+        unit = self.create()
+        unit.semicama = 0
+        unit.cama = 0
+        self.db.add(Reservas(id="r-cap", iweb_client_id="t", salida_id="s", active=True))
+        passenger = ReservationPassengers(
+            id="p-cap", reserva_id="r-cap", pasajero_id="person-cap",
+            pasajero_type="ADL", butaca_type="semicama"
+        )
+        self.db.add(passenger)
+        self.db.flush()
+
+        assign_passenger_to_unit_number(self.db, self.salida, passenger, "1")
+        validate_inventory(self.db, self.salida)
+        self.assertEqual(passenger.salida_transport_unit_id, unit.id)
+
+    def test_foreign_company_rejected_and_legacy_capacity_edit_allowed(self):
         from fastapi import HTTPException
         from models.models import TransportCompany
         from services.transport_units import apply_legacy_update
@@ -167,9 +265,21 @@ class TransportServiceTests(unittest.TestCase):
             self.create("foreign")
         self.create()
         self.create()
-        with self.assertRaises(HTTPException):
-            apply_legacy_update(self.db, self.salida, SalidaUpdateRequest(semicama=100), "operator")
+        self.assertTrue(apply_legacy_update(self.db, self.salida, SalidaUpdateRequest(semicama=100), "operator"))
         self.assertTrue(apply_legacy_update(self.db, self.salida, SalidaUpdateRequest(date_of_out="2026-10-01"), "operator"))
+
+    def test_new_departure_can_create_first_micro_without_legacy_migration(self):
+        from models.models import Salidas
+        from schemas.transport_units import TransportUnitCreate
+        from services.transport_units import create_unit
+        salida = Salidas(id="new-salida", iweb_client_id="t", type="bus", passengers=10, semicama=7, cama=3)
+        self.db.add(salida)
+        self.db.flush()
+        unit = create_unit(self.db, salida, TransportUnitCreate(
+            transport_company="a", price=100, type_bus="mix",
+            coordinador_nombre="QA", coordinador_telefono="123"), "operator")
+        self.assertEqual(unit.number, 1)
+        self.assertEqual((unit.semicama, unit.cama), (3, 2))
 
     def test_booking_update_preserves_association_and_transport(self):
         import asyncio
@@ -186,3 +296,37 @@ class TransportServiceTests(unittest.TestCase):
             asyncio.run(update_reserva("r", payload, "t", self.db))
         p = self.db.query(ReservationPassengers).one()
         self.assertEqual((p.id, p.salida_transport_unit_id, p.butaca_number, p.butaca_type), ("p", unit.id, 1, "cama"))
+
+    def test_bus_number_assigns_the_matching_micro_and_clears_the_old_seat(self):
+        from models.models import Reservas, ReservationPassengers
+        from services.transport_units import assign_passenger_to_unit_number
+
+        first, second = self.create(), self.create()
+        self.db.add(Reservas(id="r", iweb_client_id="t", salida_id="s", active=True))
+        passenger = ReservationPassengers(
+            id="p", reserva_id="r", pasajero_id="person", pasajero_type="cama",
+            butaca_type="cama", butaca_number=1, bus_number="1", salida_transport_unit_id=first.id,
+        )
+        self.db.add(passenger)
+        self.db.commit()
+
+        assign_passenger_to_unit_number(self.db, self.salida, passenger, "2")
+
+        self.assertEqual((passenger.bus_number, passenger.salida_transport_unit_id, passenger.butaca_number), ("2", second.id, None))
+
+    def test_voucher_transport_stays_pending_without_a_bus_number(self):
+        from models.models import Reservas, ReservationPassengers
+        from routers.vouchers import transport_details_for_passengers
+
+        self.create()
+        self.db.add(Reservas(id="r", iweb_client_id="t", salida_id="s", active=True))
+        passenger = ReservationPassengers(
+            id="p", reserva_id="r", pasajero_id="person", pasajero_type="ADL", butaca_type="semicama",
+        )
+        self.db.add(passenger)
+        self.db.commit()
+
+        self.assertEqual(
+            transport_details_for_passengers(self.db, self.salida, "t", [passenger]),
+            ("A confirmar", "", ""),
+        )
