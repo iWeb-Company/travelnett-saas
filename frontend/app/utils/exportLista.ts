@@ -24,6 +24,8 @@ export interface LugarCargaListaData {
 }
 
 export interface ExportListaData {
+  microNumber?: number;
+  coordinator?: string;
   transportCompany?: string | null;
   destinoName?: string | null;
   salidaDate?: string | null;
@@ -55,6 +57,10 @@ function formatDateString(dateStr: string | null | undefined): string {
 export async function exportListaToExcel(data: ExportListaData) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Lista");
+  if (data.microNumber) {
+    ws.headerFooter.oddHeader = `&CMicro ${data.microNumber} - ${(data.transportCompany || '').replace(/&/g, '&&')}`;
+    ws.headerFooter.oddFooter = `&CCoordinador: ${(data.coordinator || '-').replace(/&/g, '&&')}`;
+  }
 
   // Column widths matching lista_example.xlsx exactly
   const columns = [
@@ -196,7 +202,7 @@ export async function exportListaToExcel(data: ExportListaData) {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 
-  const fileName = `Lista_${(data.destinoName || "Salida").replace(/\s+/g, "_")}_${data.salidaDate || "fecha"}.xlsx`;
+  const fileName = `Lista_${(data.destinoName || "Salida").replace(/\s+/g, "_")}_${data.salidaDate || "fecha"}${data.microNumber ? `_Micro_${data.microNumber}` : ''}.xlsx`;
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

@@ -608,19 +608,25 @@ function Paso3Content() {
         let gastosReserva = 0;
         let montoComisionable = 0;
 
-        const totalNonInfantPax =
-          passengersPayload.filter(
-            (p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF",
-          ).length || 1;
+        const nonInfantCount = passengersPayload.filter(
+          (p: any) => (p.pasajero_type || "ADL").toUpperCase() !== "INF",
+        ).length;
+        const liberatedCount = Math.min(
+          Math.max(Number(bloqueoData.cantLiberados) || 0, 0),
+          nonInfantCount,
+        );
+        const chargeablePaxCount = Math.max(nonInfantCount - liberatedCount, 0);
+        const totalNonInfantPax = nonInfantCount || 1;
         const totalCamaPax = passengersPayload.filter(
           (p: any) => (p.butaca_type || "").toLowerCase() === "cama",
         ).length;
+        const chargeableCamaPax = Math.max(totalCamaPax - liberatedCount, 0);
 
         if (paqueteInfo) {
           const unitGastos = Number(paqueteInfo.gastos) || 0;
           const unitAdicional = Number(paqueteInfo.adicional) || 0;
-          gastosReserva = unitGastos * totalNonInfantPax;
-          const adicionalCama = unitAdicional * totalCamaPax;
+          gastosReserva = unitGastos * chargeablePaxCount;
+          const adicionalCama = unitAdicional * chargeableCamaPax;
           const isPorHabitacion = (paqueteInfo.pricing_type || "")
             .toLowerCase()
             .includes("habitacion");
@@ -703,13 +709,16 @@ function Paso3Content() {
             montoComisionable = defaultPrice * totalNonInfantPax;
           }
 
+          if (nonInfantCount > 0 && liberatedCount > 0) {
+            montoComisionable *= chargeablePaxCount / nonInfantCount;
+          }
           if (paqueteInfo.comisionable) {
             montoComisionable += adicionalCama;
           }
         } else {
           precioPaquete = Number(bloqueoData.precioPaquete) || 0;
           gastosReserva =
-            (Number(bloqueoData.gastosReserva) || 0) * totalNonInfantPax;
+            (Number(bloqueoData.gastosReserva) || 0) * chargeablePaxCount;
           let totalPax = 0;
           if (tipoReserva === "bloqueo") {
             const rawSeats =
@@ -721,7 +730,7 @@ function Paso3Content() {
             );
           }
           if (totalPax === 0 && tipoReserva !== "bloqueo") {
-            totalPax = totalNonInfantPax;
+            totalPax = chargeablePaxCount;
           }
           if (
             totalPax === 0 &&
@@ -738,7 +747,7 @@ function Paso3Content() {
           gastosReserva +
           (paqueteInfo?.comisionable
             ? 0
-            : (Number(paqueteInfo?.adicional) || 0) * totalCamaPax);
+            : (Number(paqueteInfo?.adicional) || 0) * chargeableCamaPax);
 
         const commAmount = (montoComisionable * clientCommPct) / 100;
 

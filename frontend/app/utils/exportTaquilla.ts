@@ -12,6 +12,8 @@ export interface PasajeroTaquilla {
 }
 
 export interface ExportTaquillaData {
+  microNumber?: number;
+  coordinator?: string;
   transportCompany?: string | null;
   destinoName?: string | null;
   salidaDate?: string | null;
@@ -111,7 +113,8 @@ export async function exportTaquillaToExcel(data: ExportTaquillaData) {
 
   worksheet.mergeCells(1, 1, 1, totalColumns);
   const title = worksheet.getCell(1, 1);
-  title.value = "TAQUILLA DE ASIENTOS - " + (data.transportCompany || "BUS").toUpperCase();
+  title.value = "TAQUILLA DE ASIENTOS - " + (data.transportCompany || "BUS").toUpperCase() + (data.microNumber ? ` - MICRO ${data.microNumber}` : '');
+  if (data.coordinator) worksheet.headerFooter.oddFooter = `&CCoordinador: ${data.coordinator.replace(/&/g, '&&')}`;
   title.font = { name: "Calibri", size: 13, bold: true, color: { argb: "FF003399" } };
 
   if (data.destinoName) {
@@ -135,7 +138,7 @@ export async function exportTaquillaToExcel(data: ExportTaquillaData) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "Taquilla_" + (data.transportCompany || "Salida").replace(/\s+/g, "_") + ".xlsx";
+  anchor.download = "Taquilla_" + (data.transportCompany || "Salida").replace(/\s+/g, "_") + (data.microNumber ? `_Micro_${data.microNumber}` : '') + ".xlsx";
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -263,7 +266,7 @@ function drawPdfRows(
 
 export async function exportTaquillaToPdf(data: ExportTaquillaData) {
   const document = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const title = (data.transportCompany || "BUS").toUpperCase();
+  const title = (data.transportCompany || "BUS").toUpperCase() + (data.microNumber ? ` - MICRO ${data.microNumber}` : '');
   const logoDataUrl = await getLogoDataUrl(data.logoUrl);
 
   document.setFont("helvetica", "bold");
@@ -295,7 +298,14 @@ export async function exportTaquillaToPdf(data: ExportTaquillaData) {
   document.text("INFERIOR (CAMA)", 14, afterSemicama + 7);
   drawPdfRows(document, data.layout.camaRows, "C", afterSemicama + 10, data, logoDataUrl);
 
+  if (data.coordinator) {
+    for (let page = 1; page <= document.getNumberOfPages(); page++) {
+      document.setPage(page);
+      document.setFontSize(8);
+      document.text(`Coordinador: ${data.coordinator}`, 14, document.internal.pageSize.getHeight() - 6, { maxWidth: 270 });
+    }
+  }
   document.save(
-    "Taquilla_" + (data.destinoName || "Salida").replace(/\s+/g, "_") + "_" + (data.salidaDate || "Salida") + ".pdf"
+    "Taquilla_" + (data.destinoName || "Salida").replace(/\s+/g, "_") + "_" + (data.salidaDate || "Salida") + (data.microNumber ? `_Micro_${data.microNumber}` : '') + ".pdf"
   );
 }

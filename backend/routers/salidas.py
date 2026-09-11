@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
-from services.availability import get_inventory_db, seat_type
+from services.availability import get_inventory_db
+from services.transport_units import units_for, units_for_departures, apply_legacy_update, project_legacy, cancel_unit, create_unit
 from auth.login import get_current_user
 from models.models import (
     Salidas, SalidasLugaresCarga, LugaresCarga, Reservas, ReservationPassengers,
@@ -35,6 +36,11 @@ def register_transport_consumption(
     updated_by: Optional[User] = None,
 ):
     """Create or synchronize the single operational transport expense for a departure."""
+    if units_for(db, salida):
+        from services.transport_units import sync_consumption
+        for unit in units_for(db, salida):
+            sync_consumption(db, salida, unit, _audit_actor_name(updated_by) if updated_by else "Sistema")
+        return
     existing = db.query(ccProvidersConsumptionPayments).filter(
         ccProvidersConsumptionPayments.salida_id == salida.id,
         ccProvidersConsumptionPayments.iweb_client_id == salida.iweb_client_id,
@@ -112,6 +118,7 @@ async def get_salidas(
         return []
 
     salida_ids_lower = [s.id.strip().lower() for s in salidas if s.id]
+    transport_units_map = units_for_departures(db, iweb_client_id, [s.id for s in salidas])
 
     # Batch 1: All SalidasLugaresCarga
     all_slc = db.query(SalidasLugaresCarga).filter(
@@ -203,6 +210,7 @@ async def get_salidas(
 
         response.append(
             SalidaResponse(
+                transport_units=transport_units_map.get(s.id, []),
                 id=s.id,
                 iweb_client_id=s.iweb_client_id,
                 date_of_out=s.date_of_out,
@@ -219,7 +227,7 @@ async def get_salidas(
                 regimen_id=s.regimen_id,
                 alcance=s.alcance or "argentina",
                 vouchers_online=bool(s.vouchers_online),
-                passengers=total_passengers,
+                passengers=s.passengers,
                 semicama=s.semicama or 0,
                 cama=s.cama or 0,
                 semicama_disponibles=dispo_semicama,
@@ -310,6 +318,7 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
     dispo_cama = max(0, total_cama - cama_res_qty)
             
     return SalidaResponse(
+        transport_units=units_for(db, s),
         id=s.id,
         iweb_client_id=s.iweb_client_id,
         date_of_out=s.date_of_out,
@@ -326,7 +335,7 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
         regimen_id=s.regimen_id,
         alcance=s.alcance or "argentina",
         vouchers_online=bool(s.vouchers_online),
-        passengers=total_passengers,
+        passengers=s.passengers,
         semicama=s.semicama,
         cama=s.cama,
         cargas=cargas_resolved,
@@ -366,6 +375,7 @@ async def create_salida(
         vouchers_online=body.vouchers_online if body.vouchers_online is not None else False
     )
     db.add(new_salida)
+    db.flush()
     
     # Crear relación de lugares de carga
     cargas_str = ", ".join(body.cargas_ids) if body.cargas_ids else None
@@ -378,7 +388,17 @@ async def create_salida(
         horarios=horarios_str
     )
     db.add(new_relation)
-    register_transport_consumption(db, new_salida)
+    if (body.type or "").strip().lower() in {"bus", "micro"} and body.transport_company and body.precio_transporte is not None and body.precio_transporte > 0:
+        from schemas.transport_units import TransportUnitCreate
+        create_unit(db, new_salida, TransportUnitCreate(
+            transport_company=body.transport_company,
+            price=body.precio_transporte,
+            type_bus=body.type_bus,
+            coordinador_nombre=body.coordinador_nombre,
+            coordinador_telefono=body.coordinador_telefono,
+        ), "Sistema")
+    else:
+        register_transport_consumption(db, new_salida)
     
     db.commit()
     db.refresh(new_salida)
@@ -404,6 +424,7 @@ async def create_salida(
         
     return SalidaResponse(
         id=new_salida.id,
+        transport_units=units_for(db, new_salida),
         iweb_client_id=new_salida.iweb_client_id,
         date_of_out=new_salida.date_of_out,
         type=new_salida.type,
@@ -446,15 +467,7 @@ async def update_salida(
         raise HTTPException(status_code=404, detail="Salida no encontrada")
 
     previous_transport_price = float(s.precio_transporte or 0)
-
-    if body.semicama is not None or body.cama is not None:
-        occupied = db.query(ReservationPassengers.butaca_type).join(Reservas, Reservas.id == ReservationPassengers.reserva_id).filter(
-            Reservas.iweb_client_id == iweb_client_id, Reservas.salida_id == id, Reservas.active.is_not(False)
-        ).all()
-        for kind in ("cama", "semicama"):
-            capacity = getattr(body, kind)
-            if capacity is not None and capacity < sum(seat_type(t) == kind for (t,) in occupied):
-                raise HTTPException(400, f"El cupo de {kind} no puede ser menor a las butacas reservadas")
+    has_units = apply_legacy_update(db, s, body, _audit_actor_name(current_user))
     # Actualizar los campos que se envíen
     if body.date_of_out is not None:
         s.date_of_out = body.date_of_out
@@ -491,7 +504,9 @@ async def update_salida(
     if body.vouchers_online is not None:
         s.vouchers_online = body.vouchers_online
 
-    if body.precio_transporte is not None and float(s.precio_transporte or 0) != previous_transport_price:
+    if has_units:
+        project_legacy(db, s)
+    if not has_units and body.precio_transporte is not None and float(s.precio_transporte or 0) != previous_transport_price:
         register_transport_consumption(
             db,
             s,
@@ -554,6 +569,7 @@ async def update_salida(
         
     return SalidaResponse(
         id=s.id,
+        transport_units=units_for(db, s),
         iweb_client_id=s.iweb_client_id,
         date_of_out=s.date_of_out,
         type=s.type,
@@ -588,6 +604,12 @@ async def delete_salida(id: str, iweb_client_id: str, db: Session = Depends(get_
         
     if db.query(Reservas).filter_by(iweb_client_id=iweb_client_id, salida_id=id).filter(Reservas.active.is_not(False)).first():
         raise HTTPException(400, "No se puede eliminar una salida con reservas vigentes")
+    if units_for(db, s):
+        for unit in units_for(db, s):
+            cancel_unit(db, s, unit, "Baja de salida")
+        s.active = False
+        db.commit()
+        return {"message": "Salida anulada conservando el historial de micros"}
     from models.models import PackagesDatesOfExit, PackageHotelCapacity
     db.query(PackageHotelCapacity).filter_by(iweb_client_id=iweb_client_id, salida_id=id).delete(synchronize_session=False)
     db.query(PackagesDatesOfExit).filter_by(iweb_client_id=iweb_client_id, salida_id=id).delete(synchronize_session=False)

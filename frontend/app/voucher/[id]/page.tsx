@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
@@ -20,6 +20,7 @@ import { useSinglePagePrint } from "@/app/utils/useSinglePagePrint";
 
 export default function VoucherPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const bg = "bg-[#DFF1FF]";
   const { user, iwebClient } = useAuth();
@@ -27,6 +28,7 @@ export default function VoucherPage() {
     iwebClient?.logo_s || iwebClient?.logo_xl || "/logo-empresa.png";
   const agencyName = iwebClient?.name || "asd";
   const id = params.id as string;
+  const passengerId = searchParams.get("passenger_id") || undefined;
   const [voucherData, setVoucherData] = useState<Voucher | null>(null);
   const [loading, setLoading] = useState(true);
   const { printRef, printSinglePage } = useSinglePagePrint<HTMLDivElement>();
@@ -35,7 +37,11 @@ export default function VoucherPage() {
   const loadVoucher = async () => {
     if (!user?.iweb_client_id || !id) return;
     try {
-      const data = await apiClient.getVoucher(user.iweb_client_id, id);
+      const data = await apiClient.getVoucher(
+        user.iweb_client_id,
+        id,
+        passengerId,
+      );
       setVoucherData(data);
     } catch (error) {
       console.error(error);
@@ -49,7 +55,7 @@ export default function VoucherPage() {
     if (user?.iweb_client_id) {
       loadVoucher();
     }
-  }, [user?.iweb_client_id, id]);
+  }, [user?.iweb_client_id, id, passengerId]);
 
   const passengers = useMemo(() => {
     const paxs = voucherData?.passengers_names;
@@ -190,7 +196,9 @@ export default function VoucherPage() {
         </div>
 
         {/* Contenedor Principal del Voucher */}
-        <div ref={printRef} className="max-w-4xl mx-auto bg-white shadow-lg border border-black overflow-hidden print-voucher w-full text-black">
+        <div
+          ref={printRef}
+          className="max-w-4xl mx-auto bg-white shadow-lg border border-black overflow-hidden print-voucher w-full text-black">
           {/* Header  */}
           <div
             className={`text-black py-4 px-4 sm:px-6 md:px-10 flex flex-col md:flex-row items-center justify-between border-b border-b-black gap-3 md:gap-0`}>
@@ -209,7 +217,9 @@ export default function VoucherPage() {
                 VOUCHER DE SERVICIOS CONTRATADOS
               </p>
               <p className="text-xl sm:text-2xl font-semibold">
-                RESERVA {voucherData.codigo_reserva || voucherData.id.substring(0, 5).toUpperCase()}
+                RESERVA{" "}
+                {voucherData.codigo_reserva ||
+                  voucherData.id.substring(0, 5).toUpperCase()}
               </p>
             </div>
           </div>
@@ -240,9 +250,7 @@ export default function VoucherPage() {
             <p className="font-semibold text-xl sm:text-2xl">Pasajeros</p>
             <div className="flex flex-wrap items-start">
               {passengers?.map((p, i) => (
-                <span
-                  key={i}
-                  className="text-lg sm:text-xl pr-2 font-semibold">
+                <span key={i} className="text-lg sm:text-xl pr-2 font-semibold">
                   {p} {i + 1 !== passengers?.length ? "/" : ""}
                 </span>
               ))}
@@ -268,7 +276,6 @@ export default function VoucherPage() {
                 </p>
               </div>
             </div>
-
             {/* DATA */}
             <div className="grid grid-cols-1 md:grid-cols-2 w-full place-content-center place-items-start gap-3">
               <div className="min-w-full">
@@ -277,8 +284,10 @@ export default function VoucherPage() {
                     {voucherData.empresa_transporte}
                   </p>
                   <p className="text-sm sm:text-base">
-                    Coordinador: {voucherData.coordinador_nombre} -{" "}
-                    {voucherData.coordinador_telefono}
+                    Coordinador:{" "}
+                    {[voucherData.coordinador_nombre, voucherData.coordinador_telefono]
+                      .filter(Boolean)
+                      .join(" - ") || "A confirmar"}
                   </p>
                 </div>
                 <div className="flex flex-col items-center gap-2">
@@ -373,11 +382,15 @@ export default function VoucherPage() {
                   </p>
                   <div className="flex items-center gap-2 text-sm sm:text-base">
                     <p>Dirección:</p>
-                    <p className="font-semibold">{voucherData.hotel_address || "-"}</p>
+                    <p className="font-semibold">
+                      {voucherData.hotel_address || "-"}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 text-sm sm:text-base">
                     <p>Telefono:</p>
-                    <p className="font-semibold">{voucherData.hotel_phone || "-"}</p>
+                    <p className="font-semibold">
+                      {voucherData.hotel_phone || "-"}
+                    </p>
                   </div>
                 </div>
                 <div className="flex flex-col items-center gap-2">
@@ -432,75 +445,77 @@ export default function VoucherPage() {
 
           {/* BLOQUE EXCURSIONES */}
           {hasExcursion && (
-          <div className="border-black py-5 px-4 sm:px-6 md:px-10 border-b flex flex-col gap-6 md:gap-8">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-5">
-              <div className="flex items-center gap-2">
-                <img
-                  src="/excursiones.png"
-                  className="h-12 md:h-15 object-contain"
-                  alt="Logo"
-                />
-                <h3 className="font-bold text-lg md:text-xl uppercase">
-                  excursiones
-                </h3>
+            <div className="border-black py-5 px-4 sm:px-6 md:px-10 border-b flex flex-col gap-6 md:gap-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-5">
+                <div className="flex items-center gap-2">
+                  <img
+                    src="/excursiones.png"
+                    className="h-12 md:h-15 object-contain"
+                    alt="Logo"
+                  />
+                  <h3 className="font-bold text-lg md:text-xl uppercase">
+                    excursiones
+                  </h3>
+                </div>
+                <div className="bg-[#F1F1F1] px-4 py-1 flex flex-col items-center rounded-xl border border-gray-300 self-start sm:self-auto">
+                  <p className="font-semibold text-sm sm:text-base">
+                    Voucher de Excursión
+                  </p>
+                </div>
               </div>
-              <div className="bg-[#F1F1F1] px-4 py-1 flex flex-col items-center rounded-xl border border-gray-300 self-start sm:self-auto">
-                <p className="font-semibold text-sm sm:text-base">
-                  Voucher de Excursión
-                </p>
-              </div>
-            </div>
 
-            {/* DATA */}
-            <div className="grid grid-cols-1 md:grid-cols-2 w-full place-content-center place-items-start gap-3">
-              <div className="min-w-full">
-                <div className="flex flex-col items-start w-full py-2">
-                  <p className="font-bold text-xl sm:text-2xl">Pasajeros</p>
-                  <div className="flex flex-wrap items-start">
-                    {passengers?.map((p, i) => (
-                      <span
-                        key={i}
-                        className="text-lg sm:text-xl pr-2 font-semibold">
-                        {p} {i + 1 !== passengers?.length ? "/" : ""}
-                      </span>
-                    ))}
+              {/* DATA */}
+              <div className="grid grid-cols-1 md:grid-cols-2 w-full place-content-center place-items-start gap-3">
+                <div className="min-w-full">
+                  <div className="flex flex-col items-start w-full py-2">
+                    <p className="font-bold text-xl sm:text-2xl">Pasajeros</p>
+                    <div className="flex flex-wrap items-start">
+                      {passengers?.map((p, i) => (
+                        <span
+                          key={i}
+                          className="text-lg sm:text-xl pr-2 font-semibold">
+                          {p} {i + 1 !== passengers?.length ? "/" : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <hr className="border border-gray-300 w-full" />
+                  </div>
+                  <div className="flex flex-col items-start w-full pb-2 md:pb-9 pt-2">
+                    <p className="text-lg sm:text-xl font-medium">Destino</p>
+                    <p className="font-semibold text-xl sm:text-2xl">
+                      {voucherData.destino_name || "-"}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <hr className="border border-gray-300 w-full" />
+                  </div>
+                  <div className="flex flex-col items-start w-full py-2">
+                    <p className="text-lg sm:text-xl font-medium">
+                      Descripción
+                    </p>
+                    <p className="font-semibold text-base sm:text-lg">
+                      {voucherData.excursion_description || "-"}
+                    </p>
                   </div>
                 </div>
-                <div className="flex flex-col items-center gap-2">
-                  <hr className="border border-gray-300 w-full" />
-                </div>
-                <div className="flex flex-col items-start w-full pb-2 md:pb-9 pt-2">
-                  <p className="text-lg sm:text-xl font-medium">Destino</p>
-                  <p className="font-semibold text-xl sm:text-2xl">
-                    {voucherData.destino_name || "-"}
-                  </p>
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                  <hr className="border border-gray-300 w-full" />
-                </div>
-                <div className="flex flex-col items-start w-full py-2">
-                  <p className="text-lg sm:text-xl font-medium">Descripción</p>
-                  <p className="font-semibold text-base sm:text-lg">
-                    {voucherData.excursion_description || "-"}
-                  </p>
-                </div>
-              </div>
 
-              {/* DIVISION */}
-              <div className="w-full">
-                <div className="hidden md:block md:h-24 w-full py-2" />
-                <div className="flex flex-col mt-2 items-center gap-2">
-                  <hr className="border md:block hidden border-gray-300 w-full" />
-                </div>
-                <div className="flex flex-col items-start pt-2 w-full">
-                  <p className="text-lg sm:text-xl font-medium">Excursión</p>
-                  <p className="font-semibold text-xl sm:text-2xl">
-                    {voucherData.excursion_name || "-"}
-                  </p>
+                {/* DIVISION */}
+                <div className="w-full">
+                  <div className="hidden md:block md:h-24 w-full py-2" />
+                  <div className="flex flex-col mt-2 items-center gap-2">
+                    <hr className="border md:block hidden border-gray-300 w-full" />
+                  </div>
+                  <div className="flex flex-col items-start pt-2 w-full">
+                    <p className="text-lg sm:text-xl font-medium">Excursión</p>
+                    <p className="font-semibold text-xl sm:text-2xl">
+                      {voucherData.excursion_name || "-"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
           )}
 
           {/* Bloque Observaciones */}

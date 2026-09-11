@@ -27,23 +27,27 @@ interface PasajeroRowProps {
 
 export default function PasajeroRow({
   pasajero,
+  lugaresCarga,
   salidaCargasIds = [],
   salidaCargasNames = [],
   salidaId,
   onUpdated,
+  onBusUpdated,
 }: {
   pasajero: PasajeroRowProps;
+  lugaresCarga: any[];
   salidaCargasIds?: string[];
   salidaCargasNames?: string[];
   salidaId: string;
   onUpdated?: () => void;
+  onBusUpdated?: (passengerId: string, busNumber: string) => void;
 }) {
   const { user } = useAuth();
   const router = useRouter();
   const [isOpenModal, setIsOpenModal] = useState(false);
-  const [lugaresCarga, setLugaresCarga] = useState<any[]>([]);
   const [selectedLugarCarga, setSelectedLugarCarga] = useState(pasajero.lugar_carga_id || "");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isUpdatingBus, setIsUpdatingBus] = useState(false);
   const [busVal, setBusVal] = useState(pasajero.bus_number || "");
 
   useEffect(() => {
@@ -52,29 +56,23 @@ export default function PasajeroRow({
 
   const handleBusBlur = async () => {
     if (!user?.iweb_client_id || !pasajero.id) return;
+    const nextBus = busVal.trim();
+    if (nextBus === (pasajero.bus_number || "").trim()) return;
+    setIsUpdatingBus(true);
     try {
       await apiClient.updateReservationPassenger(user.iweb_client_id, pasajero.id, {
-        bus_number: busVal
+        bus_number: nextBus
       });
       toast.success("Número de bus actualizado");
-      if (onUpdated) onUpdated();
+      onBusUpdated?.(pasajero.id, nextBus);
     } catch (error) {
       console.error(error);
+      setBusVal(pasajero.bus_number || "");
       toast.error("Error al actualizar número de bus");
+    } finally {
+      setIsUpdatingBus(false);
     }
   };
-
-  const loadLugaresCarga = async () => {
-    if (!user?.iweb_client_id) return;
-    const data = await apiClient.getParameters("get_lugares_carga", user.iweb_client_id).catch(() => []);
-    setLugaresCarga(data);
-  };
-
-  useEffect(() => {
-    if (user?.iweb_client_id) {
-      loadLugaresCarga();
-    }
-  }, [user?.iweb_client_id]);
 
   useEffect(() => {
     setSelectedLugarCarga(pasajero.lugar_carga_id || "");
@@ -121,8 +119,10 @@ export default function PasajeroRow({
         <input
           type="text"
           value={busVal}
+          title="Micro"
           onChange={(e) => setBusVal(e.target.value)}
           onBlur={handleBusBlur}
+          disabled={isUpdatingBus}
           className="w-14 h-9 bg-[#D9DFF5]/70 border border-[#3DADFF] rounded-md flex items-center justify-center text-center text-xs font-semibold text-black cursor-pointer hover:bg-blue-100 transition-colors focus:outline-none"
         />
 
@@ -174,7 +174,11 @@ export default function PasajeroRow({
           <span className="text-black/35 font-normal px-1">|</span>
           <span
             className="md:w-16 flex justify-center items-center cursor-pointer text-center hover:opacity-75"
-            onClick={() => router.push(`/voucher/${pasajero.reserva_id}`)}
+            onClick={() =>
+              router.push(
+                `/voucher/${pasajero.reserva_id}?passenger_id=${encodeURIComponent(pasajero.id)}`,
+              )
+            }
           >
             📄
           </span>

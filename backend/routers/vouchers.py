@@ -6,13 +6,38 @@ from db.database import get_db
 from models.models import (
     Vouchers, Reservas, Passengers, Salidas, Packages,
     PackagesDatesOfExit, PackageHotels, Destinos, LugaresCarga, SalidasLugaresCarga,
-    Hotels, Regimenes, ReservationPassengers, TransportCompany, Excursions
+    Hotels, Regimenes, ReservationPassengers, TransportCompany, Excursions, SalidaTransportUnit
 )
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/vouchers", tags=["Vouchers CRUD"])
+
+
+def transport_details_for_passengers(db, salida, iweb_client_id, passengers):
+    """Resolve voucher transport only when every passenger has one assigned micro."""
+    assigned = [rp for rp in passengers if (rp.bus_number or "").strip()]
+    numbers = {(rp.bus_number or "").strip() for rp in assigned}
+    if not assigned or not numbers or len(numbers) != 1:
+        return "A confirmar", "", ""
+    number = next(iter(numbers))
+    if not number.isdecimal():
+        return "A confirmar", "", ""
+    unit = db.query(SalidaTransportUnit).filter(
+        SalidaTransportUnit.salida_id == salida.id,
+        SalidaTransportUnit.iweb_client_id == iweb_client_id,
+        SalidaTransportUnit.number == int(number),
+        SalidaTransportUnit.active.is_(True),
+    ).first()
+    if not unit:
+        return "A confirmar", "", ""
+    company = db.query(TransportCompany).filter(
+        TransportCompany.id == unit.transport_company,
+        TransportCompany.iweb_client_id == iweb_client_id,
+    ).first()
+    return (company.name if company else unit.transport_company or "A confirmar",
+            unit.coordinador_nombre or "", unit.coordinador_telefono or "")
 
 def format_single_room_item(item_str: str) -> str:
     if not item_str or not isinstance(item_str, str):
@@ -124,13 +149,20 @@ class VoucherResponseSchema(BaseModel):
         from_attributes = True
 
 @router.get("/get_voucher/{reserva_id}", response_model=VoucherResponseSchema)
-async def get_voucher(reserva_id: str, iweb_client_id: str, db: Session = Depends(get_db)):
+async def get_voucher(
+    reserva_id: str,
+    iweb_client_id: str,
+    passenger_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     db.query(Vouchers).filter(
         Vouchers.reserva_id == reserva_id,
         Vouchers.iweb_client_id == iweb_client_id
     ).delete(synchronize_session=False)
     
-    voucher = await generate_voucher_snapshot(reserva_id, iweb_client_id, db)
+    voucher = await generate_voucher_snapshot(
+        reserva_id, iweb_client_id, db, passenger_id=passenger_id
+    )
     return voucher
 
 @router.post("/generate_voucher", response_model=VoucherResponseSchema)
@@ -147,7 +179,12 @@ async def generate_voucher_endpoint(
     voucher = await generate_voucher_snapshot(body.reserva_id, iweb_client_id, db)
     return voucher
 
-async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Session) -> Vouchers:
+async def generate_voucher_snapshot(
+    reserva_id: str,
+    iweb_client_id: str,
+    db: Session,
+    passenger_id: Optional[str] = None,
+) -> Vouchers:
     reserva = db.query(Reservas).filter(
         Reservas.id == reserva_id,
         Reservas.iweb_client_id == iweb_client_id
@@ -158,6 +195,13 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
     rp_list = db.query(ReservationPassengers).filter(
         ReservationPassengers.reserva_id == reserva.id
     ).all()
+    if passenger_id:
+        rp_list = [rp for rp in rp_list if rp.id == passenger_id or rp.pasajero_id == passenger_id]
+        if not rp_list:
+            raise HTTPException(
+                status_code=404,
+                detail="Pasajero no encontrado en la reserva",
+            )
         
     pax_objs = []
     pax_names = []
@@ -321,8 +365,13 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
             regimen_name = reg_id
 
     empresa_transporte_name = ""
+    coordinador_nombre = salida.coordinador_nombre if salida else ""
+    coordinador_telefono = salida.coordinador_telefono if salida else ""
     tc_id = salida.transport_company if salida else None
-    if tc_id:
+    if salida and (salida.type or "").strip().lower() in {"bus", "micro"}:
+        empresa_transporte_name, coordinador_nombre, coordinador_telefono = transport_details_for_passengers(
+            db, salida, iweb_client_id, rp_list)
+    elif tc_id:
         tc_obj = db.query(TransportCompany).filter(
             TransportCompany.id == tc_id,
             TransportCompany.iweb_client_id == iweb_client_id
@@ -409,8 +458,8 @@ async def generate_voucher_snapshot(reserva_id: str, iweb_client_id: str, db: Se
         lugar_carga=lugar_carga_name,
         horario_carga=horario_carga_val,
         empresa_transporte=empresa_transporte_name,
-        coordinador_nombre=salida.coordinador_nombre if salida else "",
-        coordinador_telefono=salida.coordinador_telefono if salida else "",
+        coordinador_nombre=coordinador_nombre,
+        coordinador_telefono=coordinador_telefono,
         hotel_id=hotel_id,
         hotel_name=hotel_name,
         hotel_address=hotel_address,

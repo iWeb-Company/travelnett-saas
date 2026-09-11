@@ -1,4 +1,5 @@
 import { sortLabels } from './sortLabels';
+import type { SalidaTransportUnit, TransportUnitInput } from '@/app/types';
 
 const API_BASE_URL = typeof window !== 'undefined'
   ? '/api'
@@ -63,6 +64,30 @@ async function apiError(response: Response, fallback: string): Promise<Error> {
 }
 
 export const apiClient = {
+  async transportUnitsRequest<T>(tenant: string, salidaId: string, suffix = '', method = 'GET', body?: unknown): Promise<T> {
+    const response = await fetch(`${API_BASE_URL}/salidas/${encodeURIComponent(salidaId)}/transport-units${suffix}?iweb_client_id=${encodeURIComponent(tenant)}`, {
+      method, credentials: 'include', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!response.ok) throw await apiError(response, 'No se pudo guardar el micro');
+    return response.json();
+  },
+  getTransportUnits(tenant: string, salidaId: string) {
+    return this.transportUnitsRequest<SalidaTransportUnit[]>(tenant, salidaId);
+  },
+  createTransportUnit(tenant: string, salidaId: string, body: TransportUnitInput) {
+    return this.transportUnitsRequest<SalidaTransportUnit>(tenant, salidaId, '', 'POST', body);
+  },
+  updateTransportUnit(tenant: string, salidaId: string, unitId: string, body: Partial<TransportUnitInput>) {
+    return this.transportUnitsRequest<SalidaTransportUnit>(tenant, salidaId, `/${encodeURIComponent(unitId)}`, 'PATCH', body);
+  },
+  deleteTransportUnit(tenant: string, salidaId: string, unitId: string) {
+    return this.transportUnitsRequest<SalidaTransportUnit>(tenant, salidaId, `/${encodeURIComponent(unitId)}`, 'DELETE');
+  },
+  saveSeatAssignments(tenant: string, salidaId: string, unitId: string, revision: number, assignments: { reservation_passenger_id: string; butaca_number: number | null }[]) {
+    return this.transportUnitsRequest<SalidaTransportUnit>(tenant, salidaId, `/${encodeURIComponent(unitId)}/seat-assignments`, 'PUT', { revision, assignments });
+  },
   async getHotelAvailability(iwebClientId: string, packageId: string): Promise<HotelAvailability[]> {
     const response = await fetch(`${API_BASE_URL}/packages/get_availability/${encodeURIComponent(packageId)}?iweb_client_id=${encodeURIComponent(iwebClientId)}`, { credentials: 'include', cache: 'no-store' });
     if (!response.ok) throw new Error('No se pudo consultar el cupo hotelero');
@@ -627,8 +652,15 @@ export const apiClient = {
     return response.json();
   },
 
-  async getVoucher(iwebClientId: string, reservaId: string): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/vouchers/get_voucher/${reservaId}?iweb_client_id=${iwebClientId}`, {
+  async getVoucher(
+    iwebClientId: string,
+    reservaId: string,
+    passengerId?: string,
+  ): Promise<any> {
+    const passengerQuery = passengerId
+      ? `&passenger_id=${encodeURIComponent(passengerId)}`
+      : "";
+    const response = await fetch(`${API_BASE_URL}/vouchers/get_voucher/${reservaId}?iweb_client_id=${iwebClientId}${passengerQuery}`, {
       credentials: 'include',
     });
     if (response.status === 401) {

@@ -207,6 +207,10 @@ def get_cuenta_corriente_provider_by_id(id: str, iweb_client_id: str, db: Sessio
 
 @router.post("/create_cc_providers_consumption_payments", response_model=ccProvidersConsumptionPaymentsResponse, tags=["CC Providers Consumption Payments"])
 async def create_cc_provider_consumption_payment(payload: ccProvidersConsumptionPaymentsCreateRequest, db: Session = Depends(get_db)):
+    if payload.salida_id:
+        from models.models import SalidaTransportUnit
+        if db.query(SalidaTransportUnit).filter_by(salida_id=payload.salida_id, iweb_client_id=payload.iweb_client_id).first():
+            raise HTTPException(409, "El consumo de transporte se gestiona desde el micro")
     from sqlalchemy import func
     from models.models import iWebClient
     try:
@@ -294,6 +298,8 @@ def put_cc_provider_consumption_payment(id: str, payload: ccProvidersConsumption
         if not item:
             raise HTTPException(status_code=404, detail="Consumption or payment record not found")
         
+        if item.salida_transport_unit_id:
+            raise HTTPException(409, "Modificá el consumo desde el micro de la salida")
         item.cc_provider_id = payload.cc_provider_id
         item.provider_type = payload.provider_type
         item.hotel_id = payload.hotel_id
@@ -324,6 +330,8 @@ def delete_cc_provider_consumption_payment(id: str, iweb_client_id: str, db: Ses
         ).first()
         if not item:
             raise HTTPException(status_code=404, detail="Consumption or payment record not found")
+        if item.salida_transport_unit_id:
+            raise HTTPException(409, "Anulá el micro para conservar el historial del consumo")
         db.delete(item)
         db.commit()
         return item

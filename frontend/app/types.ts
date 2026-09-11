@@ -378,6 +378,7 @@ export interface Pago {
 }
 
 export interface ReservationPassengerDetail {
+  salida_transport_unit_id?: string | null;
   hotel_id?: string | null;
   room_index?: number | null;
   reservation_room_id?: string | null;
@@ -449,7 +450,32 @@ export interface Reserva {
   numero?: number | null;
 }
 
+export interface SalidaTransportUnit {
+  id: string;
+  salida_id: string;
+  number: number;
+  transport_company: string;
+  price: number | string;
+  type_bus: string | null;
+  semicama: number;
+  cama: number;
+  layout_snapshot: { name?: string | null; semicama_quantity: number; cama_quantity: number; panoramicos_quantity: number };
+  coordinador_nombre: string | null;
+  coordinador_telefono: string | null;
+  active: boolean;
+  revision: number;
+}
+
+export interface TransportUnitInput {
+  transport_company: string;
+  price: number;
+  type_bus?: string | null;
+  coordinador_nombre?: string | null;
+  coordinador_telefono?: string | null;
+}
+
 export interface Salida {
+  transport_units?: SalidaTransportUnit[];
   id: string;
   iweb_client_id: string;
   date_of_out?: string | null;
