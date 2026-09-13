@@ -10,7 +10,8 @@ from sqlalchemy.pool import StaticPool
 from auth.login import get_current_user
 from db.database import Base, get_db
 from models.models import (iWebClient, User, TransportCompany, BusTypes, Salidas,
-                           Passengers, Reservas, ReservationPassengers, Destinos)
+                           Passengers, Reservas, ReservationPassengers, Destinos,
+                           LugaresCarga, SalidasLugaresCarga)
 from routers import salidas, reservas, transport_units, parameters
 from schemas.transport_units import TransportUnitCreate
 from services.transport_units import create_unit
@@ -29,6 +30,19 @@ with sessions.begin() as db:
         salida = Salidas(id=key, iweb_client_id="tenant", type="bus", active=True, date_of_out="2026-10-01", destino="destination", semicama=0, cama=0)
         db.add(salida)
         db.flush()
+        place_ids = [f"place-{key}-{index}" for index in range(3)]
+        db.add_all([
+            LugaresCarga(id=place_ids[0], iweb_client_id="tenant", name="Ascenso Norte", address="Direccion Norte"),
+            LugaresCarga(id=place_ids[1], iweb_client_id="tenant", name="Ascenso Centro", address="Direccion Centro"),
+            LugaresCarga(id=place_ids[2], iweb_client_id="tenant", name="Ascenso Sur", address="Direccion Sur"),
+            SalidasLugaresCarga(
+                id=f"places-{key}",
+                iweb_client_id="tenant",
+                salida_id=key,
+                cargas=", ".join(place_ids),
+                horarios="08:00, 08:30, 09:00",
+            ),
+        ])
         unit = create_unit(db, salida, TransportUnitCreate(transport_company="company-a", price=100, type_bus="mix", coordinador_nombre="Ana", coordinador_telefono="111"), "QA")
         db.add(Reservas(id=f"r-{key}", salida_id=key, iweb_client_id="tenant", active=True, codigo_reserva=f"QA-{key}"))
         for index in range(3):
@@ -36,6 +50,7 @@ with sessions.begin() as db:
             db.add(Passengers(id=passenger_id, iweb_client_id="tenant", name=f"Nombre{index}", last_name="Prueba"))
             db.add(ReservationPassengers(id=f"rp-{key}-{index}", reserva_id=f"r-{key}", pasajero_id=passenger_id,
                 pasajero_type="ADL", butaca_type="semicama", room_index=index,
+                lugar_carga_id=place_ids[index],
                 salida_transport_unit_id=unit.id if index == 0 else None,
                 butaca_number=1 if index == 0 else None, bus_number="1" if index == 0 else None))
 

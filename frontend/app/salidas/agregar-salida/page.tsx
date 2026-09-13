@@ -146,6 +146,16 @@ function AgregarSalidaContent() {
     );
   };
 
+  const essentialCargaIds = lugaresCarga
+    .filter((lugar) => Boolean(lugar.is_essential))
+    .map((lugar) => String(lugar.id));
+
+  const handleSelectEssentialCargas = () => {
+    setSelectedCargas((current) =>
+      Array.from(new Set([...current, ...essentialCargaIds])),
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -388,6 +398,13 @@ function AgregarSalidaContent() {
             placeholder="Lugares de carga"
           />
         )}
+        <button
+          type="button"
+          onClick={handleSelectEssentialCargas}
+          disabled={essentialCargaIds.length === 0}
+          className="w-full rounded-xl border border-primary px-4 py-2 font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50">
+          Seleccionar todos los ascensos esenciales
+        </button>
         <ToggleActiveFilters checked={active} onChange={setActive} />
         <button className="w-full bg-primary hover:bg-blue-700 text-white font-semibold text-center py-3 rounded-xl shadow transition-all cursor-pointer">
           {id ? "Modificar" : "Agregar"} Salida

@@ -105,8 +105,8 @@ export default function VoucherPage() {
         }
         @media print {
           html, body {
-            width: 210mm !important;
-            height: 297mm !important;
+            width: 198mm !important;
+            height: 285mm !important;
             margin: 0 !important;
             overflow: hidden !important;
           }
@@ -119,8 +119,17 @@ export default function VoucherPage() {
           .print-voucher, .print-voucher * {
             visibility: visible !important;
           }
+          .print-stage {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 198mm !important;
+            height: 285mm !important;
+            margin: 0 !important;
+            overflow: hidden !important;
+          }
           .print-voucher {
-            position: fixed !important;
+            position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: var(--print-source-width) !important;
@@ -128,7 +137,8 @@ export default function VoucherPage() {
             padding: 0 !important;
             box-shadow: none !important;
             background: white !important;
-            zoom: var(--print-scale, 1);
+            transform: scale(var(--print-scale, 1));
+            transform-origin: top left;
             break-inside: avoid-page !important;
             page-break-inside: avoid !important;
             overflow: visible !important;
@@ -137,7 +147,7 @@ export default function VoucherPage() {
       `}</style>
 
       {/* Contenedor de la sección */}
-      <section className="flex flex-col gap-3 my-10">
+      <section className="flex flex-col gap-3 my-10 print-stage">
         {/* Navegación y Herramientas superiores (No se imprimen) */}
         <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 no-print">
           <div className="flex flex-col gap-2">
@@ -399,7 +409,7 @@ export default function VoucherPage() {
                 <div className="flex flex-col items-start w-full pb-2 md:pb-9 pt-2">
                   <p className="text-lg sm:text-xl font-medium">Check-in</p>
                   <p className="font-semibold text-xl sm:text-2xl">
-                    {voucherData.fecha_salida}
+                    {voucherData.hotel_fecha_in || "-"}
                   </p>
                 </div>
                 <div className="flex flex-col items-center gap-2">

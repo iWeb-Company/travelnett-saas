@@ -71,6 +71,7 @@ def _build_package_response(
         image=p.image,
         active=p.active,
         web=p.web,
+        cupo_web=p.cupo_web,
         dates=dates_list,
         comisionable=p.comisionable,
         moneda=p.moneda,
@@ -203,6 +204,7 @@ async def create_package(
         image=body.image,
         active=body.active,
         web=body.web,
+        cupo_web=body.cupo_web,
         comisionable=body.comisionable,
         moneda=body.moneda,
         moneda_gastos=body.moneda_gastos,
@@ -321,6 +323,8 @@ async def update_package(
         p.active = body.active
     if body.web is not None:
         p.web = body.web
+    if body.cupo_web is not None:
+        p.cupo_web = body.cupo_web
     if body.comisionable is not None:
         p.comisionable = body.comisionable
     if body.moneda is not None:

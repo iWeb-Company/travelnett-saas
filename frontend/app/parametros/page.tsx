@@ -8,7 +8,8 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function ParametrosPage() {
   const { iwebClient } = useAuth();
-  const agencyLogo = iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png";
+  const agencyLogo =
+    iwebClient?.logo_xl || iwebClient?.logo_s || "/logo-grande.png";
 
   return (
     <Container>
@@ -21,7 +22,9 @@ export default function ParametrosPage() {
       </Link>
       <section className="my-10 w-full max-w-3xl mx-auto">
         <ul className="text-white flex flex-col gap-8">
-        <h2 className="text-center text-black font-semibold text-xl">Panel</h2>
+          <h2 className="text-center text-black font-semibold text-xl">
+            Panel
+          </h2>
           <Link
             href={"/parametros/transporte"}
             className="bg-primary w-full gap-3 py-2 text-center px-3 rounded-lg font-medium">
@@ -77,6 +80,12 @@ export default function ParametrosPage() {
             <i className="text-center">PASAJEROS</i>
           </Link>
           <Link
+            href="/parametros/proveedores"
+            className="bg-primary gap-3 py-2 text-center px-3 rounded-lg font-medium">
+            {/* <Web /> */}
+            <i className="text-center">PROVEEDORES</i>
+          </Link>
+          <Link
             href="/parametros/micros"
             className="bg-primary gap-3 py-2 text-center px-3 rounded-lg font-medium">
             {/* <Web /> */}
@@ -84,9 +93,13 @@ export default function ParametrosPage() {
           </Link>
         </ul>
       </section>
-        <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
-          <img src={agencyLogo} className='size-50 object-contain' alt="Logo Empresa" />
-        </div>
+      <div className="xl:flex hidden absolute md:right-40 md:top-60 mt-8 justify-end">
+        <img
+          src={agencyLogo}
+          className="size-50 object-contain"
+          alt="Logo Empresa"
+        />
+      </div>
     </Container>
   );
 }

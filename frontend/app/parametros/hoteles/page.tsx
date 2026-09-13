@@ -172,6 +172,9 @@ export default function HotelesPage() {
       formData.append("destino", hotelData.destino);
       formData.append("address", hotelData.address);
       formData.append("web", hotelData.web);
+      if (hotelData.phone !== undefined && hotelData.phone !== null && String(hotelData.phone).trim()) {
+        formData.append("phone", String(hotelData.phone));
+      }
 
       if (selectedFiles) {
         Array.from(selectedFiles).forEach((file) => {
@@ -208,6 +211,9 @@ export default function HotelesPage() {
       formData.append("destino", hotelData.destino);
       formData.append("address", hotelData.address);
       formData.append("web", hotelData.web);
+      if (hotelData.phone !== undefined && hotelData.phone !== null && String(hotelData.phone).trim()) {
+        formData.append("phone", String(hotelData.phone));
+      }
 
       if (selectedFiles) {
         Array.from(selectedFiles).forEach((file) => {
@@ -493,10 +499,14 @@ export default function HotelesPage() {
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input
-                type="text"
+                type="tel"
                 placeholder="Telefono de contacto"
+                value={hotelData.phone ?? ""}
                 onChange={(e) =>
-                  setHotelData({ ...hotelData, phone: Number(e.target.value) })
+                  setHotelData({
+                    ...hotelData,
+                    phone: e.target.value ? Number(e.target.value) : null,
+                  })
                 }
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
@@ -588,6 +598,18 @@ export default function HotelesPage() {
                   setHotelData({ ...hotelData, address: e.target.value })
                 }
                 placeholder="Dirección"
+                className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
+              />
+              <input
+                type="tel"
+                value={hotelData.phone ?? ""}
+                onChange={(e) =>
+                  setHotelData({
+                    ...hotelData,
+                    phone: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                placeholder="Telefono de contacto"
                 className="w-full border bg-white rounded-sm p-2 pr-4 text-black/90 font-medium shadow-sm focus:outline-none"
               />
               <input

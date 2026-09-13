@@ -465,8 +465,9 @@ async def get_reservas(
 
         tot_amount = float(liq_obj.total_amout) if (liq_obj and liq_obj.total_amout is not None) else None
         tot_commission = float(liq_obj.total_commission) if (liq_obj and liq_obj.total_commission is not None) else None
+        commission_amount = float(liq_obj.commission) if (liq_obj and liq_obj.commission is not None) else 0.0
         tot_payments = pagos_by_reserva.get(r.id, 0.0)
-        tot_balance = (tot_amount - tot_payments) if tot_amount is not None else None
+        tot_balance = (tot_amount - commission_amount - tot_payments) if tot_amount is not None else None
 
         u_seller = users_map.get(r.created_by_user_id) if getattr(r, 'created_by_user_id', None) else None
         seller_name = f"{u_seller.name or ''} {u_seller.last_name or ''}".strip() if u_seller else ""

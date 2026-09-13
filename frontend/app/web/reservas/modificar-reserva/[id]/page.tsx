@@ -88,9 +88,21 @@ export default function ReservaIdPage() {
   const [modalCamaValue, setModalCamaValue] = useState<string>("doble");
   const [modalDistribucionValue, setModalDistribucionValue] =
     useState<string>("matrimonial");
+  const [reservationLoaded, setReservationLoaded] = useState(false);
+  const [liquidationLoaded, setLiquidationLoaded] = useState(false);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
+  const [initialDraftSnapshot, setInitialDraftSnapshot] = useState<string | null>(null);
+  const [resetBaselineAfterSave, setResetBaselineAfterSave] = useState(false);
+  const [unsavedChangesModalOpen, setUnsavedChangesModalOpen] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || !user?.iweb_client_id) return;
+
+    setReservationLoaded(false);
+    setLiquidationLoaded(false);
+    setClientsLoaded(false);
+    setInitialDraftSnapshot(null);
 
     setHotelsLoading(true);
     const hotelsRequest = apiClient
@@ -116,7 +128,8 @@ export default function ReservaIdPage() {
       .then((cls) => {
         setClientesList(Array.isArray(cls) ? cls : []);
       })
-      .catch(() => []);
+      .catch(() => [])
+      .finally(() => setClientsLoaded(true));
 
     // Load Reserva and Clients
     apiClient
@@ -274,7 +287,8 @@ export default function ReservaIdPage() {
           setEligibleHotelsLoading(false);
         }
       })
-      .catch(() => toast.error("Error al cargar la reserva"));
+      .catch(() => toast.error("Error al cargar la reserva"))
+      .finally(() => setReservationLoaded(true));
 
     // Load Lugares de Carga
     apiClient
@@ -310,7 +324,8 @@ export default function ReservaIdPage() {
           }
         }
       })
-      .catch(() => []);
+      .catch(() => [])
+      .finally(() => setLiquidationLoaded(true));
 
     // Load Pagos for Reserva
     apiClient
@@ -326,6 +341,75 @@ export default function ReservaIdPage() {
       })
       .catch(() => []);
   }, [id, user?.iweb_client_id]);
+
+  const draftSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        reserva,
+        rooms,
+        roomHotelIds,
+        passengersList,
+        gastos,
+        totalReserva,
+        totalComisionable,
+        clientCommissionPct,
+      }),
+    [
+      reserva,
+      rooms,
+      roomHotelIds,
+      passengersList,
+      gastos,
+      totalReserva,
+      totalComisionable,
+      clientCommissionPct,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      !reservationLoaded ||
+      !liquidationLoaded ||
+      !clientsLoaded ||
+      initialDraftSnapshot !== null
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(
+      () => setInitialDraftSnapshot(draftSnapshot),
+      0,
+    );
+    return () => window.clearTimeout(timer);
+  }, [
+    reservationLoaded,
+    liquidationLoaded,
+    clientsLoaded,
+    initialDraftSnapshot,
+    draftSnapshot,
+  ]);
+
+  useEffect(() => {
+    if (!resetBaselineAfterSave) return;
+    const timer = window.setTimeout(() => {
+      setInitialDraftSnapshot(draftSnapshot);
+      setResetBaselineAfterSave(false);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [resetBaselineAfterSave, draftSnapshot]);
+
+  const hasUnsavedChanges =
+    initialDraftSnapshot !== null && initialDraftSnapshot !== draftSnapshot;
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   // Reservas antiguas sin porcentaje propio heredan la comisión del cliente.
   // Una comisión guardada en la reserva (incluido 0) nunca debe sobrescribirse.
@@ -760,6 +844,7 @@ export default function ReservaIdPage() {
       setGastosDirty(false);
       setTotalReservaDirty(false);
       setTotalComisionableDirty(false);
+      setResetBaselineAfterSave(true);
       toast.success("Reserva y liquidación guardadas correctamente");
     } catch (err) {
       console.error(err);
@@ -775,6 +860,23 @@ export default function ReservaIdPage() {
 
   const handleToggleRoomAccordion = (idx: number) => {
     setOpenRoomIdx((prev) => (prev === idx ? null : idx));
+  };
+
+  const guardNavigation = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+  ) => {
+    if (!hasUnsavedChanges) return;
+    event.preventDefault();
+    setPendingHref(href);
+    setUnsavedChangesModalOpen(true);
+  };
+
+  const continueWithoutSaving = () => {
+    if (!pendingHref) return;
+    setUnsavedChangesModalOpen(false);
+    setInitialDraftSnapshot(draftSnapshot);
+    router.push(pendingHref);
   };
 
   const handleOpenSetRoomTypeModal = (idx: number) => {
@@ -1023,12 +1125,33 @@ export default function ReservaIdPage() {
 
   return (
     <Container>
-      <Link href="/dashboard" className="flex items-center justify-start gap-3">
+      {unsavedChangesModalOpen && (
+        <ModalLayout
+          title="Cambios sin guardar"
+          setModalOpen={setUnsavedChangesModalOpen}
+          onSubmit={continueWithoutSaving}
+          submitLabel="Continuar sin guardar">
+          <p className="text-center text-white">
+            Hay cambios sin guardar. Si continuás, se perderán.
+          </p>
+        </ModalLayout>
+      )}
+
+      <Link
+        href="/dashboard"
+        onClick={(event) => guardNavigation(event, "/dashboard")}
+        className="flex items-center justify-start gap-3">
         <ArrowLeft />
         <h1 className="font-bold">Volver al menú</h1>
       </Link>
       <Link
         href="/web/reservas/result?numero=&cliente=&rango=&periodo=&paquete=&activo=true"
+        onClick={(event) =>
+          guardNavigation(
+            event,
+            "/web/reservas/result?numero=&cliente=&rango=&periodo=&paquete=&activo=true",
+          )
+        }
         className="flex items-center my-3 justify-start gap-3">
         <h2 className="font-semibold text-secondary underline">Cancelar</h2>
       </Link>
@@ -1041,6 +1164,9 @@ export default function ReservaIdPage() {
           </p>
           <Link
             href={`/web/reservas/liquidacion/${id}`}
+            onClick={(event) =>
+              guardNavigation(event, `/web/reservas/liquidacion/${id}`)
+            }
             className="self-end underline font-bold italic text-end md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2">
             Ver liquidación
           </Link>

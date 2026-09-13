@@ -491,7 +491,8 @@ export default function ButacasPage() {
           paxs.forEach((pax: any) => {
             if (
               !pax.id ||
-              String(pax.bus_number || "").trim() !== String(unit.number)
+              (units.length > 1 &&
+                String(pax.bus_number || "").trim() !== String(unit.number))
             )
               return;
             const passengerId =
