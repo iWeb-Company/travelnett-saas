@@ -123,6 +123,7 @@ class VoucherResponseSchema(BaseModel):
     titular_dni: Optional[str] = None
     total_passengers: Optional[int] = None
     fecha_salida: Optional[str] = None
+    hotel_fecha_in: Optional[str] = None
     fecha_regreso: Optional[str] = None
     tipo_transporte: Optional[str] = None
     tipo_butaca: Optional[str] = None
@@ -306,7 +307,9 @@ async def generate_voucher_snapshot(
     hotel_name = ""
     hotel_address = ""
     hotel_phone = ""
-    hotel_id = reserva.hotel_id
+    # Un voucher individual usa la asignación operativa del pasajero. El hotel
+    # comercial de la reserva queda como respaldo para vouchers generales.
+    hotel_id = rp_list[0].hotel_id if passenger_id and rp_list else reserva.hotel_id
     if not hotel_id and package:
         package_hotels = db.query(PackageHotels).filter(
             PackageHotels.package_id == package.id,
@@ -391,7 +394,15 @@ async def generate_voucher_snapshot(
     dias_val = (noches_val + 1) if (noches_val is not None) else None
 
     fecha_salida_str = ""
+    hotel_fecha_in_str = ""
     fecha_regreso_str = ""
+    if matching_ph and matching_ph.hotel_fecha_in:
+        try:
+            raw_in = str(matching_ph.hotel_fecha_in).strip().replace("T", " ").split(" ")[0]
+            hotel_fecha_in_str = datetime.strptime(raw_in, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except Exception:
+            hotel_fecha_in_str = str(matching_ph.hotel_fecha_in)
+
     if salida and salida.date_of_out:
         try:
             raw_d = str(salida.date_of_out).strip()[:10]
@@ -478,4 +489,8 @@ async def generate_voucher_snapshot(
     db.add(voucher)
     db.commit()
     db.refresh(voucher)
+    # La fecha pertenece a PackageHotels y se calcula en cada generación. No
+    # se persiste en vouchers para evitar una migración y mantener el snapshot
+    # alineado con el paquete actual.
+    voucher.hotel_fecha_in = hotel_fecha_in_str
     return voucher

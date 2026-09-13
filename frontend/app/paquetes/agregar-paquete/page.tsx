@@ -25,7 +25,10 @@ import {
 } from "@/app/types";
 import { formatDateDDMMYY } from "@/lib/formatDate";
 import DateInput from "@/app/components/DateComponent";
-import { destinationComponentsOverlap, isSameDestination } from "@/lib/destinationMatching";
+import {
+  destinationComponentsOverlap,
+  isSameDestination,
+} from "@/lib/destinationMatching";
 
 // ─── Hotel entry type for the multi-hotel form ────────────────────────────────
 interface HotelEntry {
@@ -77,7 +80,9 @@ function pkgHotelToEntry(h: PackageHotel): HotelEntry {
     estandar: h.estandar ?? false,
     superior: h.superior ?? false,
     suite: h.suite ?? false,
-    cupos: Object.fromEntries((h.cupos || []).map(c => [c.salida_id, String(c.capacidad)])),
+    cupos: Object.fromEntries(
+      (h.cupos || []).map((c) => [c.salida_id, String(c.capacidad)]),
+    ),
     hotel_id: h.hotel_id || "",
     open: !!h.hotel_id,
     hotel_noches: String(h.hotel_noches ?? ""),
@@ -135,6 +140,7 @@ function AgregarPaqueteContent() {
   const [imageFile, setImageFile] = useState<File | string | null>(null);
   const [active, setActive] = useState(true);
   const [web, setWeb] = useState(true);
+  const [cupoWeb, setCupoWeb] = useState(true);
   const [dias, setDias] = useState("");
   const [noches, setNoches] = useState("");
   const [comisionable, setComisionable] = useState(false);
@@ -221,6 +227,7 @@ function AgregarPaqueteContent() {
           if (pkg.image) setImageFile(pkg.image);
           setActive(pkg.active ?? true);
           setWeb(pkg.web ?? true);
+          setCupoWeb(pkg.cupo_web ?? true);
           setComisionable(pkg.comisionable ?? false);
           if (pkg.excursiones) {
             setSelectedExcursion(pkg.excursiones.split(", "));
@@ -257,21 +264,24 @@ function AgregarPaqueteContent() {
   const salidasFiltered = useMemo(() => {
     if (!destino) return salidas;
     return salidas.filter(
-      (s: Salida) => s.destino && destinationComponentsOverlap(destino, s.destino, destinos),
+      (s: Salida) =>
+        s.destino && destinationComponentsOverlap(destino, s.destino, destinos),
     );
   }, [salidas, destino, destinos]);
 
   const hotelesFiltered = useMemo(() => {
     if (!destino) return [];
     return hoteles.filter(
-      (h: Hotel) => h.destino && isSameDestination(destino, h.destino, destinos),
+      (h: Hotel) =>
+        h.destino && isSameDestination(destino, h.destino, destinos),
     );
   }, [hoteles, destino, destinos]);
 
   const excursionesFiltered = useMemo(() => {
     if (!destino) return [];
     return excursiones.filter(
-      (e: Excursion) => e.destino && isSameDestination(destino, e.destino, destinos),
+      (e: Excursion) =>
+        e.destino && isSameDestination(destino, e.destino, destinos),
     );
   }, [excursiones, destino, destinos]);
 
@@ -307,9 +317,12 @@ function AgregarPaqueteContent() {
           estandar: e.estandar,
           superior: e.superior,
           suite: e.suite,
-          cupos: selectedSalidaIds.filter(salidaId => e.cupos[salidaId]?.trim()).map(salidaId => ({
-            salida_id: salidaId, capacidad: Number(e.cupos[salidaId]),
-          })),
+          cupos: selectedSalidaIds
+            .filter((salidaId) => e.cupos[salidaId]?.trim())
+            .map((salidaId) => ({
+              salida_id: salidaId,
+              capacidad: Number(e.cupos[salidaId]),
+            })),
           hotel_noches: parseInt(e.hotel_noches) || null,
           hotel_fecha_in: e.hotel_fecha_in || null,
           hotel_fecha_out: e.hotel_fecha_out || null,
@@ -339,6 +352,7 @@ function AgregarPaqueteContent() {
         image: imageUrl || (typeof imageFile === "string" ? imageFile : ""),
         active: active,
         web: web,
+        cupo_web: cupoWeb,
         dates: selectedSalidaIds,
         dias: parseInt(dias) || null,
         noches: parseInt(noches) || null,
@@ -364,7 +378,11 @@ function AgregarPaqueteContent() {
           })
           .catch((err) => {
             console.error(err);
-            toast.error(err instanceof Error ? err.message : "Error al modificar el paquete");
+            toast.error(
+              err instanceof Error
+                ? err.message
+                : "Error al modificar el paquete",
+            );
             setIsSubmitting(false);
           });
       } else {
@@ -376,7 +394,11 @@ function AgregarPaqueteContent() {
           })
           .catch((err) => {
             console.error(err);
-            toast.error(err instanceof Error ? err.message : "Error al agregar el paquete");
+            toast.error(
+              err instanceof Error
+                ? err.message
+                : "Error al agregar el paquete",
+            );
             setIsSubmitting(false);
           });
       }
@@ -689,9 +711,23 @@ function AgregarPaqueteContent() {
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-2 p-3 rounded-lg">
                     <div className="flex flex-wrap gap-3 sm:mr-auto">
-                      {([['estandar', 'Estándar'], ['superior', 'Superior'], ['suite', 'Suite']] as const).map(([field, label]) => (
-                        <label key={field} className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                          <input type="checkbox" checked={entry[field]} onChange={e => updateHotelEntry(index, field, e.target.checked)} />
+                      {(
+                        [
+                          ["estandar", "Estándar"],
+                          ["superior", "Superior"],
+                          ["suite", "Suite"],
+                        ] as const
+                      ).map(([field, label]) => (
+                        <label
+                          key={field}
+                          className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={entry[field]}
+                            onChange={(e) =>
+                              updateHotelEntry(index, field, e.target.checked)
+                            }
+                          />
                           {label}
                         </label>
                       ))}
@@ -841,14 +877,28 @@ function AgregarPaqueteContent() {
                   </div>
                   <div className="flex flex-wrap text-gray-700 justify-start gap-5">
                     <p className="">Cupo Hotelero</p>
-                    {selectedSalidaIds.map(salidaId => (
-                      <div key={salidaId} className="flex flex-col justify-center items-center">
-                        <p>{formatDateDDMMYY(salidas.find(s => s.id === salidaId)?.date_of_out || "")}</p>
+                    {selectedSalidaIds.map((salidaId) => (
+                      <div
+                        key={salidaId}
+                        className="flex flex-col justify-center items-center">
+                        <p>
+                          {formatDateDDMMYY(
+                            salidas.find((s) => s.id === salidaId)
+                              ?.date_of_out || "",
+                          )}
+                        </p>
                         <input
-                          type="number" min={0} step={1}
-                          aria-label={`Cupo hotelero ${salidas.find(s => s.id === salidaId)?.date_of_out || salidaId}`}
+                          type="number"
+                          min={0}
+                          step={1}
+                          aria-label={`Cupo hotelero ${salidas.find((s) => s.id === salidaId)?.date_of_out || salidaId}`}
                           value={entry.cupos[salidaId] ?? ""}
-                          onChange={e => updateHotelEntry(index, "cupos", { ...entry.cupos, [salidaId]: e.target.value })}
+                          onChange={(e) =>
+                            updateHotelEntry(index, "cupos", {
+                              ...entry.cupos,
+                              [salidaId]: e.target.value,
+                            })
+                          }
                           className="border w-20 px-3"
                         />
                       </div>
@@ -941,12 +991,17 @@ function AgregarPaqueteContent() {
         </div>
 
         {/* Active y Web */}
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <ToggleActiveFilters checked={active} onChange={setActive} />
           <ToggleActiveFilters
             checked={web}
             onChange={setWeb}
             label="Mostrar en Web"
+          />
+          <ToggleActiveFilters
+            checked={cupoWeb}
+            onChange={setCupoWeb}
+            label="Mostrar Cupo Web"
           />
         </div>
 

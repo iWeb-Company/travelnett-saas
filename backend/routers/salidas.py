@@ -3,14 +3,23 @@ import math
 from datetime import datetime
 from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from db.database import get_db
 from services.availability import get_inventory_db
-from services.transport_units import units_for, units_for_departures, apply_legacy_update, project_legacy, cancel_unit, create_unit
+from services.transport_units import (
+    units_for,
+    units_for_departures,
+    apply_legacy_update,
+    project_legacy,
+    cancel_unit,
+    create_unit,
+    assign_passenger_to_unit_number,
+)
 from auth.login import get_current_user
 from models.models import (
-    Salidas, SalidasLugaresCarga, LugaresCarga, Reservas, ReservationPassengers,
+    Salidas, SalidasLugaresCarga, LugaresCarga, Reservas, ReservationPassengers, Hotels,
     TransportCompany, ccProvidersConsumptionPayments, User,
 )
 from schemas.schemas import (
@@ -21,6 +30,27 @@ from schemas.schemas import (
 )
 
 router = APIRouter(prefix="/salidas", tags=["Salidas CRUD"])
+
+
+class ReservationPassengerHotelReplaceRequest(BaseModel):
+    source_hotel_id: str
+    target_hotel_id: str
+
+
+class ReservationPassengerHotelReplaceResponse(BaseModel):
+    updated_passengers: int
+
+
+class ReservationPassengerBoardingBulkRequest(BaseModel):
+    reservation_passenger_ids: List[str]
+    lugar_carga_id: Optional[str] = None
+    bus_number: Optional[str] = None
+
+
+class ReservationPassengerBoardingBulkResponse(BaseModel):
+    updated_passengers: int
+    lugar_carga_id: Optional[str] = None
+    bus_number: Optional[str] = None
 
 
 def _audit_actor_name(user: User) -> str:
@@ -444,6 +474,209 @@ async def create_salida(
         semicama=new_salida.semicama,
         cama=new_salida.cama,
         cargas=cargas_resolved
+    )
+
+
+@router.patch(
+    "/{salida_id}/reservation-passengers/hotel",
+    response_model=ReservationPassengerHotelReplaceResponse,
+)
+async def replace_reservation_passenger_hotel(
+    salida_id: str,
+    body: ReservationPassengerHotelReplaceRequest,
+    iweb_client_id: str,
+    db: Session = Depends(get_inventory_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.iweb_client_id not in {iweb_client_id, "GLOBAL"}:
+        raise HTTPException(status_code=403, detail="No tenés permisos para modificar reservas de otra agencia")
+
+    source_hotel_id = body.source_hotel_id.strip()
+    target_hotel_id = body.target_hotel_id.strip()
+    if not source_hotel_id or not target_hotel_id:
+        raise HTTPException(status_code=400, detail="Seleccioná el hotel actual y el hotel nuevo")
+    if source_hotel_id == target_hotel_id:
+        raise HTTPException(status_code=400, detail="El hotel nuevo debe ser diferente al hotel actual")
+
+    salida = db.query(Salidas).filter(
+        Salidas.id == salida_id,
+        Salidas.iweb_client_id == iweb_client_id,
+    ).first()
+    if not salida:
+        raise HTTPException(status_code=404, detail="Salida no encontrada")
+
+    hotel_ids = {source_hotel_id, target_hotel_id}
+    existing_hotel_ids = {
+        hotel_id for (hotel_id,) in db.query(Hotels.id).filter(
+            Hotels.id.in_(hotel_ids),
+            Hotels.iweb_client_id == iweb_client_id,
+        ).all()
+    }
+    if source_hotel_id not in existing_hotel_ids:
+        raise HTTPException(status_code=404, detail="Hotel actual no encontrado")
+    if target_hotel_id not in existing_hotel_ids:
+        raise HTTPException(status_code=404, detail="Hotel destino no encontrado")
+
+    passengers = db.query(ReservationPassengers).join(
+        Reservas,
+        Reservas.id == ReservationPassengers.reserva_id,
+    ).filter(
+        Reservas.iweb_client_id == iweb_client_id,
+        Reservas.salida_id == salida_id,
+        Reservas.active.is_not(False),
+        ReservationPassengers.hotel_id == source_hotel_id,
+    ).all()
+    for passenger in passengers:
+        passenger.hotel_id = target_hotel_id
+
+    db.commit()
+    return ReservationPassengerHotelReplaceResponse(updated_passengers=len(passengers))
+
+
+@router.patch(
+    "/{salida_id}/reservation-passengers/lugar-carga",
+    response_model=ReservationPassengerBoardingBulkResponse,
+)
+async def assign_reservation_passengers_boarding_place(
+    salida_id: str,
+    body: ReservationPassengerBoardingBulkRequest,
+    iweb_client_id: str,
+    db: Session = Depends(get_inventory_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.iweb_client_id not in {iweb_client_id, "GLOBAL"}:
+        raise HTTPException(
+            status_code=403,
+            detail="No tenés permisos para modificar reservas de otra agencia",
+        )
+
+    passenger_ids = list(dict.fromkeys(
+        passenger_id.strip()
+        for passenger_id in body.reservation_passenger_ids
+        if isinstance(passenger_id, str) and passenger_id.strip()
+    ))
+    lugar_carga_id = body.lugar_carga_id.strip() if body.lugar_carga_id is not None else None
+    bus_number_requested = body.bus_number is not None
+    bus_number = body.bus_number.strip() if body.bus_number is not None else None
+    if not passenger_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Seleccioná al menos un pasajero",
+        )
+    if not lugar_carga_id and not bus_number_requested:
+        raise HTTPException(
+            status_code=400,
+            detail="Seleccioná al menos un lugar de ascenso o N° de bus",
+        )
+
+    salida = db.query(Salidas).filter(
+        Salidas.id == salida_id,
+        Salidas.iweb_client_id == iweb_client_id,
+    ).first()
+    if not salida:
+        raise HTTPException(status_code=404, detail="Salida no encontrada")
+
+    relation = (
+        db.query(SalidasLugaresCarga).filter(
+            SalidasLugaresCarga.salida_id == salida_id,
+            SalidasLugaresCarga.iweb_client_id == iweb_client_id,
+        ).first()
+        if lugar_carga_id
+        else None
+    )
+    if lugar_carga_id and not relation:
+        raise HTTPException(
+            status_code=400,
+            detail="La salida no tiene lugares de ascenso configurados",
+        )
+    salida_place_ids = {
+        place_id.strip()
+        for place_id in ((relation.cargas if relation else "") or "").split(",")
+        if place_id.strip()
+    }
+    if lugar_carga_id and lugar_carga_id not in salida_place_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="El lugar de ascenso no pertenece a la salida",
+        )
+
+    place = (
+        db.query(LugaresCarga).filter(
+            LugaresCarga.id == lugar_carga_id,
+            LugaresCarga.iweb_client_id == iweb_client_id,
+        ).first()
+        if lugar_carga_id
+        else None
+    )
+    if lugar_carga_id and not place:
+        raise HTTPException(status_code=404, detail="Lugar de ascenso no encontrado")
+
+    selected_unit = None
+    departure_units = None
+    if bus_number_requested and bus_number:
+        if not bus_number.isdecimal() or int(bus_number) < 1:
+            raise HTTPException(
+                status_code=422,
+                detail="El numero de bus debe ser un entero positivo",
+            )
+        departure_units = units_for(db, salida)
+        selected_unit = next(
+            (
+                unit
+                for unit in departure_units
+                if unit.active and unit.number == int(bus_number)
+            ),
+            None,
+        )
+        if not selected_unit:
+            raise HTTPException(
+                status_code=422,
+                detail=f"El Bus {int(bus_number)} no esta activo en esta salida",
+            )
+
+    passengers = db.query(ReservationPassengers).join(
+        Reservas,
+        Reservas.id == ReservationPassengers.reserva_id,
+    ).filter(
+        ReservationPassengers.id.in_(passenger_ids),
+        Reservas.salida_id == salida_id,
+        Reservas.iweb_client_id == iweb_client_id,
+        Reservas.active.is_not(False),
+    ).all()
+    passenger_map = {passenger.id: passenger for passenger in passengers}
+    missing_ids = [
+        passenger_id
+        for passenger_id in passenger_ids
+        if passenger_id not in passenger_map
+    ]
+    if missing_ids:
+        raise HTTPException(
+            status_code=404,
+            detail="Uno o más pasajeros no pertenecen a la salida activa",
+        )
+
+    for passenger in passengers:
+        if lugar_carga_id:
+            passenger.lugar_carga_id = lugar_carga_id
+        if bus_number_requested:
+            assign_passenger_to_unit_number(
+                db,
+                salida,
+                passenger,
+                bus_number or "",
+                units=departure_units,
+            )
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return ReservationPassengerBoardingBulkResponse(
+        updated_passengers=len(passengers),
+        lugar_carga_id=lugar_carga_id,
+        bus_number=str(selected_unit.number) if selected_unit else None,
     )
 
 

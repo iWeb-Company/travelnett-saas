@@ -5,7 +5,7 @@ import ToggleSalidas from "@/app/components/ToggleSalidas";
 import PasajeroRow from "@/app/components/PasajeroRow";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Butaca from "@/app/components/icons/salidas/Butaca";
 import Excel from "@/app/components/icons/salidas/Excel";
 import Subir from "@/app/components/icons/salidas/Subir";
@@ -24,6 +24,21 @@ import {
 import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
 import { formatDateDDMMYY } from "@/lib/formatDate";
 import type { SalidaTransportUnit } from "@/app/types";
+import AscensoAsignButton from "@/app/components/AscensoAsignButton";
+
+const formatPendingBalance = (balance: unknown) => {
+  const value = Number(balance);
+  return Number.isFinite(value)
+    ? `$${Math.round(value).toLocaleString("es-AR")}`
+    : "-";
+};
+
+const normalizeDestination = (value: unknown) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 
 export default function SalidasIDPage() {
   const params = useParams();
@@ -32,12 +47,23 @@ export default function SalidasIDPage() {
 
   const [reservas, setReservas] = useState<any[]>([]);
   const [hoteles, setHoteles] = useState<any[]>([]);
-  const [regimenes, setRegimenes] = useState<any[]>([]);
   const [lugaresCarga, setLugaresCarga] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [showRelojModal, setShowRelojModal] = useState(false);
   const [showHotelModal, setShowHotelModal] = useState(false);
+  const [showAscensoOrderModal, setShowAscensoOrderModal] = useState(false);
+  const [showBulkAscensoModal, setShowBulkAscensoModal] = useState(false);
+  const [selectedPassengerIds, setSelectedPassengerIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const lastSelectedPassengerIndex = useRef<number | null>(null);
+  const [bulkLugarCargaId, setBulkLugarCargaId] = useState("");
+  const [bulkBusNumber, setBulkBusNumber] = useState("");
+  const [orderedCargas, setOrderedCargas] = useState<any[]>([]);
+  const [draggedCargaId, setDraggedCargaId] = useState<string | null>(null);
+  const [isSavingAscensoOrder, setIsSavingAscensoOrder] = useState(false);
+  const [isSavingBulkAscenso, setIsSavingBulkAscenso] = useState(false);
 
   // Modal States
   const [salida, setSalida] = useState<any>(null);
@@ -52,8 +78,8 @@ export default function SalidasIDPage() {
     (units.length === 1 ? units[0] : null);
 
   // Hotel modal states
-  const [selectedHotel, setSelectedHotel] = useState("");
-  const [selectedRegimen, setSelectedRegimen] = useState("");
+  const [sourceHotelId, setSourceHotelId] = useState("");
+  const [targetHotelId, setTargetHotelId] = useState("");
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
 
   // Horarios modal states
@@ -91,7 +117,6 @@ export default function SalidasIDPage() {
       const [
         resData,
         hotelData,
-        regData,
         lcData,
         salidaData,
         destData,
@@ -101,9 +126,6 @@ export default function SalidasIDPage() {
         apiClient.getReservas(user.iweb_client_id, id).catch(() => []),
         apiClient
           .getParameters("get_hotels", user.iweb_client_id)
-          .catch(() => []),
-        apiClient
-          .getParameters("get_regimenes", user.iweb_client_id)
           .catch(() => []),
         apiClient
           .getParameters("get_lugares_carga", user.iweb_client_id)
@@ -122,7 +144,6 @@ export default function SalidasIDPage() {
 
       setReservas(resData);
       setHoteles(hotelData);
-      setRegimenes(regData);
       setLugaresCarga(lcData);
       setSalida(salidaData);
       setDestinos(destData);
@@ -166,6 +187,39 @@ export default function SalidasIDPage() {
 
   // Age group stats & boarding stats are computed below, after mappedPasajeros is built.
 
+  const assignedHotelCounts = reservas
+    .filter((reservation) => reservation.active !== false)
+    .flatMap((reservation) =>
+      Array.isArray(reservation.reservation_passengers)
+        ? reservation.reservation_passengers
+        : [],
+    )
+    .reduce<Record<string, number>>((counts, passenger) => {
+      if (passenger.hotel_id) {
+        counts[passenger.hotel_id] = (counts[passenger.hotel_id] || 0) + 1;
+      }
+      return counts;
+    }, {});
+  const assignedHotels = hoteles.filter(
+    (hotel) => assignedHotelCounts[hotel.id] > 0,
+  );
+  const departureDestination = destinos.find(
+    (destination) => destination.id === salida?.destino,
+  );
+  const departureDestinationValues = new Set(
+    [
+      salida?.destino,
+      departureDestination?.id,
+      departureDestination?.name,
+      departureDestination?.nombre,
+    ]
+      .filter(Boolean)
+      .map(normalizeDestination),
+  );
+  const destinationHotels = hoteles.filter((hotel) =>
+    departureDestinationValues.has(normalizeDestination(hotel.destino)),
+  );
+
   // Open modal initializers
   const handleOpenRelojModal = () => {
     setTempCoordinadorNombre(salida?.coordinador_nombre || "");
@@ -180,43 +234,141 @@ export default function SalidasIDPage() {
   };
 
   const handleOpenHotelModal = () => {
-    setSelectedHotel(salida?.hotel_id || "");
-    setSelectedRegimen(salida?.regimen_id || "");
+    setSourceHotelId(assignedHotels.length === 1 ? assignedHotels[0].id : "");
+    setTargetHotelId("");
     setShowHotelModal(true);
   };
 
-  // Update the operative departure and legacy reservations without a package.
+  const handleOpenAscensoOrderModal = () => {
+    setOrderedCargas(salidaCargas.map((carga: any) => ({ ...carga })));
+    setDraggedCargaId(null);
+    setShowAscensoOrderModal(true);
+  };
+
+  const handleDropCarga = (targetCargaId: string) => {
+    if (!draggedCargaId || draggedCargaId === targetCargaId) return;
+    setOrderedCargas((current) => {
+      const sourceIndex = current.findIndex(
+        (carga) => carga.id === draggedCargaId,
+      );
+      const targetIndex = current.findIndex(
+        (carga) => carga.id === targetCargaId,
+      );
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+    setDraggedCargaId(null);
+  };
+
+  const handleMoveCarga = (index: number, direction: -1 | 1) => {
+    setOrderedCargas((current) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
+  };
+
+  const handleSaveAscensoOrder = async () => {
+    if (!user?.iweb_client_id || !id || orderedCargas.length === 0) return;
+    setIsSavingAscensoOrder(true);
+    try {
+      const cargasIds = orderedCargas.map((carga: any) => carga.id);
+      const horarios = orderedCargas.map((carga: any) => carga.horario || "");
+      await apiClient.updateSalida(user.iweb_client_id, id, {
+        cargas_ids: cargasIds,
+        horarios,
+      });
+      toast.success("Orden de ascensos actualizado");
+      setShowAscensoOrderModal(false);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error("Error al guardar el orden de ascensos");
+    } finally {
+      setIsSavingAscensoOrder(false);
+    }
+  };
+
+  const handleOpenBulkAscensoModal = () => {
+    if (selectedPassengerIds.size === 0) return;
+    setBulkLugarCargaId("");
+    setBulkBusNumber("");
+    setShowBulkAscensoModal(true);
+  };
+
+  const handleSaveBulkAscenso = async () => {
+    if (
+      !user?.iweb_client_id ||
+      !id ||
+      selectedPassengerIds.size === 0 ||
+      (!bulkLugarCargaId && !bulkBusNumber)
+    ) {
+      return;
+    }
+    setIsSavingBulkAscenso(true);
+    try {
+      const result = await apiClient.assignReservationPassengersBoardingPlace(
+        user.iweb_client_id,
+        id,
+        Array.from(selectedPassengerIds),
+        bulkLugarCargaId || null,
+        bulkBusNumber || null,
+      );
+      const changedFields = [
+        bulkLugarCargaId ? "lugar de ascenso" : "",
+        bulkBusNumber ? "N° de bus" : "",
+      ].filter(Boolean);
+      toast.success(
+        result.updated_passengers === 1
+          ? `Se asignó ${changedFields.join(" y ")} a 1 pasajero`
+          : `Se asignó ${changedFields.join(" y ")} a ${result.updated_passengers} pasajeros`,
+      );
+      setShowBulkAscensoModal(false);
+      setSelectedPassengerIds(new Set());
+      setBulkLugarCargaId("");
+      setBulkBusNumber("");
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Error al asignar el lugar de ascenso",
+      );
+    } finally {
+      setIsSavingBulkAscenso(false);
+    }
+  };
+
   const handleUpdateHotel = async () => {
-    if (!user?.iweb_client_id || !id) return;
+    if (!user?.iweb_client_id || !id || !sourceHotelId || !targetHotelId)
+      return;
     setIsUpdatingHotel(true);
     try {
-      // 1. Update the departure parameter
-      await apiClient.updateSalida(user.iweb_client_id, id, {
-        hotel_id: selectedHotel || null,
-        regimen_id: selectedRegimen || null,
-      });
-
-      // 2. Packaged reservations keep their own commercial hotel and regimen.
-      const reservationsWithoutPackage = reservas.filter(
-        (reservation) => !reservation.package_id,
+      const result = await apiClient.replaceReservationPassengerHotel(
+        user.iweb_client_id,
+        id,
+        sourceHotelId,
+        targetHotelId,
       );
-      if (reservationsWithoutPackage.length > 0) {
-        await Promise.all(
-          reservationsWithoutPackage.map((r) =>
-            apiClient.updateReserva(user.iweb_client_id, r.id, {
-              hotel_id: selectedHotel || null,
-              regimen_id: selectedRegimen || null,
-            }),
-          ),
-        );
-      }
 
-      toast.success("Hotel y Régimen actualizados con éxito");
+      toast.success(
+        result.updated_passengers === 1
+          ? "Se cambió el hotel de 1 pasajero"
+          : `Se cambió el hotel de ${result.updated_passengers} pasajeros`,
+      );
       setShowHotelModal(false);
-      loadData();
+      await loadData();
     } catch (err) {
       console.error(err);
-      toast.error("Error al actualizar hotel/régimen");
+      toast.error(
+        err instanceof Error ? err.message : "Error al cambiar el hotel",
+      );
     } finally {
       setIsUpdatingHotel(false);
     }
@@ -250,21 +402,6 @@ export default function SalidasIDPage() {
       setIsSavingHorarios(false);
     }
   };
-
-  // Resolved departure's destination name for hotel filtering
-  const departureDestObj = destinos.find((d) => d.id === salida?.destino);
-  const destName = departureDestObj
-    ? departureDestObj.name || departureDestObj.nombre
-    : "";
-  const destId = salida?.destino || "";
-  const _filtered = hoteles.filter((h) => {
-    if (!destName && !destId) return true;
-    const hDest = (h.destino || "").toLowerCase();
-    // Match by name or by ID
-    return hDest === destName.toLowerCase() || hDest === destId.toLowerCase();
-  });
-  // If the filter returns nothing (mismatch), show all hotels as fallback
-  const filteredHoteles = _filtered.length > 0 ? _filtered : hoteles;
 
   if (loading) {
     return (
@@ -376,6 +513,7 @@ export default function SalidasIDPage() {
             dni: pax.dni || r.dni || "-",
             fecha_nacimiento: pax.fecha_nacimiento || r.fecha_nacimiento || "-",
             reserva: r.codigo_reserva || "-",
+            saldo: formatPendingBalance(r.balance),
             cliente: (r.client_nombre || "-").toUpperCase(),
             client_id: r.client_id || null,
             ascenso: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
@@ -398,6 +536,7 @@ export default function SalidasIDPage() {
             butaca_type: pax.butaca_type || r.butaca_type || "",
             observations: r.observations || pax.observations || "",
             isGroup: false,
+            passengerIds: [pax.id || r.id].filter(Boolean),
             groupCount: 1,
           });
         });
@@ -465,6 +604,7 @@ export default function SalidasIDPage() {
             fecha_nacimiento:
               firstPax.fecha_nacimiento || r.fecha_nacimiento || "-",
             reserva: r.codigo_reserva || "-",
+            saldo: formatPendingBalance(r.balance),
             cliente: (r.client_nombre || "-").toUpperCase(),
             client_id: r.client_id || null,
             ascenso: firstPax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
@@ -483,6 +623,7 @@ export default function SalidasIDPage() {
             butaca_type: firstPax.butaca_type || r.butaca_type || "",
             observations: r.observations || firstPax.observations || "",
             isGroup: true,
+            passengerIds: paxsSinDatos.map((p: any) => p.id).filter(Boolean),
             groupCount: paxsSinDatos.length,
           });
         }
@@ -530,6 +671,7 @@ export default function SalidasIDPage() {
             dni: pax.dni || r.dni || "-",
             fecha_nacimiento: pax.fecha_nacimiento || r.fecha_nacimiento || "-",
             reserva: r.codigo_reserva || "-",
+            saldo: formatPendingBalance(r.balance),
             cliente: (r.client_nombre || "-").toUpperCase(),
             client_id: r.client_id || null,
             ascenso: pax.lugar_carga_nombre || r.lugar_carga_nombre || "-",
@@ -552,6 +694,7 @@ export default function SalidasIDPage() {
             butaca_type: pax.butaca_type || r.butaca_type || "",
             observations: r.observations || pax.observations || "",
             isGroup: false,
+            passengerIds: [pax.id || r.id].filter(Boolean),
             groupCount: 1,
           });
         });
@@ -563,7 +706,7 @@ export default function SalidasIDPage() {
     units.length > 1 && selectedMicro
       ? String(selectedMicro.number).trim()
       : "";
-  const visiblePasajeros = selectedMicroNumber
+  const filteredPasajeros = selectedMicroNumber
     ? mappedPasajeros.flatMap((passenger) => {
         if (!passenger.isGroup) {
           return String(passenger.bus_number || "").trim() ===
@@ -587,10 +730,76 @@ export default function SalidasIDPage() {
             edad: `ADL (x${matchingPassengerCount})`,
             bus_number: selectedMicroNumber,
             groupCount: matchingPassengerCount,
+            passengerIds: (passenger.passengerIds || []).filter(
+              (_: string, index: number) =>
+                passenger.passengerBusNumbers?.[index] === selectedMicroNumber,
+            ),
           },
         ];
       })
     : mappedPasajeros;
+
+  const cargaOrder = new Map<string, number>();
+  const cargaOrderByName = new Map<string, number>();
+  salidaCargas.forEach((carga: any, index: number) => {
+    cargaOrder.set(carga.id, index);
+    cargaOrderByName.set(
+      normalizeDestination(carga.name || carga.nombre),
+      index,
+    );
+  });
+  const getPassengerCargaOrder = (passenger: any) =>
+    cargaOrder.get(passenger.lugar_carga_id) ??
+    cargaOrderByName.get(normalizeDestination(passenger.ascenso)) ??
+    Number.MAX_SAFE_INTEGER;
+  const visiblePasajeros = filteredPasajeros
+    .map((passenger, index) => ({ passenger, index }))
+    .sort((left, right) => {
+      const orderDifference =
+        getPassengerCargaOrder(left.passenger) -
+        getPassengerCargaOrder(right.passenger);
+      return orderDifference || left.index - right.index;
+    })
+    .map(({ passenger }) => passenger);
+
+  const passengerIdsForRow = (passenger: any): string[] =>
+    (passenger.passengerIds || [passenger.id]).filter(Boolean);
+
+  const handlePassengerSelection = (
+    passenger: any,
+    checked: boolean,
+    rowIndex: number,
+    shiftKey = false,
+  ) => {
+    const rangeStart =
+      shiftKey && lastSelectedPassengerIndex.current !== null
+        ? Math.min(lastSelectedPassengerIndex.current, rowIndex)
+        : rowIndex;
+    const rangeEnd =
+      shiftKey && lastSelectedPassengerIndex.current !== null
+        ? Math.max(lastSelectedPassengerIndex.current, rowIndex)
+        : rowIndex;
+    const passengersToUpdate = shiftKey
+      ? visiblePasajeros.slice(rangeStart, rangeEnd + 1)
+      : [passenger];
+    setSelectedPassengerIds((current) => {
+      const next = new Set(current);
+      passengersToUpdate.forEach((passengerToUpdate) => {
+        passengerIdsForRow(passengerToUpdate).forEach((passengerId) => {
+          if (checked) next.add(passengerId);
+          else next.delete(passengerId);
+        });
+      });
+      return next;
+    });
+    lastSelectedPassengerIndex.current = rowIndex;
+  };
+
+  const handleMicroChange = (microId: string) => {
+    setSelectedMicroId(microId);
+    setSelectedPassengerIds(new Set());
+    lastSelectedPassengerIndex.current = null;
+  };
 
   const chdCount = visiblePasajeros.reduce(
     (sum, p) => sum + (p.edad === "CHD" ? p.groupCount || 1 : 0),
@@ -607,21 +816,27 @@ export default function SalidasIDPage() {
   );
 
   // Boarding stats – count total passengers for each location
-  const ascensosGrouped: Record<
+  const ascensosGrouped = new Map<
     string,
-    { cantidad: number; nombre: string; direccion: string }
-  > = {};
+    { cantidad: number; nombre: string; direccion: string; order: number }
+  >();
   visiblePasajeros.forEach((p) => {
-    const key = p.ascenso || "Sin especificar";
-    if (!ascensosGrouped[key]) {
-      const lc = lugaresCarga.find((l: any) => (l.name || l.nombre) === key);
-      ascensosGrouped[key] = {
+    const key = p.lugar_carga_id || `name:${p.ascenso || "Sin especificar"}`;
+    if (!ascensosGrouped.has(key)) {
+      const cargaIndex = salidaCargas.findIndex(
+        (carga: any) => carga.id === p.lugar_carga_id,
+      );
+      const lc =
+        salidaCargas[cargaIndex] ||
+        lugaresCarga.find((l: any) => (l.name || l.nombre) === p.ascenso);
+      ascensosGrouped.set(key, {
         cantidad: 0,
-        nombre: key,
+        nombre: p.ascenso || "Sin especificar",
         direccion: lc?.address || lc?.direccion || "-",
-      };
+        order: cargaIndex >= 0 ? cargaIndex : Number.MAX_SAFE_INTEGER,
+      });
     }
-    ascensosGrouped[key].cantidad += p.groupCount || 1;
+    ascensosGrouped.get(key)!.cantidad += p.groupCount || 1;
   });
 
   const handleExportExcel = async () => {
@@ -711,7 +926,9 @@ export default function SalidasIDPage() {
     }
   };
 
-  const ascensosList = Object.values(ascensosGrouped);
+  const ascensosList = Array.from(ascensosGrouped.values()).sort(
+    (left, right) => left.order - right.order,
+  );
 
   return (
     <Container>
@@ -742,7 +959,7 @@ export default function SalidasIDPage() {
             aria-label="Filtrar pasajeros por micro"
             className="border rounded p-1"
             value={selectedMicroId}
-            onChange={(event) => setSelectedMicroId(event.target.value)}>
+            onChange={(event) => handleMicroChange(event.target.value)}>
             <option value="">Seleccionar micro</option>
             {units.map((unit) => (
               <option key={unit.id} value={unit.id}>
@@ -756,9 +973,9 @@ export default function SalidasIDPage() {
         <Link
           href={`/salidas/lista/${id}/transporte`}
           className="p-1.5 flex items-center gap-2 font-semibold"
-          title="Transportes">
+          title="Buses">
           <Transporte />
-          <p className="text-xs text-black md:block hidden">Transportes</p>
+          <p className="text-xs text-black md:block hidden">Buses</p>
         </Link>
         {/* Taquilla */}
         <Link
@@ -828,7 +1045,11 @@ export default function SalidasIDPage() {
             <span className="text-transparent font-normal px-1 md:inline hidden select-none">
               |
             </span>
-            <span className="w-20 md:block hidden text-center">Reserva</span>
+            <span className="w-20 md:block hidden text-end">Saldo</span>
+            <span className="text-transparent font-normal px-1 md:inline hidden select-none">
+              |
+            </span>
+            <span className="w-20 md:block hidden text-end">Reserva</span>
             <span className="text-transparent font-normal px-1 md:inline hidden select-none">
               |
             </span>
@@ -836,7 +1057,13 @@ export default function SalidasIDPage() {
             <span className="text-transparent font-normal px-1 select-none">
               |
             </span>
-            <span className="w-32 text-center">Ascenso</span>
+            <button
+              type="button"
+              onClick={handleOpenAscensoOrderModal}
+              className="w-32 text-center cursor-pointer hover:underline"
+              title="Ordenar lugares de ascenso">
+              Ascenso
+            </button>
             <span className="text-transparent font-normal px-1 md:inline hidden select-none">
               |
             </span>
@@ -844,7 +1071,7 @@ export default function SalidasIDPage() {
             <span className="text-transparent font-normal px-1 md:inline hidden select-none">
               |
             </span>
-            <span className="w-12 md:block hidden text-center">Edad</span>
+            <span className="w-12 md:block hidden text-end">Edad</span>
             <span className="text-transparent font-normal px-1 md:inline hidden select-none">
               |
             </span>
@@ -856,7 +1083,7 @@ export default function SalidasIDPage() {
             <span className="text-transparent font-normal px-1 select-none">
               |
             </span>
-            <span className="w-16 md:block hidden text-center">Obs</span>
+            <span className="w-16 md:block hidden text-end">Obs</span>
             <span className="text-transparent font-normal px-1 select-none">
               |
             </span>
@@ -879,18 +1106,30 @@ export default function SalidasIDPage() {
                 .map((lc: any) => (lc.name || lc.nombre || "").toLowerCase())
                 .filter(Boolean);
 
-              return visiblePasajeros.map((p, idx) => (
-                <PasajeroRow
-                  key={idx}
-                  salidaId={id}
-                  pasajero={p}
-                  lugaresCarga={lugaresCarga}
-                  salidaCargasIds={salidaCargasIds}
-                  salidaCargasNames={salidaCargasNames}
-                  onUpdated={loadData}
-                  onBusUpdated={handleBusUpdated}
-                />
-              ));
+              return visiblePasajeros.map((p, idx) => {
+                const rowPassengerIds = passengerIdsForRow(p);
+                const isRowSelected =
+                  rowPassengerIds.length > 0 &&
+                  rowPassengerIds.every((passengerId) =>
+                    selectedPassengerIds.has(passengerId),
+                  );
+                return (
+                  <PasajeroRow
+                    key={p.id || idx}
+                    salidaId={id}
+                    pasajero={p}
+                    lugaresCarga={lugaresCarga}
+                    salidaCargasIds={salidaCargasIds}
+                    salidaCargasNames={salidaCargasNames}
+                    selected={isRowSelected}
+                    onSelectionChange={(checked, shiftKey) =>
+                      handlePassengerSelection(p, checked, idx, shiftKey)
+                    }
+                    onUpdated={loadData}
+                    onBusUpdated={handleBusUpdated}
+                  />
+                );
+              });
             })()
           )}
         </div>
@@ -954,13 +1193,188 @@ export default function SalidasIDPage() {
         </table>
       </section>
 
+      <AscensoAsignButton
+        selectedCount={selectedPassengerIds.size}
+        onClick={handleOpenBulkAscensoModal}
+        disabled={isSavingBulkAscenso}
+        isVisible={selectedPassengerIds.size > 0}
+      />
+
+      {showAscensoOrderModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4"
+          onClick={() => setShowAscensoOrderModal(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ascenso-order-title"
+            className="bg-[#5782F7] rounded-2xl w-[90%] max-w-2xl max-h-[85vh] flex flex-col overflow-hidden text-white"
+            onClick={(event) => event.stopPropagation()}>
+            <div className="flex justify-center pt-5 pb-3">
+              <img src="/logo.png" alt="Tranett" className="w-20" />
+            </div>
+            <h3
+              id="ascenso-order-title"
+              className="text-center font-bold text-sm mb-2">
+              Ordenar lugares de ascenso
+            </h3>
+            <p className="text-center text-xs px-5 pb-3">
+              Arrastra cada lugar al orden deseado. Tambien puedes usar las
+              flechas.
+            </p>
+            <div className="px-4 pb-3 overflow-auto space-y-2">
+              {orderedCargas.length === 0 ? (
+                <p className="text-center text-sm py-4">
+                  No hay lugares de ascenso cargados en esta salida.
+                </p>
+              ) : (
+                orderedCargas.map((carga: any, index: number) => (
+                  <div
+                    key={carga.id}
+                    draggable
+                    onDragStart={() => setDraggedCargaId(carga.id)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={() => handleDropCarga(carga.id)}
+                    className="flex items-center gap-3 rounded-lg bg-gray-700 border border-gray-600 px-3 py-2 cursor-grab active:cursor-grabbing">
+                    <span
+                      className="w-6 text-center font-bold"
+                      aria-label={`Orden ${index + 1}`}>
+                      {index + 1}
+                    </span>
+                    <span className="flex-1 min-w-0 truncate">
+                      {carga.name || carga.nombre}
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Subir ${carga.name || carga.nombre}`}
+                        onClick={() => handleMoveCarga(index, -1)}
+                        disabled={index === 0}
+                        className="rounded border border-gray-500 px-2 py-1 disabled:opacity-40">
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Bajar ${carga.name || carga.nombre}`}
+                        onClick={() => handleMoveCarga(index, 1)}
+                        disabled={index === orderedCargas.length - 1}
+                        className="rounded border border-gray-500 px-2 py-1 disabled:opacity-40">
+                        ↓
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex justify-center gap-3 px-4 py-4">
+              <button
+                type="button"
+                onClick={() => setShowAscensoOrderModal(false)}
+                className="bg-white text-black font-semibold text-sm px-6 py-2 rounded-lg cursor-pointer border border-gray-300">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAscensoOrder}
+                disabled={isSavingAscensoOrder || orderedCargas.length === 0}
+                className="bg-secondary text-white font-semibold text-sm px-6 py-2 rounded-lg cursor-pointer disabled:opacity-50">
+                {isSavingAscensoOrder ? "Guardando..." : "Confirmar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkAscensoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4"
+          onClick={() => setShowBulkAscensoModal(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-ascenso-title"
+            className="bg-[#5782F7] rounded-2xl w-[90%] max-w-md max-h-[85vh] flex flex-col overflow-hidden text-white"
+            onClick={(event) => event.stopPropagation()}>
+            <div className="flex justify-center pt-5 pb-3">
+              <img src="/logo.png" alt="Tranett" className="w-20" />
+            </div>
+            <h3
+              id="bulk-ascenso-title"
+              className="text-center font-bold text-sm mb-2">
+              Asignar lugar de ascenso y/o N° de Bus
+            </h3>
+            <p className="text-center text-xs px-5 pb-4">
+              Se actualizaran {selectedPassengerIds.size} pasajeros
+              seleccionados.
+            </p>
+            <div className="px-5 pb-4">
+              <label
+                htmlFor="bulk-lugar-carga"
+                className="block text-sm font-semibold mb-2">
+                Lugar de ascenso
+              </label>
+              <select
+                id="bulk-lugar-carga"
+                aria-label="Lugar de ascenso nuevo"
+                value={bulkLugarCargaId}
+                onChange={(event) => setBulkLugarCargaId(event.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-secondary cursor-pointer">
+                <option value="">-</option>
+                {salidaCargas.map((carga: any) => (
+                  <option key={carga.id} value={carga.id}>
+                    {carga.name || carga.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="px-5 pb-4">
+              <label
+                htmlFor="bulk-bus-number"
+                className="block text-sm font-semibold mb-2">
+                N° de Bus
+              </label>
+              <select
+                id="bulk-bus-number"
+                aria-label="N° de Bus"
+                value={bulkBusNumber}
+                onChange={(event) => setBulkBusNumber(event.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-secondary cursor-pointer">
+                <option value="">-</option>
+                {units.map((unit) => (
+                  <option key={unit.id} value={String(unit.number)}>
+                    {unit.number}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-center gap-3 px-4 py-4">
+              <button
+                type="button"
+                onClick={() => setShowBulkAscensoModal(false)}
+                className="bg-white text-black font-semibold text-sm px-6 py-2 rounded-lg cursor-pointer border border-gray-300">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBulkAscenso}
+                disabled={
+                  isSavingBulkAscenso || (!bulkLugarCargaId && !bulkBusNumber)
+                }
+                className="bg-secondary text-white font-semibold text-sm px-6 py-2 rounded-lg cursor-pointer disabled:opacity-50">
+                {isSavingBulkAscenso ? "Guardando..." : "Confirmar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Reloj (Horarios y Coordinador) */}
       {showRelojModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4"
           onClick={() => setShowRelojModal(false)}>
           <div
-            className="bg-primary rounded-2xl w-[90%] max-w-xl max-h-[85vh] flex flex-col overflow-hidden text-white"
+            className="bg-[#5782F7] rounded-2xl w-[90%] max-w-xl max-h-[85vh] flex flex-col overflow-hidden text-white"
             onClick={(e) => e.stopPropagation()}>
             {/* Logo */}
             <div className="flex justify-center pt-5 pb-3">
@@ -1090,63 +1504,76 @@ export default function SalidasIDPage() {
         </div>
       )}
 
-      {/* Modal Hotel y Régimen */}
+      {/* Modal de reemplazo de hotel por pasajero */}
       {showHotelModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4"
           onClick={() => setShowHotelModal(false)}>
           <div
-            className="bg-primary rounded-2xl w-[90%] max-w-md max-h-[85vh] flex flex-col overflow-hidden text-white"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-hotel-title"
+            className="bg-[#5782F7] rounded-2xl w-[90%] px-5 max-w-md max-h-[85vh] flex flex-col overflow-hidden text-white"
             onClick={(e) => e.stopPropagation()}>
             {/* Logo */}
             <div className="flex justify-center pt-5 pb-3">
               <img src="/logo.png" alt="Tranett" className="w-20" />
             </div>
 
-            <h3 className="text-center font-bold text-sm mb-3">
-              Cambiar Hotel y Régimen
+            <h3
+              id="change-hotel-title"
+              className="text-center font-bold text-sm mb-3">
+              Cambiar Hotel
             </h3>
 
             {/* Formulario */}
             <table className="w-full text-xs text-center border-collapse">
               <thead className="sticky top-0 bg-gray-700">
                 <tr>
-                  <th className="py-1.5 px-2 font-semibold">Destino</th>
-                  <th className="py-1.5 px-2 text-center font-semibold">
-                    Hotel
-                  </th>
-                  <th className="py-1.5 px-2 font-semibold">Régimen</th>
+                  <th className="py-1.5 px-2 font-semibold">Hotel actual</th>
+                  <th className="py-1.5 px-2 font-semibold">Hotel nuevo</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="bg-gray-600 border-t border-gray-700">
                   <td className="py-1.5 px-2">
-                    {destName || salida?.destino || ""}
-                  </td>
-                  <td className="py-1.5 px-2">
                     <select
-                      value={selectedHotel}
-                      onChange={(e) => setSelectedHotel(e.target.value)}
+                      aria-label="Hotel actual"
+                      value={sourceHotelId}
+                      onChange={(e) => {
+                        setSourceHotelId(e.target.value);
+                        if (targetHotelId === e.target.value) {
+                          setTargetHotelId("");
+                        }
+                      }}
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-secondary cursor-pointer">
-                      <option value="">Seleccione un hotel</option>
-                      {filteredHoteles.map((h) => (
+                      <option value="">
+                        {assignedHotels.length > 0
+                          ? "Seleccione un hotel"
+                          : "Sin hoteles asignados"}
+                      </option>
+                      {assignedHotels.map((h) => (
                         <option key={h.id} value={h.id}>
-                          {h.name}
+                          {h.name || h.nombre} ({assignedHotelCounts[h.id]}{" "}
+                          pasajeros)
                         </option>
                       ))}
                     </select>
                   </td>
                   <td className="py-1.5 px-2">
                     <select
-                      value={selectedRegimen}
-                      onChange={(e) => setSelectedRegimen(e.target.value)}
+                      aria-label="Hotel nuevo"
+                      value={targetHotelId}
+                      onChange={(e) => setTargetHotelId(e.target.value)}
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-secondary cursor-pointer">
-                      <option value="">Seleccione un régimen</option>
-                      {regimenes.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name || r.nombre || r.sigla}
-                        </option>
-                      ))}
+                      <option value="">Seleccione un hotel</option>
+                      {destinationHotels
+                        .filter((hotel) => hotel.id !== sourceHotelId)
+                        .map((hotel) => (
+                          <option key={hotel.id} value={hotel.id}>
+                            {hotel.name || hotel.nombre}
+                          </option>
+                        ))}
                     </select>
                   </td>
                 </tr>
@@ -1162,7 +1589,7 @@ export default function SalidasIDPage() {
               </button>
               <button
                 onClick={handleUpdateHotel}
-                disabled={isUpdatingHotel}
+                disabled={isUpdatingHotel || !sourceHotelId || !targetHotelId}
                 className="bg-secondary text-white font-semibold text-sm px-6 py-2 rounded-lg cursor-pointer disabled:opacity-50">
                 {isUpdatingHotel ? "Guardando..." : "Confirmar"}
               </button>

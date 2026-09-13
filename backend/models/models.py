@@ -298,6 +298,9 @@ class Packages(Base):
     image: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True)
     web: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True, default=True)
+    cupo_web: Mapped[bool] = mapped_column(
+        BOOLEAN, nullable=False, default=True, server_default="1"
+    )
     comisionable: Mapped[bool | None] = mapped_column(BOOLEAN, nullable=True, default=False)
     moneda: Mapped[str | None] = mapped_column(String(50), nullable=True, default="pesos")
     moneda_gastos: Mapped[str | None] = mapped_column(String(50), nullable=True, default="pesos")

@@ -7,6 +7,7 @@ export default function ModalLayout({
   titleColor = "text-white",
   maxWidth = "max-w-md",
   onSubmit,
+  submitLabel = "Confirmar",
 }: {
   children: React.ReactNode;
   title?: string;
@@ -16,6 +17,7 @@ export default function ModalLayout({
   titleColor?: string;
   maxWidth?: string;
   onSubmit?: () => void;
+  submitLabel?: string;
 }) {
   const onClose = () => {
     if (setModalOpen) {
@@ -45,7 +47,7 @@ export default function ModalLayout({
           <button
             onClick={onSubmit}
             className="flex-1 sm:flex-none bg-primary text-white rounded-full px-4 sm:px-8 py-3 font-semibold hover:bg-blue-700">
-            Confirmar
+            {submitLabel}
           </button>
         </div>
       </div>

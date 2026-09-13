@@ -520,6 +520,39 @@ export const apiClient = {
     return response.json();
   },
 
+  async assignReservationPassengersBoardingPlace(
+    iwebClientId: string,
+    salidaId: string,
+    reservationPassengerIds: string[],
+    lugarCargaId: string | null,
+    busNumber: string | null,
+  ): Promise<{
+    updated_passengers: number;
+    lugar_carga_id: string | null;
+    bus_number: string | null;
+  }> {
+    const response = await fetch(
+      `${API_BASE_URL}/salidas/${encodeURIComponent(salidaId)}/reservation-passengers/lugar-carga?iweb_client_id=${encodeURIComponent(iwebClientId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          reservation_passenger_ids: reservationPassengerIds,
+          lugar_carga_id: lugarCargaId,
+          bus_number: busNumber,
+        }),
+      },
+    );
+    if (!response.ok) {
+      throw await apiError(
+        response,
+        "No se pudo asignar el lugar de ascenso o N° de bus",
+      );
+    }
+    return response.json();
+  },
+
   async deleteSalida(iwebClientId: string, salidaId: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/salidas/delete_salida/${salidaId}?iweb_client_id=${iwebClientId}`, {
       method: 'DELETE',
@@ -649,6 +682,28 @@ export const apiClient = {
       body: JSON.stringify(data),
     });
     if (!response.ok) throw await apiError(response, 'No se pudo guardar el cambio (update reservation passenger)');
+    return response.json();
+  },
+
+  async replaceReservationPassengerHotel(
+    iwebClientId: string,
+    salidaId: string,
+    sourceHotelId: string,
+    targetHotelId: string,
+  ): Promise<{ updated_passengers: number }> {
+    const response = await fetch(
+      `${API_BASE_URL}/salidas/${encodeURIComponent(salidaId)}/reservation-passengers/hotel?iweb_client_id=${encodeURIComponent(iwebClientId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          source_hotel_id: sourceHotelId,
+          target_hotel_id: targetHotelId,
+        }),
+      },
+    );
+    if (!response.ok) throw await apiError(response, 'No se pudo cambiar el hotel de los pasajeros');
     return response.json();
   },
 

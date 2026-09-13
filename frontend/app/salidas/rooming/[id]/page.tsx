@@ -14,10 +14,28 @@ import {
   getRoomCapacity,
 } from "@/lib/formatRooms";
 import { formatPassengerName, formatFullName } from "@/lib/formatPassengerName";
-import { buildRoomingHotels } from "@/lib/roomingData";
+import {
+  buildRoomingHotels,
+  getRoomingPackageHotelDate,
+} from "@/lib/roomingData";
 import { exportRoomingHotelToExcel } from "@/app/utils/exportRooming";
 import toast from "react-hot-toast";
 import Excel from "@/app/components/icons/salidas/Excel";
+
+const formatRoomingHotelDate = (value: unknown): string => {
+  if (!value) return "";
+
+  const raw = String(value).trim();
+  const datePart = raw.split(/[T ]/)[0];
+  const parts = datePart.split(/[-/]/);
+
+  if (parts.length === 3 && parts[0].length === 4) {
+    const [year, month, day] = parts;
+    return `${day.padStart(2, "0")}/${month.padStart(2, "0")}/${year}`;
+  }
+
+  return raw;
+};
 
 export default function RoomingPage() {
   const router = useRouter();
@@ -170,6 +188,7 @@ export default function RoomingPage() {
     resList: any[],
     hotelTitle?: string,
     hotelId?: string,
+    hotelFechaIn?: string,
   ) => {
     if (resList.length === 0) return null;
 
@@ -327,10 +346,11 @@ export default function RoomingPage() {
     return (
       <div
         key={hotelTitle || "global"}
-        className="mb-8 md:mb-12 border border-gray-200 p-3 sm:p-4 md:p-6 rounded-2xl bg-white shadow-sm">
+        className="mb-8 md:mb-12 border border-[#0546F7]/70 bg-[#0546F7]/15 p-3 sm:p-4 md:p-6 rounded-2xl shadow-sm">
         {hotelTitle && (
-          <h2 className="text-xl md:text-2xl font-bold text-primary mb-6 border-b border-primary/20 pb-3">
-            🏨 {hotelTitle}
+          <h2 className="text-xl md:text-2xl text-center font-bold text-black mb-6 border-b border-primary/20 pb-3">
+            {hotelTitle}
+            {hotelFechaIn && ` - IN ${formatRoomingHotelDate(hotelFechaIn)}`}
           </h2>
         )}
 
@@ -344,18 +364,20 @@ export default function RoomingPage() {
         <h3 className="md:text-center text-black font-bold text-xl mt-8 mb-4">
           Resumen de Ocupación {hotelTitle ? `— ${hotelTitle}` : ""}
         </h3>
-        <section className="flex items-center justify-center gap-2 md:gap-10 pb-6">
-          <div className="flex justify-start md:justify-center items-center text-xs bg-gray-100 w-full max-w-2xl overflow-x-auto">
+        <section className="flex items-center justify-center bg-transparent gap-2 md:gap-10 pb-6">
+          <div className="flex justify-start md:justify-center items-center text-xs  w-full max-w-2xl overflow-x-auto">
             <div className="border border-border rounded-t-2xl overflow-hidden w-full min-w-[500px] md:min-w-0 shadow-md">
-              <div className="grid grid-cols-3 bg-gray-300 text-center font-bold text-gray-800">
-                <div className="py-4 border-r border-border">TIPO</div>
-                <div className="py-4 border-r border-border">TOTAL HABS</div>
-                <div className="py-4">TOTAL PAX</div>
+              <div className="grid grid-cols-3 border-border text-center font-bold text-black">
+                <div className="py-4 border-r border-b border-border">TIPO</div>
+                <div className="py-4 border-r border-b border-border">
+                  TOTAL HABS
+                </div>
+                <div className="py-4 border-b border-border">TOTAL PAX</div>
               </div>
 
-              <div className="divide-y divide-blue-400 text-center text-gray-800 font-medium">
+              <div className="divide-y divide-blue-400 text-center text-black font-medium">
                 {matrimonialStats.rooms > 0 && (
-                  <div className="grid grid-cols-3 bg-white">
+                  <div className="grid grid-cols-3 font-semibold">
                     <div className="py-4 border-r border-border">
                       DOBLES MATRIMONIALES
                     </div>
@@ -367,7 +389,7 @@ export default function RoomingPage() {
                 )}
 
                 {dobleIndividualStats.rooms > 0 && (
-                  <div className="grid grid-cols-3 bg-white">
+                  <div className="grid grid-cols-3 font-semibold">
                     <div className="py-4 border-r border-border">
                       DOBLES INDIVIDUALES
                     </div>
@@ -379,7 +401,7 @@ export default function RoomingPage() {
                 )}
 
                 {singleStats.rooms > 0 && (
-                  <div className="grid grid-cols-3 bg-white">
+                  <div className="grid grid-cols-3 font-semibold">
                     <div className="py-4 border-r border-border">
                       SINGLES / INDIVIDUALES
                     </div>
@@ -391,7 +413,7 @@ export default function RoomingPage() {
                 )}
 
                 {tripleStats.rooms > 0 && (
-                  <div className="grid grid-cols-3 bg-white">
+                  <div className="grid grid-cols-3 font-semibold">
                     <div className="py-4 border-r border-border">TRIPLES</div>
                     <div className="py-4 border-r border-border">
                       {tripleStats.rooms}
@@ -401,7 +423,7 @@ export default function RoomingPage() {
                 )}
 
                 {cuadrupleStats.rooms > 0 && (
-                  <div className="grid grid-cols-3 bg-white">
+                  <div className="grid grid-cols-3 font-semibold">
                     <div className="py-4 border-r border-border">
                       CUÁDRUPLES
                     </div>
@@ -413,7 +435,7 @@ export default function RoomingPage() {
                 )}
 
                 {hasOthers && (
-                  <div className="grid grid-cols-3 bg-white">
+                  <div className="grid grid-cols-3 font-semibold">
                     <div className="py-4 border-r border-border">
                       OTRAS HABITACIONES
                     </div>
@@ -424,7 +446,7 @@ export default function RoomingPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 font-bold bg-gray-300">
+                <div className="grid grid-cols-3 font-bold ">
                   <div className="py-4 border-r border-border">TOTALES</div>
                   <div className="py-4 border-r border-border">{totalHabs}</div>
                   <div className="py-4">{totalPaxSum}</div>
@@ -440,7 +462,9 @@ export default function RoomingPage() {
   const activeReservations = reservas.filter(
     (reservation) => reservation.active !== false,
   );
+
   const roomingHotels = buildRoomingHotels(reservas, hotelNames);
+
   const handleExportHotel = async (
     hotel: ReturnType<typeof buildRoomingHotels>[number],
   ) => {
@@ -517,6 +541,11 @@ export default function RoomingPage() {
           title: packageHotel?.hotel_noches
             ? `${hotelName} (${packageHotel.hotel_noches} Noches)`
             : hotelName,
+          hotelFechaIn: getRoomingPackageHotelDate(
+            packageInfo,
+            packageReservations,
+            hotelId,
+          ),
         };
       }),
     };
@@ -573,14 +602,15 @@ export default function RoomingPage() {
       ) : (
         packageGroups.map((group) => (
           <section key={group.key} className="mb-10">
-            <h1 className="text-xl md:text-2xl font-bold text-black mb-4">
-              {group.title}
+            <h1 className="text-xl md:text-2xl font-bold text-center text-secondary mb-4">
+              Paquete: {group.title}
             </h1>
             {group.hotels.map((hotel) =>
               renderHotelRoomingSection(
                 group.reservations,
                 hotel.title,
                 hotel.id,
+                hotel.hotelFechaIn,
               ),
             )}
           </section>

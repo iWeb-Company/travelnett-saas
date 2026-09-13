@@ -26,6 +26,7 @@ export interface Voucher {
   titular_dni: string | null;
   total_passengers: number | null;
   fecha_salida: string | null;
+  hotel_fecha_in?: string | null;
   fecha_regreso?: string | null;
   tipo_transporte: string | null;
   tipo_butaca: string | null;
@@ -347,6 +348,7 @@ export interface Package {
   image: string;
   active: boolean;
   web?: boolean;
+  cupo_web?: boolean;
   comisionable?: boolean;
   moneda?: string;
   moneda_gastos?: string;

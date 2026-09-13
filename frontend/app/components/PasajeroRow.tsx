@@ -16,12 +16,14 @@ interface PasajeroRowProps {
   butaca: string;
   telefono: string;
   reserva: string;
+  saldo: string;
   cliente: string;
   edad: string;
   hotel: string;
   bus_number?: string | null;
   butaca_type?: string | null;
   isGroup?: boolean;
+  passengerIds?: string[];
   observations?: string;
 }
 
@@ -33,6 +35,8 @@ export default function PasajeroRow({
   salidaId,
   onUpdated,
   onBusUpdated,
+  selected = false,
+  onSelectionChange,
 }: {
   pasajero: PasajeroRowProps;
   lugaresCarga: any[];
@@ -41,11 +45,15 @@ export default function PasajeroRow({
   salidaId: string;
   onUpdated?: () => void;
   onBusUpdated?: (passengerId: string, busNumber: string) => void;
+  selected?: boolean;
+  onSelectionChange?: (selected: boolean, shiftKey: boolean) => void;
 }) {
   const { user } = useAuth();
   const router = useRouter();
   const [isOpenModal, setIsOpenModal] = useState(false);
-  const [selectedLugarCarga, setSelectedLugarCarga] = useState(pasajero.lugar_carga_id || "");
+  const [selectedLugarCarga, setSelectedLugarCarga] = useState(
+    pasajero.lugar_carga_id || "",
+  );
   const [isUpdating, setIsUpdating] = useState(false);
   const [isUpdatingBus, setIsUpdatingBus] = useState(false);
   const [busVal, setBusVal] = useState(pasajero.bus_number || "");
@@ -60,9 +68,13 @@ export default function PasajeroRow({
     if (nextBus === (pasajero.bus_number || "").trim()) return;
     setIsUpdatingBus(true);
     try {
-      await apiClient.updateReservationPassenger(user.iweb_client_id, pasajero.id, {
-        bus_number: nextBus
-      });
+      await apiClient.updateReservationPassenger(
+        user.iweb_client_id,
+        pasajero.id,
+        {
+          bus_number: nextBus,
+        },
+      );
       toast.success("Número de bus actualizado");
       onBusUpdated?.(pasajero.id, nextBus);
     } catch (error) {
@@ -85,16 +97,20 @@ export default function PasajeroRow({
       const promises = [];
       if (pasajero.id) {
         promises.push(
-          apiClient.updateReservationPassenger(user.iweb_client_id, pasajero.id, {
-            lugar_carga_id: selectedLugarCarga || null,
-          }).catch(() => null)
+          apiClient
+            .updateReservationPassenger(user.iweb_client_id, pasajero.id, {
+              lugar_carga_id: selectedLugarCarga || null,
+            })
+            .catch(() => null),
         );
       }
       if (pasajero.isGroup && pasajero.reserva_id) {
         promises.push(
-          apiClient.updateReserva(user.iweb_client_id, pasajero.reserva_id, {
-            lugar_carga_id: selectedLugarCarga || null,
-          }).catch(() => null)
+          apiClient
+            .updateReserva(user.iweb_client_id, pasajero.reserva_id, {
+              lugar_carga_id: selectedLugarCarga || null,
+            })
+            .catch(() => null),
         );
       }
       await Promise.all(promises);
@@ -115,6 +131,17 @@ export default function PasajeroRow({
     <div className="w-full flex flex-col justify-center">
       {/* Fila principal */}
       <div className="w-full flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => undefined}
+          onClick={(event) =>
+            onSelectionChange?.(event.currentTarget.checked, event.shiftKey)
+          }
+          aria-label={`Seleccionar ${pasajero.nombre}`}
+          className="h-4 w-4 shrink-0 cursor-pointer accent-primary"
+        />
+
         {/* Left 'Bus' Box */}
         <input
           type="text"
@@ -126,49 +153,83 @@ export default function PasajeroRow({
           className="w-14 h-9 bg-[#D9DFF5]/70 border border-[#3DADFF] rounded-md flex items-center justify-center text-center text-xs font-semibold text-black cursor-pointer hover:bg-blue-100 transition-colors focus:outline-none"
         />
 
-
         {/* Right Columns Container */}
         <div className="flex-1 h-9 bg-[#D9DFF5]/40 border border-[#3DADFF] rounded-md flex items-center justify-between px-3 text-xs font-semibold text-black">
-          <span className="flex-1 text-left md:truncate pr-2" title={pasajero.nombre}>
+          <span
+            className="flex-1 text-left md:truncate pr-2"
+            title={pasajero.nombre}>
             {pasajero.nombre}
           </span>
-          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
+          <span className="text-black/35 font-normal md:inline hidden px-1">
+            |
+          </span>
+          <span
+            className={`w-20 md:block hidden text-center ${pasajero.saldo !== "0" && "text-red-500"} truncate`}
+            title={pasajero.saldo}>
+            {pasajero.saldo}
+          </span>
+          <span className="text-black/35 font-normal md:inline hidden px-1">
+            |
+          </span>
           <Link
-            href={pasajero.reserva_id ? `/web/reservas/modificar-reserva/${pasajero.reserva_id}` : '#'}
+            href={
+              pasajero.reserva_id
+                ? `/web/reservas/modificar-reserva/${pasajero.reserva_id}`
+                : "#"
+            }
             className="w-20 md:block hidden text-center truncate text-primary hover:underline cursor-pointer font-bold"
-            title={`Modificar reserva ${pasajero.reserva}`}
-          >
+            title={`Modificar reserva ${pasajero.reserva}`}>
             {pasajero.reserva}
           </Link>
-          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
-          <span className="w-24 md:block hidden text-center truncate" title={pasajero.cliente}>
+          <span className="text-black/35 font-normal md:inline hidden px-1">
+            |
+          </span>
+          <span
+            className="w-24 md:block hidden text-center truncate"
+            title={pasajero.cliente}>
             {pasajero.cliente}
           </span>
           <span className="text-black/35 font-normal px-1">|</span>
-          <span className="w-16 md:w-32 text-center md:truncate cursor-pointer" onClick={() => setIsOpenModal(true)} title={pasajero.ascenso}>
+          <span
+            className="w-16 md:w-32 text-center md:truncate cursor-pointer"
+            onClick={() => setIsOpenModal(true)}
+            title={pasajero.ascenso}>
             {pasajero.ascenso}
           </span>
-          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
-          <span className="w-16 md:w-32 md:block hidden text-center truncate" title={pasajero.hotel}>
+          <span className="text-black/35 font-normal md:inline hidden px-1">
+            |
+          </span>
+          <span
+            className="w-16 md:w-32 md:block hidden text-center truncate"
+            title={pasajero.hotel}>
             {pasajero.hotel}
           </span>
-          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
-          <span className="w-12 md:block hidden text-center truncate" title={pasajero.edad}>
+          <span className="text-black/35 font-normal md:inline hidden px-1">
+            |
+          </span>
+          <span
+            className="w-12 md:block hidden text-center truncate"
+            title={pasajero.edad}>
             {pasajero.edad}
           </span>
-          <span className="text-black/35 font-normal md:inline hidden px-1">|</span>
-          <span className="w-28 md:block hidden text-center truncate" title={pasajero.telefono}>
+          <span className="text-black/35 font-normal md:inline hidden px-1">
+            |
+          </span>
+          <span
+            className="w-28 md:block hidden text-center truncate"
+            title={pasajero.telefono}>
             {pasajero.telefono}
           </span>
           <span className="text-black/35 font-normal px-1">|</span>
-          <span className="md:w-24 w-12 text-center md:truncate" title={pasajero.butaca}>
-            {pasajero.butaca_type === 'cama' ? 'Cama' : 'Semicama'}
+          <span
+            className="md:w-24 w-12 text-center md:truncate"
+            title={pasajero.butaca}>
+            {pasajero.butaca_type === "cama" ? "Cama" : "Semicama"}
           </span>
           <span className="text-black/35 font-normal px-1">|</span>
           <span
             className="w-16 md:block hidden text-center truncate text-[10px] text-gray-500"
-            title={pasajero.observations || ""}
-          >
+            title={pasajero.observations || ""}>
             {pasajero.observations || "—"}
           </span>
           <span className="text-black/35 font-normal px-1">|</span>
@@ -178,8 +239,7 @@ export default function PasajeroRow({
               router.push(
                 `/voucher/${pasajero.reserva_id}?passenger_id=${encodeURIComponent(pasajero.id)}`,
               )
-            }
-          >
+            }>
             📄
           </span>
         </div>
@@ -191,26 +251,49 @@ export default function PasajeroRow({
           isOpen={isOpenModal}
           onCancel={() => setIsOpenModal(false)}
           onConfirmed={handleConfirm}
-        >
-          <small className="text-white text-center">Las opciones remarcadas son los lugares de carga que la salida tiene precargada.</small>
-          <small className="text-white text-center">Si necesitas un lugar de carga para el pasajero no precargado en la salida, agregalo <Link className="cursor-pointer underline" href={`/salidas/agregar-salida?id=${salidaId}`}>Acá</Link>.</small>
-          <div className="space-y-2">
+          maxW="max-w-7xl">
+          <small className="text-white text-center">
+            Las opciones remarcadas son los lugares de carga que la salida tiene
+            precargada.
+          </small>
+          <small className="text-white text-center">
+            Si necesitas un lugar de carga para el pasajero no precargado en la
+            salida, agregalo{" "}
+            <Link
+              className="cursor-pointer underline"
+              href={`/salidas/agregar-salida?id=${salidaId}`}>
+              Acá
+            </Link>
+            .
+          </small>
+          <div className="space-y-2 grid grid-cols-2 gap-5">
             {lugaresCarga.map((option) => {
-              const optName = (option.name || option.nombre || "").toLowerCase();
+              const optName = (
+                option.name ||
+                option.nombre ||
+                ""
+              ).toLowerCase();
               const isCargaSalida =
                 salidaCargasIds.includes(option.id) ||
                 (optName && salidaCargasNames.includes(optName));
 
               return (
-                <div key={option.id} className="flex items-center justify-between gap-3 p-1 rounded-lg transition-colors">
+                <div
+                  key={option.id}
+                  className="flex items-center justify-between gap-3 p-1 rounded-lg transition-colors">
                   <label
                     htmlFor={option.id}
-                    className={`text-lg cursor-pointer flex items-center gap-2 flex-wrap ${isCargaSalida
-                      ? "text-yellow-300 font-bold"
-                      : "text-white font-medium"
-                      }`}
-                  >
-                    <span>{option.name || option.nombre} - {option.address || option.direccion || "Sin dirección especificada"}</span>
+                    className={`text-lg cursor-pointer flex items-center gap-2 flex-wrap ${
+                      isCargaSalida
+                        ? "text-yellow-300 font-bold"
+                        : "text-white font-medium"
+                    }`}>
+                    <span>
+                      {option.name || option.nombre} -{" "}
+                      {option.address ||
+                        option.direccion ||
+                        "Sin dirección especificada"}
+                    </span>
                     {isCargaSalida && (
                       <span className="text-xs font-bold text-yellow-200 bg-yellow-500/25 border border-yellow-300/50 px-2 py-0.5 rounded-full">
                         (Lugar de carga precargado)

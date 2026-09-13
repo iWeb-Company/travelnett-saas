@@ -841,15 +841,25 @@ export default function PagosPage() {
                   <div
                     key={res.id}
                     className="w-full font-semibold flex border gap-5 divide-x divide-black border-black shadow-md shadow-black/40 rounded-sm px-3 text-black/80 bg-white items-center">
-                    <p className="py-2.5 pr-5 w-25 pl-2 text-primary">
+                    <p className="py-2.5 pr-3 w-20 text-center text-primary">
                       {res.codigo_reserva || "S/D"}
                     </p>
+                    <div className="flex flex-col py-1 items-center justify-center pr-4 text-center">
+                      <span className="text-[10px] font-medium text-gray-500">
+                        Fecha de salida
+                      </span>
+                      <span className="text-sm">
+                        {formatDateDisplay(res.fecha)}
+                      </span>
+                    </div>
                     <div className="flex-1 flex justify-between items-center py-2.5 pl-4 text-start">
                       <p className="font-bold text-gray-800">
                         {res.titulo?.trim() ||
                           res.client_nombre ||
                           getClientDisplayName(
-                            realClients.find((client) => client.id === res.client_id),
+                            realClients.find(
+                              (client) => client.id === res.client_id,
+                            ),
                           ) ||
                           "Cliente desconocido"}
                       </p>
@@ -1481,97 +1491,97 @@ export default function PagosPage() {
               </div>
 
               <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-[520px] text-xs md:text-sm text-black">
-                <thead>
-                  <tr className="font-bold border-b border-gray-200">
-                    <th className="py-2 text-left">Fecha</th>
-                    <th className="py-2 text-left">Tipo</th>
-                    <th className="py-2 text-left">Monto</th>
-                    <th className="py-2 text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagos.map((pago) => {
-                    const isDevolucion =
-                      (pago.amount || 0) < 0 ||
-                      (pago.payment_method || "")
-                        .toLowerCase()
-                        .includes("devoluc");
-                    return (
-                      <tr
-                        key={pago.id}
-                        className="font-medium border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-2">
-                          {formatDateDisplay(pago.date_pay)}
-                        </td>
-                        <td className="py-2">
-                          <span
-                            className={
-                              isDevolucion ? "text-red-600 font-semibold" : ""
-                            }>
-                            {pago.payment_method}
-                          </span>
-                        </td>
-                        <td
-                          className={`py-2 font-medium ${isDevolucion ? "text-red-600 font-bold" : "text-black"}`}>
-                          {pago.amount < 0
-                            ? `-${formatMonto(Math.abs(pago.amount), getMoneda(pago))}`
-                            : formatMonto(pago.amount, getMoneda(pago))}
-                        </td>
-                        <td className="py-2 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            {pago.receipt_number &&
-                              (pago.receipt_number.startsWith("http") ||
-                                pago.receipt_number.startsWith("/")) && (
-                                <a
-                                  href={pago.receipt_number}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title="Ver archivo adjunto"
-                                  className="text-blue-600 hover:text-blue-800 text-xs font-bold">
-                                  📎
-                                </a>
-                              )}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenRecibo(pago)}
-                              title="Ver recibo electrónico"
-                              className="text-primary hover:text-blue-800 text-xs font-bold hover:underline">
-                              <svg
-                                width="15"
-                                height="15"
-                                viewBox="0 0 19 24"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg">
-                                <path
-                                  d="M3.42117 23.66H15.1405C17.4251 23.66 18.5617 22.5012 18.5617 20.2059V10.1858C18.5617 8.76197 18.4072 8.14422 17.5244 7.23925L11.4326 1.04857C10.5945 0.187397 9.90989 0 8.66309 0H3.42117C1.14792 0 0 1.16958 0 3.46542V20.2059C0 22.5121 1.14792 23.66 3.42117 23.66ZM3.50921 21.8835C2.37259 21.8835 1.7765 21.2761 1.7765 20.1729V3.49838C1.7765 2.40602 2.37259 1.7765 3.52051 1.7765H8.42014V8.18848C8.42014 9.57889 9.1264 10.263 10.4947 10.263H16.7852V20.1729C16.7852 21.2761 16.1999 21.8835 15.0525 21.8835H3.50921ZM10.6934 8.59623C10.263 8.59623 10.086 8.42013 10.086 7.97848V2.11881L16.4424 8.5967L10.6934 8.59623Z"
-                                  fill="#0546F7"
-                                />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleDeletePago(pago.id)}
-                              title="Eliminar pago"
-                              className="text-red-500 hover:text-red-700 text-xs font-bold hover:underline">
-                              <svg
-                                width="12"
-                                height="15"
-                                viewBox="0 0 21 24"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg">
-                                <path
-                                  d="M1.5 23.655V2.655H0V1.155H6V0H15V1.155H21V2.655H19.5V23.655H1.5ZM3 22.155H18V2.655H3V22.155ZM7.212 19.155H8.712V5.655H7.212V19.155ZM12.288 19.155H13.788V5.655H12.288V19.155Z"
-                                  fill="#0546F7"
-                                />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                <table className="w-full min-w-[520px] text-xs md:text-sm text-black">
+                  <thead>
+                    <tr className="font-bold border-b border-gray-200">
+                      <th className="py-2 text-left">Fecha</th>
+                      <th className="py-2 text-left">Tipo</th>
+                      <th className="py-2 text-left">Monto</th>
+                      <th className="py-2 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagos.map((pago) => {
+                      const isDevolucion =
+                        (pago.amount || 0) < 0 ||
+                        (pago.payment_method || "")
+                          .toLowerCase()
+                          .includes("devoluc");
+                      return (
+                        <tr
+                          key={pago.id}
+                          className="font-medium border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2">
+                            {formatDateDisplay(pago.date_pay)}
+                          </td>
+                          <td className="py-2">
+                            <span
+                              className={
+                                isDevolucion ? "text-red-600 font-semibold" : ""
+                              }>
+                              {pago.payment_method}
+                            </span>
+                          </td>
+                          <td
+                            className={`py-2 font-medium ${isDevolucion ? "text-red-600 font-bold" : "text-black"}`}>
+                            {pago.amount < 0
+                              ? `-${formatMonto(Math.abs(pago.amount), getMoneda(pago))}`
+                              : formatMonto(pago.amount, getMoneda(pago))}
+                          </td>
+                          <td className="py-2 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {pago.receipt_number &&
+                                (pago.receipt_number.startsWith("http") ||
+                                  pago.receipt_number.startsWith("/")) && (
+                                  <a
+                                    href={pago.receipt_number}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Ver archivo adjunto"
+                                    className="text-blue-600 hover:text-blue-800 text-xs font-bold">
+                                    📎
+                                  </a>
+                                )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRecibo(pago)}
+                                title="Ver recibo electrónico"
+                                className="text-primary hover:text-blue-800 text-xs font-bold hover:underline">
+                                <svg
+                                  width="15"
+                                  height="15"
+                                  viewBox="0 0 19 24"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg">
+                                  <path
+                                    d="M3.42117 23.66H15.1405C17.4251 23.66 18.5617 22.5012 18.5617 20.2059V10.1858C18.5617 8.76197 18.4072 8.14422 17.5244 7.23925L11.4326 1.04857C10.5945 0.187397 9.90989 0 8.66309 0H3.42117C1.14792 0 0 1.16958 0 3.46542V20.2059C0 22.5121 1.14792 23.66 3.42117 23.66ZM3.50921 21.8835C2.37259 21.8835 1.7765 21.2761 1.7765 20.1729V3.49838C1.7765 2.40602 2.37259 1.7765 3.52051 1.7765H8.42014V8.18848C8.42014 9.57889 9.1264 10.263 10.4947 10.263H16.7852V20.1729C16.7852 21.2761 16.1999 21.8835 15.0525 21.8835H3.50921ZM10.6934 8.59623C10.263 8.59623 10.086 8.42013 10.086 7.97848V2.11881L16.4424 8.5967L10.6934 8.59623Z"
+                                    fill="#0546F7"
+                                  />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeletePago(pago.id)}
+                                title="Eliminar pago"
+                                className="text-red-500 hover:text-red-700 text-xs font-bold hover:underline">
+                                <svg
+                                  width="12"
+                                  height="15"
+                                  viewBox="0 0 21 24"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg">
+                                  <path
+                                    d="M1.5 23.655V2.655H0V1.155H6V0H15V1.155H21V2.655H19.5V23.655H1.5ZM3 22.155H18V2.655H3V22.155ZM7.212 19.155H8.712V5.655H7.212V19.155ZM12.288 19.155H13.788V5.655H12.288V19.155Z"
+                                    fill="#0546F7"
+                                  />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

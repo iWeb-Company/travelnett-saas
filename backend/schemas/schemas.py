@@ -534,6 +534,7 @@ class PackageResponse(BaseModel):
     image: Optional[str] = None
     active: Optional[bool] = None
     web: Optional[bool] = None
+    cupo_web: Optional[bool] = True
     dates: list[str] = []
     comisionable: Optional[bool] = False
     moneda: Optional[str] = "pesos"
@@ -559,6 +560,7 @@ class PackageCreateRequest(BaseModel):
     image: Optional[str] = None
     active: Optional[bool] = True
     web: Optional[bool] = True
+    cupo_web: Optional[bool] = True
     dates: list[str] = []
     comisionable: Optional[bool] = False
     moneda: Optional[str] = "pesos"
@@ -581,6 +583,7 @@ class PackageUpdateRequest(BaseModel):
     image: Optional[str] = None
     active: Optional[bool] = None
     web: Optional[bool] = None
+    cupo_web: Optional[bool] = None
     dates: Optional[list[str]] = None
     comisionable: Optional[bool] = None
     moneda: Optional[str] = None

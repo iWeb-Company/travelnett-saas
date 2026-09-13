@@ -66,6 +66,29 @@ function buildRoomingRooms(reservations, hotelId) {
   return rooms;
 }
 
+function getRoomingPackageHotelDate(packageInfo, reservations, hotelId) {
+  const packageHotels = Array.isArray(packageInfo?.hotels) ? packageInfo.hotels : [];
+  const currentHotel = packageHotels.find((hotel) => hotel.hotel_id === hotelId);
+  if (currentHotel?.hotel_fecha_in) return currentHotel.hotel_fecha_in;
+
+  const replacementDates = [...new Set(reservations.flatMap((reservation) => {
+    const passengers = reservation.reservation_passengers?.length
+      ? reservation.reservation_passengers
+      : [reservation];
+    const hasAssignedHotel = passengers.some(
+      (passenger) => (passenger.hotel_id || reservation.hotel_id || "") === hotelId,
+    );
+    if (!hasAssignedHotel || !reservation.hotel_id || reservation.hotel_id === hotelId) return [];
+
+    const originalHotel = packageHotels.find(
+      (hotel) => hotel.hotel_id === reservation.hotel_id,
+    );
+    return originalHotel?.hotel_fecha_in ? [originalHotel.hotel_fecha_in] : [];
+  }))];
+
+  return replacementDates.length === 1 ? replacementDates[0] : undefined;
+}
+
 function buildRoomingHotels(reservations, hotelNames) {
   const activeReservations = reservations.filter((reservation) => reservation.active !== false);
   const hotelIds = [...new Set(activeReservations.flatMap((reservation) => {
@@ -85,4 +108,9 @@ function buildRoomingHotels(reservations, hotelNames) {
   }).filter((hotel) => hotel.rooms.length > 0);
 }
 
-module.exports = { ROOM_CATEGORIES, buildRoomingRooms, buildRoomingHotels };
+module.exports = {
+  ROOM_CATEGORIES,
+  buildRoomingRooms,
+  buildRoomingHotels,
+  getRoomingPackageHotelDate,
+};

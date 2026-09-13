@@ -453,6 +453,57 @@ class AvailabilityTests(unittest.TestCase):
         self.assertEqual(result.dates, [self.salida])
         self.assertEqual(result.hotels[0].cupos[0].capacidad, 2)
 
+    def test_package_web_capacity_flag_defaults_and_updates(self):
+        created = asyncio.run(create_package(
+            PackageCreateRequest(name="Sin cupo público", cupo_web=False),
+            self.tenant,
+            self.db,
+        ))
+        self.assertFalse(created.cupo_web)
+
+        updated = asyncio.run(update_package(
+            created.id,
+            PackageUpdateRequest(cupo_web=True),
+            self.tenant,
+            self.db,
+        ))
+        self.assertTrue(updated.cupo_web)
+
+        defaulted = asyncio.run(create_package(
+            PackageCreateRequest(name="Con cupo público"),
+            self.tenant,
+            self.db,
+        ))
+        self.assertTrue(defaulted.cupo_web)
+
+    def test_reservation_balance_is_net_commission_minus_payments(self):
+        reservation = self.booking()
+        self.db.add_all([
+            Liquidaciones(
+                id=uuid.uuid4().hex,
+                iweb_client_id=self.tenant,
+                booking_id=reservation.id,
+                total_amout=1000,
+                total_commission=1000,
+                commission=100,
+            ),
+            Pagos(
+                id=uuid.uuid4().hex,
+                iweb_client_id=self.tenant,
+                reserva_id=reservation.id,
+                amount=300,
+            ),
+        ])
+        self.db.commit()
+
+        reservations = asyncio.run(get_reservas(
+            iweb_client_id=self.tenant,
+            salida_id=self.salida,
+            db=self.db,
+        ))
+        row = next(item for item in reservations if item.id == reservation.id)
+        self.assertEqual(row.balance, 600)
+
     def test_capacity_cannot_shrink_below_occupancy_or_remove_date(self):
         self.booking(2)
         h = PackageHotelPayload(hotel_id=self.hotel, cupos=[{"salida_id": self.salida, "capacidad": 1}])
@@ -489,6 +540,30 @@ class AvailabilityTests(unittest.TestCase):
         migrate(self.engine)
         migrate(self.engine)
         self.assertEqual(self.db.query(PackageHotelCapacity).filter_by(package_id=self.pkg).count(), 1)
+
+    def test_package_web_capacity_migration_is_additive_and_restartable(self):
+        from migrations.package_web_capacity import migrate as migrate_package_web_capacity
+
+        legacy = create_engine("sqlite://")
+        with legacy.begin() as connection:
+            connection.execute(text(
+                "CREATE TABLE packages (id VARCHAR(36) PRIMARY KEY, name VARCHAR(255))"
+            ))
+            connection.execute(text("INSERT INTO packages VALUES ('legacy', 'Paquete')"))
+
+        migrate_package_web_capacity(legacy)
+        migrate_package_web_capacity(legacy)
+
+        columns = {column["name"] for column in inspect(legacy).get_columns("packages")}
+        self.assertIn("cupo_web", columns)
+        with legacy.connect() as connection:
+            self.assertEqual(
+                connection.execute(text(
+                    "SELECT cupo_web FROM packages WHERE id = 'legacy'"
+                )).scalar(),
+                1,
+            )
+        legacy.dispose()
 
     def test_transport_consumption_migration_is_additive_and_restartable(self):
         if self.mysql:
@@ -669,6 +744,7 @@ class AvailabilityTests(unittest.TestCase):
         voucher = asyncio.run(generate_voucher_snapshot(reservation.id, self.tenant, self.db))
 
         self.assertEqual(voucher.fecha_salida, "15/10/2026")
+        self.assertEqual(voucher.hotel_fecha_in, "20/10/2026")
         self.assertEqual(voucher.horario_carga, "08:45")
         self.assertIn("San Justo", voucher.lugar_carga)
 

@@ -74,7 +74,7 @@ def passenger_rows(db, salida, *, active_only=True):
     return q.all()
 
 
-def assign_passenger_to_unit_number(db, salida, passenger, bus_number):
+def assign_passenger_to_unit_number(db, salida, passenger, bus_number, *, units=None):
     """Link a passenger to the active micro selected from the departure list."""
     value = (bus_number or "").strip()
     if not value:
@@ -86,7 +86,8 @@ def assign_passenger_to_unit_number(db, salida, passenger, bus_number):
         raise HTTPException(422, "El número de micro debe ser un entero positivo")
 
     number = int(value)
-    unit = next((item for item in units_for(db, salida) if item.active and item.number == number), None)
+    available_units = units if units is not None else units_for(db, salida)
+    unit = next((item for item in available_units if item.active and item.number == number), None)
     if not unit:
         raise HTTPException(422, f"El Micro {number} no está activo en esta salida")
 
