@@ -12,6 +12,7 @@ interface DateRangePickerProps {
   endDate: Date | null;
   onChange: (dates: [Date | null, Date | null]) => void;
   placeholder?: string;
+  className?: string;
 }
 
 export const formatDateRangeParam = (date: Date | null) => {
@@ -27,6 +28,7 @@ export default function DateRangePicker({
   endDate,
   onChange,
   placeholder = "Seleccione rango de fechas",
+  className = "text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary",
 }: DateRangePickerProps) {
   const setRange = (start: Date, end: Date) => onChange([start, end]);
   const presets = [
@@ -75,7 +77,7 @@ export default function DateRangePicker({
       calendarClassName="tesoro-datepicker"
       wrapperClassName="w-full"
       isClearable
-      className="text-gray-500 font-medium bg-[#f1f1f1] w-full border md:text-xl border-gray-400 py-2 px-4 rounded-lg shadow-md shadow-gray-500 focus:outline-none focus:ring-2 focus:ring-primary">
+      className={className}>
       <div className="flex flex-col gap-1 px-2 pb-2 border-t pt-2">
         <p className="text-xs font-semibold text-gray-500 mb-1">
           Rangos rápidos

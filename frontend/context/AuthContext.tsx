@@ -220,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Relies on HTTP-Only cookie automatically sent by the browser
         const userData = await apiClient.getMe();
+        apiClient.setAuthenticatedTenant(userData.iweb_client_id);
         setUser(userData);
         await loadPermissionsForUser(userData);
 
@@ -231,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch {
+        apiClient.clearAuthenticatedTenant();
         setUser(null);
         setIwebClient(null);
         localStorage.removeItem("iweb_client");
@@ -250,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (slug: string, username: string, password: string) => {
     setIsLoading(true);
+    apiClient.beginAuthenticatedTenantResolution();
     try {
       const result = await apiClient.loginSystem({ slug, username, password });
 
@@ -258,9 +261,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("iweb_client", JSON.stringify(result.iweb_client));
       }
       const userData = await apiClient.getMe();
+      apiClient.setAuthenticatedTenant(userData.iweb_client_id);
       setUser(userData);
       await loadPermissionsForUser(userData);
     } catch (error) {
+      apiClient.clearAuthenticatedTenant();
       setUser(null);
       setIwebClient(null);
       localStorage.removeItem("iweb_client");
@@ -271,6 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    apiClient.clearAuthenticatedTenant();
     setUser(null);
     setIwebClient(null);
     localStorage.removeItem("iweb_client");

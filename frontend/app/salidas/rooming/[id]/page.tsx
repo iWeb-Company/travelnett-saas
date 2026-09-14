@@ -4,7 +4,7 @@ import ArrowLeft from "@/app/components/icons/ArrowLeft";
 import ToggleSalidas from "@/app/components/ToggleSalidas";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 
@@ -40,8 +40,12 @@ const formatRoomingHotelDate = (value: unknown): string => {
 export default function RoomingPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
   const { user } = useAuth();
+  const roomingHotelId = searchParams.get("hotel_id");
+  const roomingRegimenId = searchParams.get("regimen_id");
+  const roomingHotelFechaIn = searchParams.get("hotel_fecha_in");
 
   const [reservas, setReservas] = useState<any[]>([]);
   const [packageDetails, setPackageDetails] = useState<Record<string, any>>({});
@@ -459,11 +463,34 @@ export default function RoomingPage() {
     );
   };
 
-  const activeReservations = reservas.filter(
-    (reservation) => reservation.active !== false,
-  );
+  const activeReservations = reservas.filter((reservation) => {
+    if (reservation.active === false) return false;
+    if (roomingRegimenId && reservation.regimen_id !== roomingRegimenId) {
+      return false;
+    }
+    const passengers = reservation.reservation_passengers?.length
+      ? reservation.reservation_passengers
+      : [reservation];
+    if (roomingHotelId) {
+      const hasHotel = passengers.some(
+        (passenger: any) =>
+          (passenger.hotel_id || reservation.hotel_id || "") === roomingHotelId,
+      );
+      if (!hasHotel) return false;
+    }
+    if (roomingHotelFechaIn && roomingHotelId) {
+      const packageInfo = packageDetails[reservation.package_id];
+      const hotelFechaIn = getRoomingPackageHotelDate(
+        packageInfo,
+        [reservation],
+        roomingHotelId,
+      );
+      if (hotelFechaIn !== roomingHotelFechaIn) return false;
+    }
+    return true;
+  });
 
-  const roomingHotels = buildRoomingHotels(reservas, hotelNames);
+  const roomingHotels = buildRoomingHotels(activeReservations, hotelNames);
 
   const handleExportHotel = async (
     hotel: ReturnType<typeof buildRoomingHotels>[number],
