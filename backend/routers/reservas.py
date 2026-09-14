@@ -8,6 +8,11 @@ from sqlalchemy import func
 from db.database import get_db
 from services.availability import get_inventory_db, resolve_selection, validate_reservation, snapshot
 from services.transport_units import assign_passenger_to_unit_number
+from services.provider_consumptions import (
+    create_provider_consumptions,
+    reverse_provider_consumptions,
+    reconcile_provider_consumptions,
+)
 from services.reservation_rooms import (
     clone_reservation_rooms,
     parse_room_types,
@@ -673,7 +678,12 @@ async def create_reserva(
         rp_to_create.append(new_rp)
     # Si no vienen pasajeros (ej. reserva tipo bloqueo/grupo), permitimos crear la reserva sin arrojar error 400
         
+    # SessionLocal has autoflush disabled. The provider-consumption resolver
+    # queries ReservationPassengers, so make the newly-created associations
+    # visible before calculating the booking snapshot.
+    db.flush()
     validate_reservation(db, new_res)
+    create_provider_consumptions(db, new_res)
     from routers.liquidaciones import create_or_update_booking_liquidacion
     try:
         create_or_update_booking_liquidacion(db, new_res.id, iweb_client_id, commit=False)
@@ -946,6 +956,10 @@ async def update_reserva(
             db.delete(removed)
             
     validate_reservation(db, r, previous)
+    if body.active is False:
+        reverse_provider_consumptions(db, r)
+    elif body.passengers is not None or body.liberados is not None:
+        reconcile_provider_consumptions(db, r)
     from routers.liquidaciones import create_or_update_booking_liquidacion
     try:
         create_or_update_booking_liquidacion(db, r.id, iweb_client_id, commit=False)
@@ -1312,6 +1326,10 @@ async def delete_reserva(id: str, iweb_client_id: str, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
 
     res_id = r.id
+
+    # Preserve the provider-consumption audit and reverse only this booking's
+    # active contributions before removing the reservation rows.
+    reverse_provider_consumptions(db, r)
 
     # 1. Obtener pasajeros asociados a la reserva
     rps = db.query(ReservationPassengers).filter(ReservationPassengers.reserva_id == res_id).all()

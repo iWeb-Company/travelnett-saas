@@ -491,6 +491,7 @@ class cuentasCorrientesProviders(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     iweb_client_id: Mapped[str] = mapped_column(String(36), nullable=False)
     type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     transport_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     detail: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -506,6 +507,7 @@ class ccProvidersConsumptionPayments(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     cc_provider_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    consumption_group_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     salida_transport_unit_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     provider_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hotel_id: Mapped[str | None] = mapped_column(String(36), nullable=True)

@@ -7,6 +7,7 @@ from pathlib import Path
 from routers import login, tenants, parameters, permissions, web, salidas, packages, reservas, pagos, cuentas_corrientes, liquidaciones, vouchers, tesoro, dashboard, cards
 from db.database import SessionLocal
 from routers import transport_units
+from routers import providers
 from models.models import User, iWebClient
 from auth.login import get_password_hash
 
@@ -31,6 +32,7 @@ def read_root():
 app.include_router(login.router)
 app.include_router(tenants.router)
 app.include_router(parameters.router)
+app.include_router(providers.router)
 app.include_router(permissions.router)
 app.include_router(web.router)
 app.include_router(salidas.router)

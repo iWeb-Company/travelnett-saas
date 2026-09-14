@@ -20,7 +20,11 @@ function passengerDetails(passenger, reservation) {
   const name = passenger.name || passenger.last_name
     ? formatPassengerName(passenger.name, passenger.last_name)
     : formatFullName(passenger.nombre_completo || reservation.nombre_completo || "") || "DESCONOCIDO";
-  return { name, loadingPlace: passenger.lugar_carga_nombre || reservation.lugar_carga_nombre || "-" };
+  return {
+    name,
+    loadingPlace: passenger.lugar_carga_nombre || reservation.lugar_carga_nombre || "-",
+    passengerType: String(passenger.pasajero_type || passenger.passenger_type || "ADL").toUpperCase(),
+  };
 }
 
 function buildRoomingRooms(reservations, hotelId) {

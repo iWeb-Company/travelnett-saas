@@ -6,7 +6,11 @@ export type RoomingRoomCategory =
   | "cuadruple_individual"
   | "otras_habitaciones";
 
-export type RoomingPassenger = { name: string; loadingPlace: string };
+export type RoomingPassenger = {
+  name: string;
+  loadingPlace: string;
+  passengerType: string;
+};
 export type RoomingRoom = { id: string; type: string; category: RoomingRoomCategory; passengers: RoomingPassenger[] };
 export type RoomingHotel = {
   id: string;

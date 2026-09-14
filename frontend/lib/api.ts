@@ -1,4 +1,5 @@
 import { sortLabels } from './sortLabels';
+import type { Provider, ProviderInput, ProviderPage } from './providerCatalog';
 import type { SalidaTransportUnit, TransportUnitInput } from '@/app/types';
 
 const API_BASE_URL = typeof window !== 'undefined'
@@ -43,6 +44,69 @@ function getStoredToken(): string | null {
   return null;
 }
 
+interface TenantResolution {
+  promise: Promise<string | null>;
+  resolve: (tenantId: string | null) => void;
+  settled: boolean;
+}
+
+function createTenantResolution(): TenantResolution {
+  let resolvePromise!: (tenantId: string | null) => void;
+  const promise = new Promise<string | null>((resolve) => {
+    resolvePromise = resolve;
+  });
+
+  return {
+    promise,
+    resolve: resolvePromise,
+    settled: false,
+  };
+}
+
+let authenticatedTenantId: string | null = null;
+let tenantResolution = createTenantResolution();
+
+function setAuthenticatedTenant(iwebClientId: string): void {
+  const tenantId = iwebClientId.trim();
+  if (!tenantId) {
+    clearAuthenticatedTenant();
+    return;
+  }
+
+  authenticatedTenantId = tenantId;
+  if (!tenantResolution.settled) {
+    tenantResolution.settled = true;
+    tenantResolution.resolve(tenantId);
+  }
+}
+
+function beginAuthenticatedTenantResolution(): void {
+  authenticatedTenantId = null;
+  if (tenantResolution.settled) {
+    tenantResolution = createTenantResolution();
+  }
+}
+
+function clearAuthenticatedTenant(): void {
+  authenticatedTenantId = null;
+  if (!tenantResolution.settled) {
+    tenantResolution.settled = true;
+    tenantResolution.resolve(null);
+  }
+}
+
+async function resolveIwebClientId(iwebClientId?: string): Promise<string> {
+  const explicitId = typeof iwebClientId === 'string' ? iwebClientId.trim() : '';
+  if (explicitId) return explicitId;
+  if (authenticatedTenantId) return authenticatedTenantId;
+
+  const resolvedTenantId = await tenantResolution.promise;
+  if (!resolvedTenantId) {
+    throw new Error('No se puede consultar parámetros sin iweb_client_id');
+  }
+  return resolvedTenantId;
+}
+
 function setTokenCookie(token: string) {
   if (typeof window === 'undefined') return;
   const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
@@ -64,6 +128,27 @@ async function apiError(response: Response, fallback: string): Promise<Error> {
 }
 
 export const apiClient = {
+  async providersRequest<T>(tenant: string, suffix = '', method = 'GET', body?: unknown): Promise<T> {
+    const clientId = await resolveIwebClientId(tenant);
+    const separator = suffix.includes('?') ? '&' : '?';
+    const response = await fetch(`${API_BASE_URL}/parameters/providers${suffix}${separator}iweb_client_id=${encodeURIComponent(clientId)}`, {
+      method, credentials: 'include', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!response.ok) throw await apiError(response, 'No se pudo procesar el proveedor. Revisá los datos ingresados.');
+    return response.status === 204 ? undefined as T : response.json();
+  },
+  getProviders(tenant: string, page = 1, search = '', pageSize = 100) {
+    return this.providersRequest<ProviderPage>(tenant, `?page=${page}&page_size=${pageSize}&search=${encodeURIComponent(search)}`);
+  },
+  getProvider(tenant: string, id: string) { return this.providersRequest<Provider>(tenant, `/${encodeURIComponent(id)}`); },
+  createProvider(tenant: string, body: ProviderInput) { return this.providersRequest<Provider>(tenant, '', 'POST', body); },
+  updateProvider(tenant: string, id: string, body: ProviderInput) { return this.providersRequest<Provider>(tenant, `/${encodeURIComponent(id)}`, 'PUT', body); },
+  deleteProvider(tenant: string, id: string, revision: number) { return this.providersRequest<void>(tenant, `/${encodeURIComponent(id)}?revision=${revision}`, 'DELETE'); },
+  beginAuthenticatedTenantResolution,
+  setAuthenticatedTenant,
+  clearAuthenticatedTenant,
+
   async transportUnitsRequest<T>(tenant: string, salidaId: string, suffix = '', method = 'GET', body?: unknown): Promise<T> {
     const response = await fetch(`${API_BASE_URL}/salidas/${encodeURIComponent(salidaId)}/transport-units${suffix}?iweb_client_id=${encodeURIComponent(tenant)}`, {
       method, credentials: 'include', cache: 'no-store',
@@ -173,10 +258,11 @@ export const apiClient = {
   // ---- PARAMETERS ----
 
   async getParameters(name: string, iwebClientId?: string): Promise<any> {
-    const id = iwebClientId || '';
-    const response = await fetch(`${API_BASE_URL}/parameters/${name}?iweb_client_id=${id}`, {
+    const id = await resolveIwebClientId(iwebClientId);
+    const response = await fetch(`${API_BASE_URL}/parameters/${encodeURIComponent(name)}?iweb_client_id=${encodeURIComponent(id)}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     });
     if (!response.ok) throw new Error(`Failed to get ${name}`);
     const data = await response.json();
@@ -190,8 +276,8 @@ export const apiClient = {
   },
 
   async getTransportCompanies(iwebClientId?: string): Promise<any[]> {
-    const id = iwebClientId || '';
-    const response = await fetch(`${API_BASE_URL}/parameters/get_transport_companies?iweb_client_id=${id}`, {
+    const id = await resolveIwebClientId(iwebClientId);
+    const response = await fetch(`${API_BASE_URL}/parameters/get_transport_companies?iweb_client_id=${encodeURIComponent(id)}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -201,8 +287,8 @@ export const apiClient = {
   },
 
   async getAllParameters(iwebClientId?: string): Promise<{ destinos: any[]; hotels: any[]; excursions: any[]; periods: any[]; regimenes: any[] }> {
-    const id = iwebClientId || '';
-    const response = await fetch(`${API_BASE_URL}/parameters/get_all_parameters?iweb_client_id=${id}`, {
+    const id = await resolveIwebClientId(iwebClientId);
+    const response = await fetch(`${API_BASE_URL}/parameters/get_all_parameters?iweb_client_id=${encodeURIComponent(id)}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -835,6 +921,15 @@ export const apiClient = {
     });
     if (!response.ok) throw new Error('Failed to get cc providers consumption payments');
     return response.json();
+  },
+
+  async getProviderCurrentAccounts(iwebClientId: string): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/getCuentasCorrientesProviders?iweb_client_id=${iwebClientId}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to get provider current accounts');
+    const data = await response.json();
+    return Array.isArray(data) ? data : data.items || [];
   },
 
   async createCCProviderConsumptionPayment(data: Record<string, any>): Promise<any> {

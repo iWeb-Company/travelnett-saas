@@ -27,9 +27,11 @@ export default function ModalLayout({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
-      <div className={`flex min-w-0 flex-col gap-3 sm:gap-6 w-full ${maxWidth} max-h-[90dvh]`}>
+      <div
+        className={`flex min-w-0 flex-col gap-3 sm:gap-6 w-full ${maxWidth} max-h-[90dvh]`}>
         {/* Recuadro azul con título e inputs */}
-        <div className={`${bg} min-w-0 rounded-2xl py-5 px-3 sm:py-8 sm:px-6 shadow-lg overflow-y-auto`}>
+        <div
+          className={`${bg} min-w-0 rounded-2xl py-5 px-3 sm:py-8 sm:px-6 shadow-lg overflow-y-auto`}>
           <div className="font-semibold flex items-center justify-center gap-2 sm:gap-3 text-white text-center text-base sm:text-xl mb-4 sm:mb-6">
             <h4 className={titleColor}>{title}</h4>
             <p>{svg}</p>

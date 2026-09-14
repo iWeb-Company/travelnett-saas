@@ -677,6 +677,7 @@ class cuentasCorrientsProvidersCreateRequest(BaseModel):
     id: Optional[str] = None
     iweb_client_id: Optional[str] = None
     type: Optional[str] = None
+    provider_id: Optional[str] = None
     transport_id: Optional[str] = None
     hotel_id: Optional[str] = None
     detail: Optional[str] = None
@@ -689,6 +690,7 @@ class cuentasCorrientsProvidersResponse(BaseModel):
     id: str
     iweb_client_id: str
     type: Optional[str] = None
+    provider_id: Optional[str] = None
     transport_id: Optional[str] = None
     hotel_id: Optional[str] = None
     detail: Optional[str] = None
@@ -704,6 +706,7 @@ class cuentasCorrientsProvidersResponse(BaseModel):
 class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
     id: Optional[str] = None
     cc_provider_id: Optional[str] = None
+    consumption_group_id: Optional[str] = None
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
     transport_id: Optional[str] = None
@@ -719,10 +722,18 @@ class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
 class ccProvidersConsumptionPaymentsResponse(BaseModel):
     id: str
     cc_provider_id: Optional[str] = None
+    consumption_group_id: Optional[str] = None
+    provider_id: Optional[str] = None
+    provider_name: Optional[str] = None
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
+    excursion_id: Optional[str] = None
     transport_id: Optional[str] = None
     salida_id: Optional[str] = None
+    departure_date: Optional[str] = None
+    regimen: Optional[str] = None
+    regimen_id: Optional[str] = None
+    hotel_fecha_in: Optional[str] = None
     date: Optional[Union[PyDate, str]] = None
     detail: Optional[str] = None
     type: Optional[str] = None
@@ -872,6 +883,7 @@ class cuentasCorrientsProvidersCreateRequest(BaseModel):
     id: Optional[str] = None
     iweb_client_id: Optional[str] = None
     type: Optional[str] = None
+    provider_id: Optional[str] = None
     transport_id: Optional[str] = None
     hotel_id: Optional[str] = None
     detail: Optional[str] = None
@@ -884,6 +896,7 @@ class cuentasCorrientsProvidersResponse(BaseModel):
     id: str
     iweb_client_id: str
     type: Optional[str] = None
+    provider_id: Optional[str] = None
     transport_id: Optional[str] = None
     hotel_id: Optional[str] = None
     detail: Optional[str] = None
@@ -899,6 +912,7 @@ class cuentasCorrientsProvidersResponse(BaseModel):
 class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
     id: Optional[str] = None
     cc_provider_id: Optional[str] = None
+    consumption_group_id: Optional[str] = None
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
     transport_id: Optional[str] = None
@@ -914,10 +928,18 @@ class ccProvidersConsumptionPaymentsCreateRequest(BaseModel):
 class ccProvidersConsumptionPaymentsResponse(BaseModel):
     id: str
     cc_provider_id: Optional[str] = None
+    consumption_group_id: Optional[str] = None
+    provider_id: Optional[str] = None
+    provider_name: Optional[str] = None
     provider_type: Optional[str] = None
     hotel_id: Optional[str] = None
+    excursion_id: Optional[str] = None
     transport_id: Optional[str] = None
     salida_id: Optional[str] = None
+    departure_date: Optional[str] = None
+    regimen: Optional[str] = None
+    regimen_id: Optional[str] = None
+    hotel_fecha_in: Optional[str] = None
     date: Optional[Union[PyDate, str]] = None
     detail: Optional[str] = None
     type: Optional[str] = None
