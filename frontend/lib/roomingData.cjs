@@ -44,6 +44,7 @@ function buildRoomingRooms(reservations, hotelId) {
         id: reservation.rooming_id ? `${reservation.rooming_id}${suffix}` : `${reservation.codigo_reserva || "Res"}-H${roomCounter++}`,
         type,
         category: categoryForRoom(type),
+        providerName: reservation.rooming_provider_name || reservation.provider_name || undefined,
         passengers: roomPassengers.map((passenger) => passengerDetails(passenger, reservation)),
       });
     };

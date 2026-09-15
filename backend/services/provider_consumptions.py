@@ -96,6 +96,77 @@ def _reconcile_account(db: Session, account, tenant: str):
     account.balance = account.total_consumption - Decimal(str(account.total_payments or 0))
 
 
+def _sync_group_movement(db: Session, account, group: ProviderConsumptionGroup, tenant: str):
+    """Hide zero-value provider consumption while preserving its audit group."""
+    if group.amount == 0:
+        db.query(ccProvidersConsumptionPayments).filter_by(
+            iweb_client_id=tenant, consumption_group_id=group.id, type="consumo"
+        ).delete(synchronize_session=False)
+        group.active = False
+    else:
+        group.active = True
+        _movement(db, account, group, tenant)
+    db.flush()
+    _reconcile_account(db, account, tenant)
+
+
+def _add_match_consumption(db: Session, reserva: Reservas, match: ProviderPriceMatch, passengers) -> None:
+    """Create a snapshot and active contributions for a newly matched service."""
+    if match.unit_cost is None:
+        return
+    selected = [p for p in passengers if _eligible(p) and (not match.hotel_id or p.hotel_id == match.hotel_id)]
+    exempt = 0
+    if (reserva.type or "").strip().lower() in {"grupo", "bloqueo", "bloqueo_grupo"}:
+        exempt = min(max(reserva.liberados or 0, 0), len(selected))
+    quantity = len(selected) - exempt
+    if quantity <= 0:
+        return
+    tenant = reserva.iweb_client_id
+    snapshot = ReservationProviderServiceSnapshot(
+        iweb_client_id=tenant, reserva_id=reserva.id,
+        provider_id=match.provider.id, provider_service_id=match.service.id,
+        package_id=reserva.package_id, salida_id=reserva.salida_id,
+        hotel_id=match.hotel_id, excursion_id=match.excursion_id,
+        regimen_id=match.regimen_id, hotel_fecha_in=match.hotel_fecha_in,
+        validity_type=match.service.validity_type, period_id=match.service.period_id,
+        unit_cost=match.unit_cost, currency="ARS",
+    )
+    db.add(snapshot)
+    db.flush()
+    group_key = _group_key(match, reserva)
+    group = db.query(ProviderConsumptionGroup).filter_by(
+        iweb_client_id=tenant, group_key=group_key
+    ).with_for_update().first()
+    if group is None:
+        group = ProviderConsumptionGroup(
+            iweb_client_id=tenant, provider_id=match.provider.id,
+            provider_service_id=match.service.id, salida_id=reserva.salida_id,
+            hotel_id=match.hotel_id, excursion_id=match.excursion_id,
+            regimen_id=match.regimen_id, hotel_fecha_in=match.hotel_fecha_in,
+            group_key=group_key, detail=_detail(db, match, reserva), amount=Decimal("0"),
+            created_at=date.today(),
+        )
+        db.add(group)
+        db.flush()
+    for passenger in selected[:quantity]:
+        db.add(ProviderConsumptionContribution(
+            iweb_client_id=tenant, group_id=group.id, snapshot_id=snapshot.id,
+            reserva_id=reserva.id, reservation_passenger_id=passenger.id,
+            source_key=f"{snapshot.id}:passenger:{passenger.id}", quantity=1,
+            amount=match.unit_cost,
+        ))
+        group.amount += match.unit_cost
+    if exempt:
+        db.add(ProviderConsumptionContribution(
+            iweb_client_id=tenant, group_id=group.id, snapshot_id=snapshot.id,
+            reserva_id=reserva.id, source_key=f"{snapshot.id}:liberados",
+            quantity=exempt, amount=Decimal("0"),
+        ))
+    account = _account(db, match, tenant)
+    db.flush()
+    _sync_group_movement(db, account, group, tenant)
+
+
 def create_provider_consumptions(db: Session, reserva: Reservas) -> None:
     """Evaluate one newly-created reservation exactly once.
 
@@ -182,9 +253,7 @@ def create_provider_consumptions(db: Session, reserva: Reservas) -> None:
                 ))
         account = _account(db, match, tenant)
         db.flush()
-        _movement(db, account, group, tenant)
-        db.flush()
-        _reconcile_account(db, account, tenant)
+        _sync_group_movement(db, account, group, tenant)
 
 
 def reverse_provider_consumptions(db: Session, reserva: Reservas) -> None:
@@ -235,25 +304,22 @@ def reverse_provider_consumptions(db: Session, reserva: Reservas) -> None:
             hotel_fecha_in=group.hotel_fecha_in, unit_cost=None,
         )
         account = _account(db, match, tenant)
-        _movement(db, account, group, tenant)
-        db.flush()
-        _reconcile_account(db, account, tenant)
+        _sync_group_movement(db, account, group, tenant)
 
 
 def reconcile_provider_consumptions(db: Session, reserva: Reservas) -> None:
     """Reconcile passenger quantity using the original snapshot prices.
 
-    This is intentionally limited to services already snapshotted at booking
-    creation. Adding a newly contracted hotel/service does not create a
-    retroactive provider charge.
+    Existing snapshots keep their historical prices. If the current hotel
+    assignment now matches a different provider service, add a new snapshot
+    at the current catalog price and deactivate the old contribution.
     """
     tenant = reserva.iweb_client_id
     snapshots = db.query(ReservationProviderServiceSnapshot).filter_by(
         iweb_client_id=tenant, reserva_id=reserva.id, evaluated=True
     ).with_for_update().all()
-    if not snapshots:
-        return
     passengers = db.query(ReservationPassengers).filter_by(reserva_id=reserva.id).all()
+    snapshot_service_ids = {snapshot.provider_service_id for snapshot in snapshots}
     for snapshot in snapshots:
         if snapshot.unit_cost is None:
             continue
@@ -261,7 +327,7 @@ def reconcile_provider_consumptions(db: Session, reserva: Reservas) -> None:
             not snapshot.hotel_id or p.hotel_id == snapshot.hotel_id
         )]
         desired = selected
-        if (reserva.type or "").strip().lower() in {"grupo", "bloqueo"}:
+        if (reserva.type or "").strip().lower() in {"grupo", "bloqueo", "bloqueo_grupo"}:
             desired = selected[:max(0, len(selected) - min(max(reserva.liberados or 0, 0), len(selected)))]
         group_key = "|".join(str(value or "") for value in (
             snapshot.provider_id, snapshot.provider_service_id, snapshot.salida_id,
@@ -314,5 +380,8 @@ def reconcile_provider_consumptions(db: Session, reserva: Reservas) -> None:
         )
         account = _account(db, match, tenant)
         db.flush()
-        _movement(db, account, group, tenant)
-        _reconcile_account(db, account, tenant)
+        _sync_group_movement(db, account, group, tenant)
+
+    for match in resolve_reservation_provider_pricing(db, reserva, passengers):
+        if match.service.id not in snapshot_service_ids:
+            _add_match_consumption(db, reserva, match, passengers)

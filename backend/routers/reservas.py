@@ -958,7 +958,12 @@ async def update_reserva(
     validate_reservation(db, r, previous)
     if body.active is False:
         reverse_provider_consumptions(db, r)
-    elif body.passengers is not None or body.liberados is not None:
+    elif (
+        body.passengers is not None
+        or body.liberados is not None
+        or body.hotel_id is not None
+        or body.package_id is not None
+    ):
         reconcile_provider_consumptions(db, r)
     from routers.liquidaciones import create_or_update_booking_liquidacion
     try:

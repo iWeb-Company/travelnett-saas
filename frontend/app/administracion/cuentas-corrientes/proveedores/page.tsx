@@ -72,6 +72,8 @@ export default function CuentasCorrientesProveedoresPage() {
 
   const [modal, setModal] = useState(false);
   const [roomingModal, setRoomingModal] = useState(false);
+  const [roomingOpening, setRoomingOpening] = useState(false);
+  const [roomingClosing, setRoomingClosing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -100,13 +102,24 @@ export default function CuentasCorrientesProveedoresPage() {
 
   // 1. Tipamos el useRef con el elemento HTML correspondiente (HTMLDivElement)
   const divRef = useRef<HTMLDivElement>(null);
+  const roomingCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const closeRoomingModal = () => {
+    if (!roomingModal || roomingClosing) return;
+    setRoomingClosing(true);
+    roomingCloseTimer.current = setTimeout(() => {
+      setRoomingModal(false);
+      setRoomingClosing(false);
+      roomingCloseTimer.current = null;
+    }, 300);
+  };
 
   useEffect(() => {
     // 2. Tipamos el evento como un MouseEvent global
     function handleClickOutside(event: MouseEvent) {
       // 3. Usamos as Node para que TypeScript entienda la comparación con event.target
       if (divRef.current && !divRef.current.contains(event.target as Node)) {
-        setRoomingModal(false);
+        closeRoomingModal();
       }
     }
 
@@ -117,7 +130,7 @@ export default function CuentasCorrientesProveedoresPage() {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [roomingModal, roomingClosing]);
   const [formData, setFormData] = useState<FormDataType>({
     type: "pago",
     provider: "hotel",
@@ -159,7 +172,11 @@ export default function CuentasCorrientesProveedoresPage() {
     }
 
     setRoomingMovement(movement);
+    if (roomingCloseTimer.current) clearTimeout(roomingCloseTimer.current);
+    setRoomingClosing(false);
     setRoomingModal(true);
+    setRoomingOpening(true);
+    requestAnimationFrame(() => setRoomingOpening(false));
     setRoomingHotels([]);
     setRoomingLoading(true);
     try {
@@ -237,7 +254,15 @@ export default function CuentasCorrientesProveedoresPage() {
         }
         return true;
       });
-      setRoomingHotels(buildRoomingHotels(matchingReservations, hotelNames));
+      setRoomingHotels(
+        buildRoomingHotels(
+          matchingReservations.map((reservation: any) => ({
+            ...reservation,
+            rooming_provider_name: movement.provider_name || "Proveedor",
+          })),
+          hotelNames,
+        ),
+      );
     } catch {
       toast.error("No se pudo cargar el rooming del consumo");
     } finally {
@@ -644,7 +669,7 @@ export default function CuentasCorrientesProveedoresPage() {
                       </td>
 
                       <td className="py-3 flex items-center justify-center gap-2">
-                        <button onClick={() => setRoomingModal(!roomingModal)}>
+                        <button onClick={closeRoomingModal}>
                           <svg
                             className="cursor-pointer"
                             width="19"
@@ -896,11 +921,11 @@ export default function CuentasCorrientesProveedoresPage() {
           </form>
         </ModalLayout>
       )}
-      {roomingModal && roomingMovement && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+      {(roomingModal || roomingClosing) && roomingMovement && (
+        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4 transition-opacity duration-300 ${roomingClosing ? "opacity-0" : "opacity-100"}`}>
           <div
             ref={divRef}
-            className="flex min-w-0 flex-col w-full max-w-5xl max-h-[90dvh]">
+            className={`flex min-w-0 flex-col w-full max-w-5xl max-h-[90dvh] transform transition-transform duration-300 ease-in-out ${roomingOpening || roomingClosing ? "translate-x-full" : "translate-x-0"}`}>
             <div className="bg-[#eaefff] border-[#0546F7]/70 border min-w-0 rounded-2xl py-5 px-3 sm:py-8 sm:px-6 shadow-lg overflow-y-auto">
               <div className="flex items-center justify-between gap-4 mb-4 sm:mb-6">
                 <h4 className="text-black font-bold flex-1 text-center text-base sm:text-xl">
@@ -948,6 +973,11 @@ export default function CuentasCorrientesProveedoresPage() {
                                       </span>
                                     ))}
                                   </div>
+                                  {room.providerName && (
+                                    <p className="text-white bg-primary/50 w-full text-center py-1">
+                                      Proveedor: {room.providerName}
+                                    </p>
+                                  )}
                                   <div className="bg-primary text-white text-center py-1.5 rounded-b-xl px-4">
                                     <p className="text-xs font-semibold capitalize">
                                       {parseRoomItem(room.type).label} (

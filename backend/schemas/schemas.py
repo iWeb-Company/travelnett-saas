@@ -435,6 +435,7 @@ class SalidaResponse(BaseModel):
     cama_disponibles: Optional[int] = None
     semicama_reservadas: Optional[int] = None
     cama_reservadas: Optional[int] = None
+    passengers_reservados: Optional[int] = None
 
     class Config:
         from_attributes = True
