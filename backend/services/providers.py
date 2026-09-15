@@ -219,7 +219,6 @@ def save_provider(db, tenant, body, provider_id=None):
     elif any(d.id or any(s.id for s in d.services) for d in body.destinations):
         raise HTTPException(422, 'El alta no admite IDs de bloques existentes')
     validate_references(db, tenant, body)
-    validate_overlap(db, tenant, body, provider_id or '')
     if provider is None:
         provider = Provider(iweb_client_id=tenant, name=body.name, type=body.type)
         db.add(provider)

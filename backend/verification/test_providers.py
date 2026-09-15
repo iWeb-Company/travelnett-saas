@@ -113,25 +113,18 @@ class ProvidersTests(unittest.TestCase):
             db.commit()
         self.create(body)
 
-    def test_overlap_inclusive_and_nonoverlap(self):
+    def test_same_service_can_have_multiple_active_providers(self):
         self.create()
-        self.create(expected=409)
-        body = deepcopy(self.body)
-        for d in body['destinations']:
-            for s in d['services']:
-                s.update(start_date='2026-09-30', end_date='2026-10-30')
-        self.create(body, 409)
-        for d in body['destinations']:
-            for s in d['services']:
-                s['start_date'] = '2026-10-01'
-        self.create(body)
+        second = deepcopy(self.body)
+        second['name'] = 'Segundo proveedor'
+        self.create(second)
 
-    def test_receptivo_period_nullable_cost_and_exclusive_validity(self):
+    def test_receptivo_period_nullable_cost_allows_multiple_providers(self):
         body = {'name': 'Receptivo', 'type': 'receptivo', 'destinations': [
             {'destino_id': self.destinations[0], 'services': [
                 {'excursion_id': self.excursion, 'validity_type': 'period', 'period_id': self.period, 'cost': None}]}]}
         self.create(body)
-        self.create(body, 409)
+        self.create(body, 201)
         body['destinations'][0]['services'][0]['start_date'] = '2026-01-01'
         self.create(body, 422)
 

@@ -12,6 +12,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import { Loader } from "@/app/components/Loader";
+import { ListSortAscending } from "lucide-react";
 
 function ResultContent() {
   const searchParams = useSearchParams();
@@ -36,12 +37,19 @@ function ResultContent() {
     const loadAll = async () => {
       if (!user?.iweb_client_id) return;
       try {
-        const [salidasData, destData, transData, periodData] = await Promise.all([
-          apiClient.getSalidas(user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_destinos", user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_transport_companies", user.iweb_client_id).catch(() => []),
-          apiClient.getParameters("get_periods", user.iweb_client_id).catch(() => []),
-        ]);
+        const [salidasData, destData, transData, periodData] =
+          await Promise.all([
+            apiClient.getSalidas(user.iweb_client_id).catch(() => []),
+            apiClient
+              .getParameters("get_destinos", user.iweb_client_id)
+              .catch(() => []),
+            apiClient
+              .getParameters("get_transport_companies", user.iweb_client_id)
+              .catch(() => []),
+            apiClient
+              .getParameters("get_periods", user.iweb_client_id)
+              .catch(() => []),
+          ]);
         setSalidas(salidasData);
         setDestinos(destData);
         setTransportes(transData);
@@ -59,7 +67,11 @@ function ResultContent() {
     if (tipoFilter && tipoFilter !== "null" && s.type !== tipoFilter) {
       return false;
     }
-    if (alcanceFilter && alcanceFilter !== "null" && (s.alcance || "argentina") !== alcanceFilter) {
+    if (
+      alcanceFilter &&
+      alcanceFilter !== "null" &&
+      (s.alcance || "argentina") !== alcanceFilter
+    ) {
       return false;
     }
     if (destinoFilter && s.destino !== destinoFilter) {
@@ -75,7 +87,9 @@ function ResultContent() {
       return false;
     }
     if (fechaDesdeFilter && fechaHastaFilter) {
-      const departureDate = String(s.date_of_out || "").split("T")[0].split(" ")[0];
+      const departureDate = String(s.date_of_out || "")
+        .split("T")[0]
+        .split(" ")[0];
       if (
         !departureDate ||
         departureDate < fechaDesdeFilter ||
@@ -92,12 +106,6 @@ function ResultContent() {
     const db = b.date_of_out ? new Date(b.date_of_out).getTime() : 0;
     return sortAsc ? da - db : db - da;
   });
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 5;
-
-  const totalPages = Math.ceil(sorted.length / pageSize);
-  const paginatedSalidas = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleDelete = async (id: string | number) => {
     if (!user?.iweb_client_id) return;
@@ -122,9 +130,7 @@ function ResultContent() {
   return (
     <Container>
       <ToggleSalidas />
-      <Link
-        href={"/salidas"}
-        className="flex items-center justify-start gap-3">
+      <Link href={"/salidas"} className="flex items-center justify-start gap-3">
         <ArrowLeft />
         <h1 className="font-bold md:text-xl">Volver a filtros</h1>
       </Link>
@@ -132,27 +138,32 @@ function ResultContent() {
         className="flex items-center my-2 justify-start gap-2"
         href={`/salidas/agregar-salida?type=${tipoFilter}`}>
         <AddVioleta />
-        <p className="text-secondary font-semibold md:text-lg">Agregar Salida</p>
+        <p className="text-secondary font-semibold md:text-lg">
+          Agregar Salida
+        </p>
       </Link>
       <section className="flex justify-between my-5 items-center">
-        <h2 className="font-medium text-black text-center mx-auto md:text-xl">Resultados de Salidas</h2>
+        <h2 className="font-medium text-black text-center mx-auto md:text-xl">
+          Resultados de Salidas
+        </h2>
       </section>
       <section className="flex flex-col max-w-6xl mx-auto gap-5">
         <button
           onClick={() => setSortAsc(!sortAsc)}
-          className="flex items-center my-2 font-semibold justify-end gap-1 text-black self-end hover:opacity-85"
-        >
+          className="flex items-center my-2 font-semibold justify-end gap-1 text-black self-end hover:opacity-85">
           <p>Ordenar por fecha ({sortAsc ? "Ascendente" : "Descendente"})</p>
           <ArrowUpDown />
         </button>
         <div className="flex flex-col w-full gap-4">
-
           {sorted.length === 0 ? (
-            <p className="text-center text-gray-500 py-10">No se encontraron salidas que coincidan con los criterios.</p>
+            <p className="text-center text-gray-500 py-10">
+              No se encontraron salidas que coincidan con los criterios.
+            </p>
           ) : (
-            paginatedSalidas.map((salida) => {
+            sorted.map((salida) => {
               const destObj = destinos.find((d) => d.id === salida.destino);
-              const destName = destObj?.name || destObj?.nombre || "Desconocido";
+              const destName =
+                destObj?.name || destObj?.nombre || "Desconocido";
               return (
                 <SalidaCard
                   key={salida.id}
@@ -160,23 +171,29 @@ function ResultContent() {
                   destino={destName}
                   fecha={salida.date_of_out || ""}
                   categorias={[
-                    { tipo: "Semicama", total: salida.semicama || 0, disponible: salida.semicama_disponibles ?? (salida.semicama || 0) },
-                    { tipo: "Cama", total: salida.cama || 0, disponible: salida.cama_disponibles ?? (salida.cama || 0) }
+                    {
+                      tipo: "Semicama",
+                      total: salida.semicama || 0,
+                      disponible:
+                        salida.semicama_disponibles ?? (salida.semicama || 0),
+                    },
+                    {
+                      tipo: "Cama",
+                      total: salida.cama || 0,
+                      disponible: salida.cama_disponibles ?? (salida.cama || 0),
+                    },
                   ]}
+                  totalDisponible={Math.max(
+                    0,
+                    (salida.passengers || 0) -
+                      (salida.passengers_reservados || 0),
+                  )}
                   onDelete={handleDelete}
                 />
               );
             })
           )}
         </div>
-
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={sorted.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-        />
       </section>
     </Container>
   );
@@ -184,7 +201,12 @@ function ResultContent() {
 
 export default function ResultPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen"><p className="text-black">Cargando...</p></div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-screen">
+          <p className="text-black">Cargando...</p>
+        </div>
+      }>
       <ResultContent />
     </Suspense>
   );

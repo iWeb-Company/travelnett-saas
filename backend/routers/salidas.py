@@ -263,7 +263,8 @@ async def get_salidas(
                 semicama_disponibles=dispo_semicama,
                 cama_disponibles=dispo_cama,
                 semicama_reservadas=semicama_res_qty,
-                cama_reservadas=cama_res_qty
+                cama_reservadas=cama_res_qty,
+                passengers_reservados=total_passengers,
             )
         )
 
@@ -372,7 +373,8 @@ async def get_salida(id: str, iweb_client_id: str, db: Session = Depends(get_db)
         semicama_disponibles=dispo_semicama,
         cama_disponibles=dispo_cama,
         semicama_reservadas=semicama_res_qty,
-        cama_reservadas=cama_res_qty
+        cama_reservadas=cama_res_qty,
+        passengers_reservados=total_passengers,
     )
 
 

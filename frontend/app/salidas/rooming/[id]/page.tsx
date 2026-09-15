@@ -56,6 +56,7 @@ export default function RoomingPage() {
   const [salida, setSalida] = useState<any>(null);
   const [exportingHotelId, setExportingHotelId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const fetchReservas = async () => {
@@ -522,6 +523,23 @@ export default function RoomingPage() {
       setExportingHotelId(null);
     }
   };
+  const reservationHotels = (reservation: any) => {
+    const passengers = reservation.reservation_passengers?.length
+      ? reservation.reservation_passengers
+      : [reservation];
+    return passengers.map(
+      (passenger: any) => passenger.hotel_id || reservation.hotel_id || "",
+    );
+  };
+  const packageHotelOwners = new Map<string, string>();
+  activeReservations.forEach((reservation) => {
+    if (!reservation.package_id) return;
+    reservationHotels(reservation).forEach((hotelId: string) => {
+      if (hotelId && !packageHotelOwners.has(hotelId)) {
+        packageHotelOwners.set(hotelId, reservation.package_id);
+      }
+    });
+  });
   const packageGroups = Array.from(
     new Set(
       activeReservations.map(
@@ -529,10 +547,20 @@ export default function RoomingPage() {
       ),
     ),
   ).map((packageKey) => {
-    const packageReservations = activeReservations.filter(
-      (reservation) =>
-        (reservation.package_id || "__without_package__") === packageKey,
-    );
+    const packageReservations = activeReservations.filter((reservation) => {
+      if (reservation.package_id === packageKey) return true;
+      if (packageKey === "__without_package__" && !reservation.package_id) {
+        return !reservationHotels(reservation).some(
+          (hotelId: string) => packageHotelOwners.get(hotelId),
+        );
+      }
+      return (
+        !reservation.package_id &&
+        reservationHotels(reservation).some(
+          (hotelId: string) => packageHotelOwners.get(hotelId) === packageKey,
+        )
+      );
+    });
     const packageInfo =
       packageKey === "__without_package__" ? null : packageDetails[packageKey];
     const usedHotelIds = Array.from(
@@ -576,7 +604,7 @@ export default function RoomingPage() {
         };
       }),
     };
-  });
+  }).filter((group) => group.reservations.length > 0);
 
   return (
     <Container>
@@ -627,21 +655,43 @@ export default function RoomingPage() {
           No hay pasajeros ni habitaciones asignadas para esta salida.
         </p>
       ) : (
-        packageGroups.map((group) => (
-          <section key={group.key} className="mb-10">
-            <h1 className="text-xl md:text-2xl font-bold text-center text-secondary mb-4">
-              Paquete: {group.title}
-            </h1>
-            {group.hotels.map((hotel) =>
-              renderHotelRoomingSection(
-                group.reservations,
-                hotel.title,
-                hotel.id,
-                hotel.hotelFechaIn,
-              ),
-            )}
-          </section>
-        ))
+        packageGroups.map((group) => {
+          const expanded = expandedPackages[group.key] ?? true;
+          return (
+            <section key={group.key} className="mb-10">
+              <button
+                type="button"
+                className="w-full text-xl md:text-2xl font-bold text-center text-secondary mb-4"
+                aria-expanded={expanded}
+                aria-controls={`rooming-package-${group.key}`}
+                onClick={() =>
+                  setExpandedPackages((current) => ({
+                    ...current,
+                    [group.key]: !expanded,
+                  }))
+                }>
+                Paquete: {group.title}
+              </button>
+              <div
+                id={`rooming-package-${group.key}`}
+                aria-hidden={!expanded}
+                className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+                  expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                }`}>
+                <div className="min-h-0 overflow-hidden">
+                  {group.hotels.map((hotel) =>
+                    renderHotelRoomingSection(
+                      group.reservations,
+                      hotel.title,
+                      hotel.id,
+                      hotel.hotelFechaIn,
+                    ),
+                  )}
+                </div>
+              </div>
+            </section>
+          );
+        })
       )}
     </Container>
   );

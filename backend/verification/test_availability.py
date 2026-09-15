@@ -106,18 +106,19 @@ class AvailabilityTests(unittest.TestCase):
         reservation = Reservas(id=uuid.uuid4().hex, iweb_client_id=self.tenant,
             package_id=self.pkg, salida_id=self.salida, hotel_id=self.hotel, active=True, **kwargs)
         self.db.add(reservation)
-        for _ in range(n):
-            self.add_passenger(reservation, kind)
+        for room_index in range(n):
+            self.add_passenger(reservation, kind, room_index=room_index)
         if validate:
             validate_reservation(self.db, reservation)
         self.db.commit()
         return reservation
 
-    def add_passenger(self, reservation, kind="semicama", hotel=None):
+    def add_passenger(self, reservation, kind="semicama", hotel=None, room_index=0):
         p = Passengers(id=uuid.uuid4().hex, iweb_client_id=self.tenant)
         self.db.add(p)
         rp = ReservationPassengers(id=uuid.uuid4().hex, reserva_id=reservation.id,
-            pasajero_id=p.id, pasajero_type="ADL", butaca_type=kind, hotel_id=hotel)
+            pasajero_id=p.id, pasajero_type="ADL", butaca_type=kind, hotel_id=hotel,
+            room_index=room_index)
         self.db.add(rp)
         return rp
 
@@ -164,6 +165,31 @@ class AvailabilityTests(unittest.TestCase):
         self.db.rollback()
         self.assertEqual(hotel_availability(self.db, self.tenant, self.pkg)[0]["ocupacion"], 2)
         self.assertEqual(self.db.query(Reservas).filter_by(package_id=self.pkg).count(), 1)
+
+    def test_hotel_capacity_counts_occupied_rooms_instead_of_passengers(self):
+        self.capacity(1)
+        reservation = Reservas(
+            id=uuid.uuid4().hex, iweb_client_id=self.tenant, package_id=self.pkg,
+            salida_id=self.salida, hotel_id=self.hotel, active=True,
+        )
+        room = ReservationRooms(
+            id=uuid.uuid4().hex, iweb_client_id=self.tenant, reserva_id=reservation.id,
+            position=0, room_type="doble", hotel_id=self.hotel,
+        )
+        self.db.add_all([reservation, room])
+        first = self.add_passenger(reservation)
+        second = self.add_passenger(reservation)
+        first.reservation_room_id = room.id
+        second.reservation_room_id = room.id
+
+        validate_reservation(self.db, reservation)
+        self.db.commit()
+
+        availability = hotel_availability(self.db, self.tenant, self.pkg)[0]
+        self.assertEqual((availability["ocupacion"], availability["disponible"]), (1, 0))
+        with self.assertRaisesRegex(HTTPException, "Cupo hotelero insuficiente"):
+            self.booking()
+        self.db.rollback()
 
     def test_reservation_commission_overrides_client_default_in_liquidation(self):
         client_id = uuid.uuid4().hex
@@ -445,6 +471,7 @@ class AvailabilityTests(unittest.TestCase):
         response = asyncio.run(get_salida(salida.id, self.tenant, self.db))
         self.assertEqual((response.passengers, response.semicama, response.cama), (24, 16, 8))
         self.assertEqual((response.semicama_reservadas, response.cama_reservadas), (0, 0))
+        self.assertEqual(response.passengers_reservados, 0)
 
     def test_package_partial_edit_preserves_dates_capacity(self):
         result = asyncio.run(update_package(self.pkg, PackageUpdateRequest(name_system="Interno"), self.tenant, self.db))

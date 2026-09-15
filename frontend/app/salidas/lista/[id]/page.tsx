@@ -219,6 +219,13 @@ export default function SalidasIDPage() {
   const destinationHotels = hoteles.filter((hotel) =>
     departureDestinationValues.has(normalizeDestination(hotel.destino)),
   );
+  const targetHotels = Array.from(
+    new Map(
+      [...assignedHotels, ...destinationHotels]
+        .filter((hotel) => hotel?.id)
+        .map((hotel) => [hotel.id, hotel]),
+    ).values(),
+  );
 
   // Open modal initializers
   const handleOpenRelojModal = () => {
@@ -1567,7 +1574,7 @@ export default function SalidasIDPage() {
                       onChange={(e) => setTargetHotelId(e.target.value)}
                       className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-secondary cursor-pointer">
                       <option value="">Seleccione un hotel</option>
-                      {destinationHotels
+                      {targetHotels
                         .filter((hotel) => hotel.id !== sourceHotelId)
                         .map((hotel) => (
                           <option key={hotel.id} value={hotel.id}>

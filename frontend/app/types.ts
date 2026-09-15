@@ -504,10 +504,11 @@ export interface Salida {
     address?: string | null;
     horario?: string | null;
   }[];
-  semicama_disponibles?: string;
-  cama_disponibles?: string;
-  semicama_reservadas?: string;
-  cama_reservadas?: string;
+  semicama_disponibles?: number;
+  cama_disponibles?: number;
+  semicama_reservadas?: number;
+  cama_reservadas?: number;
+  passengers_reservados?: number;
 }
 
 export interface SalidaLugarCarga {

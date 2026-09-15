@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from db.database import get_db
 from models.models import (
     iWebClient, Packages, PackagesDatesOfExit, PackageHotels, PackageHotelCapacity,
-    Reservas, ReservationPassengers, Passengers, Salidas, Hotels,
+    Reservas, ReservationPassengers, ReservationRooms, Passengers, Salidas, Hotels,
 )
 
 
@@ -36,10 +36,7 @@ def snapshot(db, reserva):
     active = reserva.active is not False
     return {
         "selection": (reserva.package_id, reserva.salida_id, reserva.hotel_id),
-        "hotels": Counter(
-            (reserva.package_id, reserva.salida_id, p.hotel_id or reserva.hotel_id)
-            for p in rows if active
-        ),
+        "hotels": occupied_rooms_for_reservation(db, reserva, rows) if active else Counter(),
         "seats": Counter(
             (reserva.salida_id, seat_type(p.butaca_type)) for p in rows if active
         ),
@@ -51,14 +48,43 @@ def seat_type(value):
     return "cama" if (value or "").strip().lower() == "cama" else "semicama"
 
 
+def occupied_rooms_for_reservation(db, reserva, passengers=None):
+    """Count occupied rooms by hotel, preferring persisted room identities."""
+    if reserva.active is False:
+        return Counter()
+    passengers = passengers if passengers is not None else passengers_for(db, reserva)
+    rooms = db.query(ReservationRooms).filter_by(reserva_id=reserva.id).all()
+    rooms_by_id = {room.id: room for room in rooms}
+    rooms_by_position = {room.position: room for room in rooms}
+    assigned_rooms = {}
+    legacy_rooms = set()
+    for passenger in passengers:
+        room = rooms_by_id.get(passenger.reservation_room_id) or rooms_by_position.get(
+            passenger.room_index if passenger.room_index is not None else 0
+        )
+        if room is not None:
+            assigned_rooms[room.id] = room
+        else:
+            legacy_rooms.add((passenger.hotel_id or reserva.hotel_id, passenger.room_index or 0))
+    occupied = Counter()
+    for room in assigned_rooms.values():
+        occupied[(reserva.package_id, reserva.salida_id, room.hotel_id or reserva.hotel_id)] += 1
+    for hotel_id, _room_index in legacy_rooms:
+        occupied[(reserva.package_id, reserva.salida_id, hotel_id)] += 1
+    return occupied
+
+
 def occupied_hotels(db, tenant, package_id=None):
-    hotel = func.coalesce(func.nullif(ReservationPassengers.hotel_id, ""), Reservas.hotel_id)
-    q = db.query(Reservas.package_id, Reservas.salida_id, hotel, func.count(ReservationPassengers.id)).join(
-        ReservationPassengers, ReservationPassengers.reserva_id == Reservas.id
-    ).filter(Reservas.iweb_client_id == tenant, Reservas.active.is_not(False))
+    query = db.query(Reservas).filter(
+        Reservas.iweb_client_id == tenant,
+        Reservas.active.is_not(False),
+    )
     if package_id is not None:
-        q = q.filter(Reservas.package_id == package_id)
-    return {(p, s, h): n for p, s, h, n in q.group_by(Reservas.package_id, Reservas.salida_id, hotel).all()}
+        query = query.filter(Reservas.package_id == package_id)
+    occupied = Counter()
+    for reservation in query.all():
+        occupied.update(occupied_rooms_for_reservation(db, reservation))
+    return occupied
 
 
 def resolve_selection(db, tenant, package_id, salida_id, hotel_id):
@@ -228,7 +254,7 @@ def save_package_capacity(db, tenant, package_id, dates, hotels):
         key = (hotel_id, salida_id)
         # Missing legacy capacity stays missing, but cannot be explicitly cleared.
         if (key in desired and desired[key] < count) or (key in by_key and key not in desired and count):
-            raise HTTPException(400, "El cupo hotelero no puede ser menor a los pasajeros ya reservados")
+            raise HTTPException(400, "El cupo hotelero no puede ser menor a las habitaciones ya reservadas")
     for key, row in by_key.items():
         if key not in desired:
             db.delete(row)

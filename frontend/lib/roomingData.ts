@@ -11,7 +11,7 @@ export type RoomingPassenger = {
   loadingPlace: string;
   passengerType: string;
 };
-export type RoomingRoom = { id: string; type: string; category: RoomingRoomCategory; passengers: RoomingPassenger[] };
+export type RoomingRoom = { id: string; type: string; category: RoomingRoomCategory; passengers: RoomingPassenger[]; providerName?: string };
 export type RoomingHotel = {
   id: string;
   name: string;

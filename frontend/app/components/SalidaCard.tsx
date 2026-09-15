@@ -1,5 +1,3 @@
-"use client";
-import { useState, useRef, useEffect } from "react";
 import Copy from "@/app/components/icons/salidas/Copy";
 import Rooming from "@/app/components/icons/salidas/Rooming";
 import Update from "@/app/components/icons/salidas/Update";
@@ -11,7 +9,12 @@ interface SalidaCardProps {
   id: string | number;
   destino: string;
   fecha: string;
-  categorias: { tipo: string; total: number; disponible: number }[];
+  categorias: {
+    tipo: string;
+    total: number;
+    disponible: number;
+  }[];
+  totalDisponible: number;
   onDelete?: (id: string | number) => void;
 }
 
@@ -20,92 +23,85 @@ export default function SalidaCard({
   destino,
   fecha,
   categorias,
+  totalDisponible,
   onDelete,
 }: SalidaCardProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState(0);
-
-  useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight);
-    }
-  }, [categorias]);
+  const semicama = categorias.find(
+    (categoria) => categoria.tipo === "Semicama",
+  );
+  const cama = categorias.find((categoria) => categoria.tipo === "Cama");
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3 sm:gap-5">
-      <div className="flex-1 flex flex-col">
-        <div
-          onClick={() => setIsOpen(!isOpen)}
-          className={`bg-primary text-white rounded-md justify-between px-2 md:text-xl md:px-5 font-semibold text-xs py-3 flex gap-2 cursor-pointer select-none transition-all duration-300 ${isOpen ? "rounded-t-lg" : "rounded-lg"
-            }`}>
-          <p>{destino}</p>
-          <p>{formatDateDDMMYY(fecha)}</p>
-        </div>
-
-        {/* Dropdown animado */}
-        <div
-          ref={contentRef}
-          style={{
-            maxHeight: isOpen ? `${contentHeight}px` : "0px",
-          }}
-          className="overflow-hidden transition-all duration-500 ease-in-out">
-          <div className="bg-[#5782F7] shadow-lg shadow-black/50 text-white rounded-b-lg mx-2 py-1">
-            <table className="w-full text-xs text-center">
-              <thead>
-                <tr>
-                  <th className="py-1 font-medium">Tipo</th>
-                  <th className="py-1 font-medium">Total</th>
-                  <th className="py-1 font-medium">Disponible</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categorias.map((cat, index) => (
-                  <tr key={index} className="font-semibold md:font-lg">
-                    <td className="py-0.5">{cat.tipo}</td>
-                    <td className="py-0.5">{cat.total}</td>
-                    <td className="py-0.5">{cat.disponible}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <div className="flex flex-col sm:flex-row items-stretch w-full sm:items-start sm:gap-5">
+      <div className="flex-1 flex w-full">
+        <div className="bg-primary flex-col md:flex-row text-white rounded-t-md justify-between w-full px-2 md:text-xl md:px-5 font-semibold text-sm py-3 flex gap-">
+          <p className="text-center">{destino}</p>
+          <div className="">
+            <div className="flex items-center justify-between w-full gap-10">
+              <div className="flex text-nowrap font-semibold items-center gap-2">
+                <small>Semicama: </small>
+                <div className="flex">
+                  <p>{semicama?.total ?? 0}/</p>
+                  <p
+                    className={`${semicama?.disponible === 0 ? "text-[#FF8080]" : "text-[#8AFF00]"}`}>
+                    {semicama?.disponible ?? 0}
+                  </p>
+                </div>
+              </div>
+              <div className="flex text-nowrap font-semibold items-center gap-2">
+                <small>Cama: </small>
+                <div className="flex">
+                  <p>{cama?.total ?? 0}/</p>
+                  <p
+                    className={`${cama?.disponible === 0 ? "text-[#FF8080]" : "text-[#8AFF00]"}`}>
+                    {cama?.disponible ?? 0}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center text-nowrap gap-2">
+                <small>Total disponible: </small>
+                <p
+                  className={`${totalDisponible === 0 ? "text-[#FF8080]" : "text-[#8AFF00]"} text-center w-full`}>
+                  {totalDisponible}
+                </p>
+              </div>
+            </div>
           </div>
+          <p className="text-center">{formatDateDDMMYY(fecha)}</p>
         </div>
       </div>
-
-      <div className="grid grid-cols-2 sm:flex items-center gap-2 sm:gap-x-1 md:gap-x-3 justify-center py-1 sm:py-3">
+      <div className="flex items-center gap-2 rounded-b-lg md:gap-x-3 justify-between text-white px-2 md:bg-transparent bg-primary/50 py-1">
         <Link
           href={`/salidas/lista/${id}`}
-          className="flex items-center justify-center text-black gap-1 md:gap-2 text-sm md:text-lg">
+          className="flex items-center justify-center  md:gap-2 text-sm md:text-lg">
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Copy id={id} />
+            <p className="text-xs md:hidden font-semibold">Salida</p>
           </span>
-          <p>Lista</p>
         </Link>
         <Link
           href={`/salidas/rooming/${id}`}
-          className="flex items-center justify-center text-black gap-1 md:gap-2 text-sm md:text-lg">
+          className="flex items-center justify-center  gap-1 md:gap-2 text-sm md:text-lg">
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Rooming id={id} />
+            <p className="text-xs md:hidden font-semibold">Rooming</p>
           </span>
-          <p>Rooming</p>
         </Link>
         <Link
           href={`/salidas/agregar-salida?id=${id}`}
-          className="flex items-center justify-center text-black gap-1 md:gap-2 text-sm md:text-lg">
+          className="flex items-center justify-center hover:text-green-600 gap-1 md:gap-2 text-sm md:text-lg">
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Update id={id} />
+            <p className="text-xs md:hidden font-semibold">Modificar</p>
           </span>
-          <p>Modificar</p>
         </Link>
         <button
           onClick={() => onDelete && onDelete(id)}
-          className="flex items-center justify-center text-black gap-1 md:gap-2 text-sm md:text-lg hover:text-red-600"
-        >
+          className="flex items-center justify-center  gap-1 md:gap-2 text-sm md:text-lg hover:text-red-600">
           <span className="flex items-center [&>svg]:md:w-8 [&>svg]:md:h-8">
             <Delete id={id} />
+            <p className="text-xs md:hidden font-semibold">Eliminar</p>
           </span>
-          <p>Eliminar</p>
         </button>
       </div>
     </div>
